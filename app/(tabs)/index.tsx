@@ -1,106 +1,162 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Haptics from "expo-haptics";
 import React, { useEffect, useMemo, useState } from "react";
+import { Pressable, ScrollView, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { AddQuestForm } from "./components/AddQuestForm";
+import { EditQuestForm } from "./components/EditQuestForm";
+import { Footer } from "./components/Footer";
+import { QuestCard } from "./components/QuestCard";
+import { styles } from "./styles";
 import {
-  Pressable,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+    applyDayResult,
+    diffDays,
+    liveStreak,
+    localDateKey,
+} from "./utils/dateHelpers";
+import { defaultAchievements, defaultCategories, defaultQuests, defaultStreak } from "./utils/defaultData";
+import { getStreakMultiplier, levelUp } from "./utils/gameHelpers";
+import { useTheme } from "./utils/themeContext";
+import type { Achievement, Category, Quest, StoredState, Streak } from "./utils/types";
+import { STORAGE_KEY } from "./utils/types";
 
-type Category = {
-  id: string;
-  name: string;
-  level: number;
-  xp: number;
-  xpToNext: number;
-};
-
-type Quest = {
-  id: string;
-  title: string;
-  categoryId: string;
-  xp: number;
-  done: boolean;
-};
-
-const STORAGE_KEY = "lifeRpg:v1";
-
-function clamp(n: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, n));
-}
-
-function levelUp(cat: Category) {
-  let { level, xp, xpToNext } = cat;
-  while (xp >= xpToNext) {
-    xp -= xpToNext;
-    level += 1;
-    xpToNext = Math.round(xpToNext * 1.15 + 25);
-  }
-  return { ...cat, level, xp, xpToNext };
-}
-
-const defaultCategories: Category[] = [
-  { id: "health", name: "Health", level: 3, xp: 40, xpToNext: 120 },
-  { id: "money", name: "Money", level: 2, xp: 75, xpToNext: 110 },
-  { id: "career", name: "Career", level: 4, xp: 10, xpToNext: 140 },
-  { id: "social", name: "Social", level: 1, xp: 25, xpToNext: 90 },
-  { id: "home", name: "Home", level: 2, xp: 15, xpToNext: 110 },
-  { id: "fun", name: "Fun", level: 5, xp: 60, xpToNext: 160 },
-];
-
-const defaultQuests: Quest[] = [
-  { id: "q1", title: "Workout (20 min)", categoryId: "health", xp: 25, done: false },
-  { id: "q2", title: "Drink water (8 cups)", categoryId: "health", xp: 10, done: false },
-  { id: "q3", title: "No impulse buys today", categoryId: "money", xp: 20, done: false },
-  { id: "q4", title: "Apply to 1 job", categoryId: "career", xp: 30, done: false },
-  { id: "q5", title: "Clean for 10 minutes", categoryId: "home", xp: 15, done: false },
-  { id: "q6", title: "Text/call someone you care about", categoryId: "social", xp: 15, done: false },
-  { id: "q7", title: "Relax guilt-free (30 min)", categoryId: "fun", xp: 10, done: false },
-];
-
+/* =======================
+   SCREEN
+======================= */
 export default function HomeScreen() {
+  const { colors, theme } = useTheme();
   const [categories, setCategories] = useState<Category[]>(defaultCategories);
   const [quests, setQuests] = useState<Quest[]>(defaultQuests);
+  const [lastResetDate, setLastResetDate] = useState<string>(localDateKey());
   const [hydrated, setHydrated] = useState(false);
+
+  const [streakAny, setStreakAny] = useState<Streak>(defaultStreak);
+  const [streakPerfect, setStreakPerfect] = useState<Streak>(defaultStreak);
+  const [achievements, setAchievements] = useState<Achievement[]>(defaultAchievements);
 
   // Add quest form state
   const [showAdd, setShowAdd] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newCategory, setNewCategory] = useState<string>("health");
   const [newXP, setNewXP] = useState("10");
+  const [newDifficulty, setNewDifficulty] = useState<"easy" | "medium" | "hard">("easy");
 
-  // Load saved state
+  // Edit quest state
+  const [editingQuestId, setEditingQuestId] = useState<string | null>(null);
+
+  // LOAD (and apply daily reset if needed + update streaks)
   useEffect(() => {
     (async () => {
+      const today = localDateKey();
+
       try {
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw) as { categories: Category[]; quests: Quest[] };
-          if (parsed?.categories?.length) setCategories(parsed.categories);
-          if (parsed?.quests?.length) setQuests(parsed.quests);
+
+        if (!raw) {
+          setLastResetDate(today);
+          setHydrated(true);
+          return;
         }
+
+        const parsed = JSON.parse(raw) as Partial<StoredState>;
+
+        const loadedCategories =
+          Array.isArray(parsed.categories) && parsed.categories.length
+            ? parsed.categories
+            : defaultCategories;
+
+        const loadedQuests =
+          Array.isArray(parsed.quests) && parsed.quests.length
+            ? parsed.quests
+            : defaultQuests;
+
+        const savedResetDate =
+          typeof parsed.lastResetDate === "string" ? parsed.lastResetDate : today;
+
+        const loadedStreakAny =
+          parsed.streakAny && typeof parsed.streakAny.current === "number"
+            ? parsed.streakAny
+            : defaultStreak;
+
+        const loadedStreakPerfect =
+          parsed.streakPerfect && typeof parsed.streakPerfect.current === "number"
+            ? parsed.streakPerfect
+            : defaultStreak;
+
+        const loadedAchievements = Array.isArray(parsed.achievements)
+          ? parsed.achievements
+          : defaultAchievements;
+
+        // ✅ If a new day, finalize yesterday's streak result
+        const gap = diffDays(savedResetDate, today);
+
+        let nextStreakAny = loadedStreakAny;
+        let nextStreakPerfect = loadedStreakPerfect;
+
+        if (gap >= 1) {
+          const donePrev = loadedQuests.filter((q) => q.done).length;
+          const totalPrev = loadedQuests.length;
+
+          const successAnyPrev = donePrev > 0;
+          const successPerfectPrev = totalPrev > 0 && donePrev === totalPrev;
+
+          nextStreakAny = applyDayResult(loadedStreakAny, savedResetDate, successAnyPrev, gap);
+          nextStreakPerfect = applyDayResult(
+            loadedStreakPerfect,
+            savedResetDate,
+            successPerfectPrev,
+            gap
+          );
+        }
+
+        // ✅ Daily reset + normalize difficulty
+        const finalQuests =
+          savedResetDate !== today
+            ? loadedQuests.map((q) => ({ ...q, done: false }))
+            : loadedQuests;
+
+        const normalizedFinalQuests = finalQuests.map((q) => ({
+          ...q,
+          difficulty: normalizeDifficulty((q as any).difficulty),
+          pinned: Boolean((q as any).pinned),
+        }));
+
+        setCategories(loadedCategories);
+        setQuests(normalizedFinalQuests);
+        setStreakAny(nextStreakAny);
+        setStreakPerfect(nextStreakPerfect);
+        setAchievements(loadedAchievements);
+        setLastResetDate(today);
       } catch (e) {
         console.log("Failed to load storage:", e);
+        setLastResetDate(today);
       } finally {
         setHydrated(true);
       }
     })();
   }, []);
 
-  // Save on changes
+  // SAVE on changes
   useEffect(() => {
     if (!hydrated) return;
+
     (async () => {
       try {
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ categories, quests }));
+        const state: StoredState = {
+          categories,
+          quests,
+          lastResetDate,
+          streakAny,
+          streakPerfect,
+          achievements,
+        };
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       } catch (e) {
         console.log("Failed to save storage:", e);
       }
     })();
-  }, [categories, quests, hydrated]);
+  }, [categories, quests, lastResetDate, streakAny, streakPerfect, achievements, hydrated]);
 
   const overall = useMemo(() => {
     const totalLevel = categories.reduce((sum, c) => sum + c.level, 0);
@@ -108,43 +164,197 @@ export default function HomeScreen() {
     return Math.round(avg * 10) / 10;
   }, [categories]);
 
-  const todayXP = useMemo(() => quests.filter(q => q.done).reduce((s, q) => s + q.xp, 0), [quests]);
-  const doneCount = useMemo(() => quests.filter(q => q.done).length, [quests]);
+  const todayXP = useMemo(() => {
+    const baseXP = quests.filter((q) => q.done).reduce((sum, q) => {
+      const diffMultiplier = getDifficultyMultiplier(q.difficulty);
+      return sum + Math.floor(q.xp * diffMultiplier);
+    }, 0);
+    const streakMultiplier = getStreakMultiplier(streakAny.current);
+    return Math.floor(baseXP * streakMultiplier);
+  }, [quests, streakAny]);
+
+  const doneCount = useMemo(() => quests.filter((q) => q.done).length, [quests]);
 
   const categoryName = (id: string) =>
     categories.find((c) => c.id === id)?.name ?? "Category";
+
+  function getDifficultyMultiplier(difficulty: "easy" | "medium" | "hard") {
+    switch (difficulty) {
+      case "easy":
+        return 1;
+      case "medium":
+        return 1.5;
+      case "hard":
+        return 2;
+    }
+  }
+
+  const normalizeDifficulty = (d: any): "easy" | "medium" | "hard" => {
+    if (d === "medium" || d === "hard") return d;
+    return "easy";
+  };
+
+  const unlockAchievement = (achievementId: string) => {
+    setAchievements((prev) =>
+      prev.map((a) =>
+        a.id === achievementId && !a.unlockedAt
+          ? { ...a, unlockedAt: new Date().toISOString() }
+          : a
+      )
+    );
+  };
+
+  const checkAchievements = (updatedQuests: typeof quests, updatedCategories: typeof categories) => {
+    const completedTotal = updatedQuests.filter((q) => q.done).length;
+    const todayXPTotal = updatedQuests.filter((q) => q.done).reduce((sum, q) => sum + q.xp, 0);
+    const questsDone = updatedQuests.filter((q) => q.done);
+
+    // first_quest: Complete first quest
+    if (completedTotal === 1 && !achievements.find((a) => a.id === "first_quest")?.unlockedAt) {
+      unlockAchievement("first_quest");
+    }
+
+    // hard_mode: Complete hard difficulty quest
+    if (
+      questsDone.some((q) => q.difficulty === "hard") &&
+      !achievements.find((a) => a.id === "hard_mode")?.unlockedAt
+    ) {
+      unlockAchievement("hard_mode");
+    }
+
+    // 100_xp: Earn 100 XP in single day
+    if (todayXPTotal >= 100 && !achievements.find((a) => a.id === "100_xp")?.unlockedAt) {
+      unlockAchievement("100_xp");
+    }
+
+    // perfect_day: Complete all quests in one day
+    if (
+      updatedQuests.length > 0 &&
+      updatedQuests.every((q) => q.done) &&
+      !achievements.find((a) => a.id === "perfect_day")?.unlockedAt
+    ) {
+      unlockAchievement("perfect_day");
+    }
+
+    // level_5: Reach level 5 in any category
+    if (
+      updatedCategories.some((c) => c.level >= 5) &&
+      !achievements.find((a) => a.id === "level_5")?.unlockedAt
+    ) {
+      unlockAchievement("level_5");
+    }
+
+    // all_categories: Level 3 in all categories
+    if (
+      updatedCategories.every((c) => c.level >= 3) &&
+      updatedCategories.length > 0 &&
+      !achievements.find((a) => a.id === "all_categories")?.unlockedAt
+    ) {
+      unlockAchievement("all_categories");
+    }
+
+    // 30_quests: Complete 30 quests total
+    if (completedTotal >= 30 && !achievements.find((a) => a.id === "30_quests")?.unlockedAt) {
+      unlockAchievement("30_quests");
+    }
+
+    // streak_7: Achieve 7-day streak
+    if (streakAny.current >= 7 && !achievements.find((a) => a.id === "streak_7")?.unlockedAt) {
+      unlockAchievement("streak_7");
+    }
+  };
 
   const completeQuest = (questId: string) => {
     const quest = quests.find((q) => q.id === questId);
     if (!quest || quest.done) return;
 
-    setQuests((prev) =>
-      prev.map((q) => (q.id === questId ? { ...q, done: true } : q))
+    // Add haptic feedback
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    const difficultyMultiplier = getDifficultyMultiplier(quest.difficulty);
+    const streakMultiplier = getStreakMultiplier(streakAny.current);
+    const xpAwarded = Math.floor(quest.xp * difficultyMultiplier * streakMultiplier);
+
+    const updatedQuests = quests.map((q) =>
+      q.id === questId ? { ...q, done: true } : q
     );
 
-    setCategories((prev) =>
-      prev.map((c) => (c.id === quest.categoryId ? levelUp({ ...c, xp: c.xp + quest.xp }) : c))
+    const updatedCategories = categories.map((c) =>
+      c.id === quest.categoryId ? levelUp({ ...c, xp: c.xp + xpAwarded }) : c
     );
+
+    setQuests(updatedQuests);
+    setCategories(updatedCategories);
+    checkAchievements(updatedQuests, updatedCategories);
   };
 
   const deleteQuest = (questId: string) => {
     setQuests((prev) => prev.filter((q) => q.id !== questId));
   };
 
+  const editQuest = (
+    questId: string,
+    title: string,
+    categoryId: string,
+    xp: number,
+    difficulty: "easy" | "medium" | "hard"
+  ) => {
+    const safeDifficulty = normalizeDifficulty(difficulty);
+    setQuests((prev) =>
+      prev.map((q) =>
+        q.id === questId ? { ...q, title, categoryId, xp, difficulty: safeDifficulty } : q
+      )
+    );
+    setEditingQuestId(null);
+  };
+
   const resetToday = () => {
     setQuests((prev) => prev.map((q) => ({ ...q, done: false })));
+    setLastResetDate(localDateKey());
+  };
+
+  const togglePin = (questId: string) => {
+    setQuests((prev) =>
+      prev.map((q) => (q.id === questId ? { ...q, pinned: !q.pinned } : q))
+    );
   };
 
   const resetDemo = async () => {
-    setCategories((prev) =>
-      prev.map((c) => ({ ...c, level: 1, xp: 0, xpToNext: 90 }))
-    );
+    const resetCategories = defaultCategories.map((c) => ({
+      ...c,
+      level: 0,
+      xp: 0,
+      xpToNext: 90,
+    }));
+    setCategories(resetCategories);
     setQuests(defaultQuests);
+
+    // wipe streaks
+    setStreakAny(defaultStreak);
+    setStreakPerfect(defaultStreak);
+
     setShowAdd(false);
+    setEditingQuestId(null);
     setNewTitle("");
     setNewCategory("health");
     setNewXP("10");
-    await AsyncStorage.removeItem(STORAGE_KEY);
+    setNewDifficulty("easy");
+    setLastResetDate(localDateKey());
+
+    // Save reset state to AsyncStorage
+    try {
+      await AsyncStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          categories: resetCategories,
+          quests: defaultQuests,
+          streakAny: defaultStreak,
+          streakPerfect: defaultStreak,
+        })
+      );
+    } catch (e) {
+      console.error("Failed to save reset state:", e);
+    }
   };
 
   const addQuest = () => {
@@ -154,326 +364,153 @@ export default function HomeScreen() {
     const xpNum = Number(newXP);
     const safeXP = Number.isFinite(xpNum) && xpNum > 0 ? Math.floor(xpNum) : 10;
 
+    const safeDifficulty = normalizeDifficulty(newDifficulty);
     setQuests((prev) => [
       ...prev,
-      { id: "q" + Date.now(), title, categoryId: newCategory, xp: safeXP, done: false },
+      {
+        id: "q" + Date.now(),
+        title,
+        categoryId: newCategory,
+        xp: safeXP,
+        difficulty: safeDifficulty,
+        done: false,
+        pinned: false,
+      },
     ]);
 
     setNewTitle("");
     setNewXP("10");
+    setNewDifficulty("easy");
     setShowAdd(false);
   };
 
+  // ✅ live streak display for TODAY
+  const todayKeyStr = localDateKey();
+  const todaySuccessAny = doneCount > 0;
+  const todaySuccessPerfect = quests.length > 0 && doneCount === quests.length;
+
+  const liveAny = liveStreak(streakAny, todayKeyStr, todaySuccessAny);
+  const livePerfect = liveStreak(streakPerfect, todayKeyStr, todaySuccessPerfect);
+
+  const topBandBg = theme === "dark" ? "#121a26" : "#ffffff";
+  const questBandBg = theme === "dark" ? "#0b1119" : "#e9eef5";
+
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>Life RPG</Text>
+    <View style={[styles.screen, { backgroundColor: colors.bg }]}>
+      <SafeAreaView edges={["top"]} style={[styles.safe, { backgroundColor: "transparent" }]}>
+        <ScrollView contentContainerStyle={styles.container}>
+          <View style={[styles.sectionBand, styles.sectionBandTight, { backgroundColor: topBandBg }]}>
+            <Text style={[styles.title, { color: colors.accent }]}>StatLife</Text>
 
-        <View style={styles.topRow}>
-          <View style={styles.pill}>
-            <Text style={styles.pillLabel}>Overall</Text>
-            <Text style={styles.pillValue}>Lv {overall}</Text>
-          </View>
-          <View style={styles.pill}>
-            <Text style={styles.pillLabel}>Today</Text>
-            <Text style={styles.pillValue}>
-              {doneCount}/{quests.length} • +{todayXP} XP
-            </Text>
-          </View>
-        </View>
+            <View style={styles.topRow}>
+              <View style={[styles.pill, { backgroundColor: colors.bgCard, borderColor: colors.border }]}> 
+                <Text style={[styles.pillLabel, { color: colors.textSecondary }]}>Overall</Text>
+                <Text style={[styles.pillValue, { color: colors.accent }]}>Lv {overall}</Text>
+              </View>
 
-        <View style={styles.row}>
-          <Pressable style={styles.btn} onPress={resetToday}>
-            <Text style={styles.btnText}>Reset Today</Text>
-          </Pressable>
-          <Pressable style={styles.btnDanger} onPress={resetDemo}>
-            <Text style={styles.btnText}>Reset Demo</Text>
-          </Pressable>
-        </View>
+              <View style={[styles.pill, { backgroundColor: colors.bgCard, borderColor: colors.border }]}> 
+                <Text style={[styles.pillLabel, { color: colors.textSecondary }]}>Today</Text>
+                <Text style={[styles.pillValue, { color: colors.accent }]}> 
+                  {doneCount}/{quests.length} • +{todayXP} XP
+                </Text>
+              </View>
 
-        {/* TODAY'S QUESTS HEADER */}
-        <View style={styles.sectionRow}>
-          <Text style={styles.section}>Today’s Quests</Text>
-          <Pressable onPress={() => setShowAdd((s) => !s)}>
-            <Text style={styles.link}>{showAdd ? "Cancel" : "+ Add"}</Text>
-          </Pressable>
-        </View>
+              <View style={[styles.pill, { backgroundColor: colors.bgCard, borderColor: colors.border }]}> 
+                <Text style={[styles.pillLabel, { color: colors.textSecondary }]}>Streak</Text>
+                <Text style={[styles.pillValue, { color: colors.accent }]}> 
+                  {liveAny} day{liveAny === 1 ? "" : "s"} • best {streakAny.best}
+                </Text>
+              </View>
 
-        {/* ADD QUEST FORM */}
-        {showAdd && (
-          <View style={styles.addBox}>
-            <TextInput
-              placeholder="Quest title (e.g., Clean 10 minutes)"
-              placeholderTextColor="#8c96a6"
-              value={newTitle}
-              onChangeText={setNewTitle}
-              style={styles.input}
-            />
+              <View style={[styles.pill, { backgroundColor: colors.bgCard, borderColor: colors.border }]}> 
+                <Text style={[styles.pillLabel, { color: colors.textSecondary }]}>Perfect</Text>
+                <Text style={[styles.pillValue, { color: colors.accent }]}> 
+                  {livePerfect} day{livePerfect === 1 ? "" : "s"} • best {streakPerfect.best}
+                </Text>
+              </View>
 
-            <Text style={styles.smallLabel}>Category</Text>
-            <View style={styles.pickerRow}>
-              {categories.map((c) => {
-                const active = newCategory === c.id;
-                return (
-                  <Pressable
-                    key={c.id}
-                    onPress={() => setNewCategory(c.id)}
-                    style={[styles.pillPick, active && styles.pillPickActive]}
-                  >
-                    <Text style={[styles.pillPickText, active && styles.pillPickTextActive]}>
-                      {c.name}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+              {streakAny.current >= 3 && (
+                <View style={[styles.pill, { backgroundColor: colors.bgCard, borderColor: colors.border }]}> 
+                  <Text style={[styles.pillLabel, { color: colors.textSecondary }]}>Streak Bonus</Text>
+                  <Text style={[styles.pillValue, { color: colors.accent }]}> 
+                    +{Math.round((getStreakMultiplier(streakAny.current) - 1) * 100)}% XP
+                  </Text>
+                </View>
+              )}
             </View>
 
-            <TextInput
-              placeholder="XP (e.g., 15)"
-              placeholderTextColor="#8c96a6"
-              keyboardType="numeric"
-              value={newXP}
-              onChangeText={setNewXP}
-              style={styles.input}
-            />
-
-            <Pressable onPress={addQuest} style={styles.addBtn}>
-              <Text style={styles.addBtnText}>Add Quest</Text>
-            </Pressable>
+            <View style={styles.row}>
+              <Pressable style={[styles.btn, { backgroundColor: colors.bgCard, borderColor: colors.border }]} onPress={resetToday}>
+                <Text style={[styles.btnText, { color: colors.textPrimary }]}>Reset Today</Text>
+              </Pressable>
+              <Pressable style={styles.btnDanger} onPress={resetDemo}>
+                <Text style={[styles.btnText, { color: "#ffffff" }]}>Reset Demo</Text>
+              </Pressable>
+            </View>
           </View>
-        )}
 
-        {/* QUEST LIST */}
-        <View style={styles.list}>
-          {[...quests]
-            .sort((a, b) => Number(a.done) - Number(b.done))
-            .map((q) => (
-              <View key={q.id} style={[styles.questCard, q.done && styles.questDone]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.questTitle, q.done && styles.questTitleDone]}>
-                    {q.title}
-                  </Text>
-                  <Text style={styles.questMeta}>
-                    {categoryName(q.categoryId)} • +{q.xp} XP
-                  </Text>
-                </View>
+          <View style={[styles.sectionBand, { backgroundColor: questBandBg, marginTop: 12 }]}>
+            {/* TODAY'S QUESTS HEADER */}
+            <View style={styles.sectionRow}>
+              <Text style={[styles.section, { color: colors.textPrimary }]}>Today's Quests</Text>
+              <Pressable onPress={() => setShowAdd((s) => !s)}>
+                <Text style={[styles.link, { color: colors.accent }]}>{showAdd ? "Cancel" : "+ Add"}</Text>
+              </Pressable>
+            </View>
 
-                <View style={styles.rightStack}>
-                  {q.done ? (
-                    <View style={styles.doneBadge}>
-                      <Text style={styles.doneText}>✔ COMPLETED</Text>
-                    </View>
-                  ) : (
-                    <Pressable style={styles.completeBtn} onPress={() => completeQuest(q.id)}>
-                      <Text style={styles.completeText}>Complete</Text>
-                    </Pressable>
-                  )}
+            {/* ADD/EDIT QUEST FORM */}
+            {showAdd && (
+              <AddQuestForm
+                categories={categories}
+                newTitle={newTitle}
+                newCategory={newCategory}
+                newXP={newXP}
+                newDifficulty={newDifficulty}
+                onTitleChange={setNewTitle}
+                onCategoryChange={setNewCategory}
+                onXPChange={setNewXP}
+                onDifficultyChange={setNewDifficulty}
+                onAdd={addQuest}
+              />
+            )}
 
-                  <Pressable style={styles.deleteBtn} onPress={() => deleteQuest(q.id)}>
-                    <Text style={styles.deleteText}>Delete</Text>
-                  </Pressable>
-                </View>
-              </View>
-            ))}
-        </View>
+            {editingQuestId && (
+              <EditQuestForm
+                quest={quests.find((q) => q.id === editingQuestId)!}
+                categories={categories}
+                onSave={editQuest}
+                onCancel={() => setEditingQuestId(null)}
+              />
+            )}
 
-        {/* CATEGORIES */}
-        <Text style={styles.section}>Your Stats</Text>
+            {/* QUEST LIST */}
+            <View style={styles.list}>
+              {[...quests]
+                .sort((a, b) => {
+                  if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+                  if (a.done !== b.done) return Number(a.done) - Number(b.done);
+                  return 0;
+                })
+                .map((q) => (
+                  <QuestCard
+                    key={q.id}
+                    quest={q}
+                    categoryName={categoryName(q.categoryId)}
+                    onComplete={completeQuest}
+                    onEdit={setEditingQuestId}
+                    onPin={togglePin}
+                    onDelete={deleteQuest}
+                  />
+                ))}
+            </View>
 
-        <View style={styles.grid}>
-          {categories.map((c) => {
-            const pct = clamp(c.xp / c.xpToNext, 0, 1);
-            return (
-              <View key={c.id} style={styles.card}>
-                <View style={styles.cardTop}>
-                  <Text style={styles.cardTitle}>{c.name}</Text>
-                  <Text style={styles.level}>Lv {c.level}</Text>
-                </View>
-
-                <Text style={styles.xpText}>
-                  XP: {c.xp} / {c.xpToNext}
-                </Text>
-
-                <View style={styles.barTrack}>
-                  <View style={[styles.barFill, { width: `${pct * 100}%` }]} />
-                </View>
-              </View>
-            );
-          })}
-        </View>
-
-        <Text style={styles.hint}>
-          Tip: If the browser says “site can’t be reached,” restart the dev server:
-          {" "}
-          <Text style={styles.mono}>npx expo start --web</Text>
-        </Text>
-      </ScrollView>
-    </SafeAreaView>
+            <Text style={styles.hint}>
+              💡 Check the "Stats" tab for category progression. Visit "Achievements" to track your badges!
+            </Text>
+            <Footer />
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#0b0f14" },
-  container: { padding: 16, paddingBottom: 40 },
-
-  title: { fontSize: 32, fontWeight: "800", color: "white", marginBottom: 10 },
-
-  topRow: { flexDirection: "row", gap: 10, marginBottom: 12, flexWrap: "wrap" },
-  pill: {
-    backgroundColor: "#121a24",
-    borderRadius: 999,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderWidth: 1,
-    borderColor: "#1e2a3a",
-  },
-  pillLabel: { color: "#8c96a6", fontSize: 12, fontWeight: "700" },
-  pillValue: { color: "white", fontSize: 14, fontWeight: "800", marginTop: 2 },
-
-  row: { flexDirection: "row", gap: 10, marginBottom: 18, flexWrap: "wrap" },
-  btn: {
-    backgroundColor: "#1b2533",
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#1e2a3a",
-  },
-  btnDanger: {
-    backgroundColor: "#2a0f16",
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#4a1a26",
-  },
-  btnText: { color: "white", fontWeight: "800" },
-
-  sectionRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  section: { fontSize: 18, fontWeight: "800", color: "white" },
-  link: { color: "#2a7fff", fontWeight: "900" },
-
-  addBox: {
-    backgroundColor: "#121a24",
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#1e2a3a",
-    marginBottom: 14,
-    gap: 10,
-  },
-  input: {
-    backgroundColor: "#0b0f14",
-    color: "white",
-    padding: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#1e2a3a",
-  },
-  smallLabel: { color: "#b9c0cc", fontWeight: "800" },
-
-  pickerRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  pillPick: {
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#1e2a3a",
-    backgroundColor: "#0b0f14",
-  },
-  pillPickActive: { backgroundColor: "#2a7fff", borderColor: "#2a7fff" },
-  pillPickText: { color: "white", fontWeight: "800", fontSize: 12 },
-  pillPickTextActive: { color: "white" },
-
-  addBtn: {
-    backgroundColor: "#2a7fff",
-    padding: 12,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  addBtnText: { color: "white", fontWeight: "900" },
-
-  list: { gap: 10, marginBottom: 18 },
-  questCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: "#121a24",
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#1e2a3a",
-  },
-  questDone: {
-    opacity: 0.6,
-    backgroundColor: "#0b0f14",
-  },
-  questTitle: { color: "white", fontSize: 15, fontWeight: "900" },
-  questTitleDone: { textDecorationLine: "line-through", opacity: 0.7 },
-  questMeta: { color: "#b9c0cc", marginTop: 4 },
-
-  rightStack: { gap: 8, alignItems: "flex-end" },
-
-  completeBtn: {
-    backgroundColor: "#2a7fff",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-  },
-  completeText: { color: "white", fontWeight: "900" },
-
-  doneBadge: {
-    backgroundColor: "#0f2a18",
-    borderWidth: 1,
-    borderColor: "#2ecc71",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-  },
-  doneText: { color: "#2ecc71", fontWeight: "900" },
-
-  deleteBtn: {
-    backgroundColor: "#0b0f14",
-    borderWidth: 1,
-    borderColor: "#4a1a26",
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-  },
-  deleteText: { color: "white", fontWeight: "900" },
-
-  grid: { gap: 12 },
-  card: {
-    backgroundColor: "#121a24",
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#1e2a3a",
-  },
-  cardTop: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "baseline",
-    marginBottom: 6,
-  },
-  cardTitle: { fontSize: 16, fontWeight: "800", color: "white" },
-  level: { fontSize: 14, fontWeight: "700", color: "#b9c0cc" },
-  xpText: { color: "#b9c0cc", marginBottom: 8 },
-  barTrack: {
-    height: 10,
-    borderRadius: 999,
-    backgroundColor: "#0b0f14",
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#1e2a3a",
-  },
-  barFill: { height: "100%", backgroundColor: "#2a7fff" },
-
-  hint: { marginTop: 16, color: "#8c96a6", lineHeight: 18 },
-  mono: { fontFamily: "monospace" },
-});
