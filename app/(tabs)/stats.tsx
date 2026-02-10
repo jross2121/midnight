@@ -8,7 +8,7 @@ import { CategoryDetails } from "./components/CategoryDetails";
 import { Footer } from "./components/Footer";
 import { StatWheel } from "./components/StatWheel";
 import { StatsOverview } from "./components/StatsOverview";
-import { styles } from "./styles";
+import { createStyles } from "./styles";
 import { defaultCategories } from "./utils/defaultData";
 import { useTheme } from "./utils/themeContext";
 import type { Category, StoredState } from "./utils/types";
@@ -16,6 +16,7 @@ import { STORAGE_KEY } from "./utils/types";
 
 export default function StatsScreen() {
   const { colors } = useTheme();
+  const styles = createStyles(colors);
   const [categories, setCategories] = useState<Category[]>(defaultCategories);
   const [hydrated, setHydrated] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -70,12 +71,12 @@ export default function StatsScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         {/* Header */}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 24 }}>
-          <IconSymbol name="chart.bar.fill" size={36} color={colors.accent} />
+          <IconSymbol name="chart.bar.fill" size={36} color={colors.accentPrimary} />
           <Text style={styles.title}>📊 Stats</Text>
         </View>
 
         {/* Stat Wheel - Interactive radar chart */}
-        <View style={[styles.card, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[styles.cardTitle, { marginBottom: 16 }]}>Life Wheel</Text>
           <StatWheel
             categories={categories}
@@ -83,16 +84,16 @@ export default function StatsScreen() {
             selectedCategory={selectedCategory}
           />
           {selectedCategoryData ? (
-            <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: "#1f2a3c" }}>
-              <Text style={[styles.questMeta, { color: "#8fa3b0", marginBottom: 8 }]}>
-                Selected: <Text style={{ color: "#00d9ff", fontWeight: "900" }}>{selectedCategoryData.name}</Text>
+            <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.border }}>
+              <Text style={[styles.questMeta, { color: colors.textSecondary, marginBottom: 8 }]}> 
+                Selected: <Text style={{ color: colors.accentPrimary, fontWeight: "900" }}>{selectedCategoryData.name}</Text>
               </Text>
               <Text style={[styles.questMeta, { fontSize: 12 }]}>
                 Level {selectedCategoryData.level} • {selectedCategoryData.xp}/{selectedCategoryData.xpToNext} XP
               </Text>
             </View>
           ) : (
-            <Text style={[styles.questMeta, { marginTop: 12, color: "#5a6a7a", textAlign: "center" }]}>
+            <Text style={[styles.questMeta, { marginTop: 12, color: colors.textSecondary, textAlign: "center" }]}>
               Tap a category to view details
             </Text>
           )}

@@ -8,7 +8,7 @@ import { AddQuestForm } from "./components/AddQuestForm";
 import { EditQuestForm } from "./components/EditQuestForm";
 import { Footer } from "./components/Footer";
 import { QuestCard } from "./components/QuestCard";
-import { styles } from "./styles";
+import { createStyles } from "./styles";
 import {
     applyDayResult,
     diffDays,
@@ -25,7 +25,8 @@ import { STORAGE_KEY } from "./utils/types";
    SCREEN
 ======================= */
 export default function HomeScreen() {
-  const { colors, theme } = useTheme();
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
   const [categories, setCategories] = useState<Category[]>(defaultCategories);
   const [quests, setQuests] = useState<Quest[]>(defaultQuests);
   const [lastResetDate, setLastResetDate] = useState<string>(localDateKey());
@@ -392,47 +393,47 @@ export default function HomeScreen() {
   const liveAny = liveStreak(streakAny, todayKeyStr, todaySuccessAny);
   const livePerfect = liveStreak(streakPerfect, todayKeyStr, todaySuccessPerfect);
 
-  const topBandBg = theme === "dark" ? "#121a26" : "#ffffff";
-  const questBandBg = theme === "dark" ? "#0b1119" : "#e9eef5";
+  const topBandBg = colors.surface;
+  const questBandBg = colors.bg;
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       <SafeAreaView edges={["top"]} style={[styles.safe, { backgroundColor: "transparent" }]}>
         <ScrollView contentContainerStyle={styles.container}>
           <View style={[styles.sectionBand, styles.sectionBandTight, { backgroundColor: topBandBg }]}>
-            <Text style={[styles.title, { color: colors.accent }]}>StatLife</Text>
+            <Text style={[styles.title, { color: colors.accentPrimary }]}>StatLife</Text>
 
             <View style={styles.topRow}>
-              <View style={[styles.pill, { backgroundColor: colors.bgCard, borderColor: colors.border }]}> 
+              <View style={[styles.pill, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
                 <Text style={[styles.pillLabel, { color: colors.textSecondary }]}>Overall</Text>
-                <Text style={[styles.pillValue, { color: colors.accent }]}>Lv {overall}</Text>
+                <Text style={[styles.pillValue, { color: colors.accentPrimary }]}>Lv {overall}</Text>
               </View>
 
-              <View style={[styles.pill, { backgroundColor: colors.bgCard, borderColor: colors.border }]}> 
+              <View style={[styles.pill, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
                 <Text style={[styles.pillLabel, { color: colors.textSecondary }]}>Today</Text>
-                <Text style={[styles.pillValue, { color: colors.accent }]}> 
+                <Text style={[styles.pillValue, { color: colors.accentPrimary }]}> 
                   {doneCount}/{quests.length} • +{todayXP} XP
                 </Text>
               </View>
 
-              <View style={[styles.pill, { backgroundColor: colors.bgCard, borderColor: colors.border }]}> 
+              <View style={[styles.pill, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
                 <Text style={[styles.pillLabel, { color: colors.textSecondary }]}>Streak</Text>
-                <Text style={[styles.pillValue, { color: colors.accent }]}> 
+                <Text style={[styles.pillValue, { color: colors.accentPrimary }]}> 
                   {liveAny} day{liveAny === 1 ? "" : "s"} • best {streakAny.best}
                 </Text>
               </View>
 
-              <View style={[styles.pill, { backgroundColor: colors.bgCard, borderColor: colors.border }]}> 
+              <View style={[styles.pill, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
                 <Text style={[styles.pillLabel, { color: colors.textSecondary }]}>Perfect</Text>
-                <Text style={[styles.pillValue, { color: colors.accent }]}> 
+                <Text style={[styles.pillValue, { color: colors.accentPrimary }]}> 
                   {livePerfect} day{livePerfect === 1 ? "" : "s"} • best {streakPerfect.best}
                 </Text>
               </View>
 
               {streakAny.current >= 3 && (
-                <View style={[styles.pill, { backgroundColor: colors.bgCard, borderColor: colors.border }]}> 
+                <View style={[styles.pill, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
                   <Text style={[styles.pillLabel, { color: colors.textSecondary }]}>Streak Bonus</Text>
-                  <Text style={[styles.pillValue, { color: colors.accent }]}> 
+                  <Text style={[styles.pillValue, { color: colors.accentPrimary }]}> 
                     +{Math.round((getStreakMultiplier(streakAny.current) - 1) * 100)}% XP
                   </Text>
                 </View>
@@ -440,11 +441,11 @@ export default function HomeScreen() {
             </View>
 
             <View style={styles.row}>
-              <Pressable style={[styles.btn, { backgroundColor: colors.bgCard, borderColor: colors.border }]} onPress={resetToday}>
+              <Pressable style={[styles.btn, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={resetToday}>
                 <Text style={[styles.btnText, { color: colors.textPrimary }]}>Reset Today</Text>
               </Pressable>
               <Pressable style={styles.btnDanger} onPress={resetDemo}>
-                <Text style={[styles.btnText, { color: "#ffffff" }]}>Reset Demo</Text>
+                <Text style={[styles.btnText, { color: colors.textPrimary }]}>Reset Demo</Text>
               </Pressable>
             </View>
           </View>
@@ -454,7 +455,7 @@ export default function HomeScreen() {
             <View style={styles.sectionRow}>
               <Text style={[styles.section, { color: colors.textPrimary }]}>Today's Quests</Text>
               <Pressable onPress={() => setShowAdd((s) => !s)}>
-                <Text style={[styles.link, { color: colors.accent }]}>{showAdd ? "Cancel" : "+ Add"}</Text>
+                <Text style={[styles.link, { color: colors.accentPrimary }]}>{showAdd ? "Cancel" : "+ Add"}</Text>
               </Pressable>
             </View>
 

@@ -5,35 +5,35 @@ export type Theme = "dark" | "light";
 
 export interface ThemeColors {
   bg: string;
-  bgCard: string;
-  bgInput: string;
+  surface: string;
+  accentPrimary: string;
+  accentSecondary: string;
+  accentTertiary: string;
   textPrimary: string;
   textSecondary: string;
   border: string;
-  accent: string;
-  accentDim: string;
 }
 
 const DARK_COLORS: ThemeColors = {
-  bg: "#080c12",
-  bgCard: "#141d2a",
-  bgInput: "#0a0e14",
-  textPrimary: "#ffffff",
-  textSecondary: "#8fa3b0",
-  border: "#1f2a3c",
-  accent: "#00d9ff",
-  accentDim: "#0a0e14",
+  bg: "#18171b",
+  surface: "#1f2228",
+  accentPrimary: "#2fd2e3",
+  accentSecondary: "#63e8a8",
+  accentTertiary: "#91ed89",
+  textPrimary: "#f2f6f4",
+  textSecondary: "#9cc5b1",
+  border: "#305d4e",
 };
 
 const LIGHT_COLORS: ThemeColors = {
-  bg: "#f5f5f5",
-  bgCard: "#ffffff",
-  bgInput: "#f0f0f0",
-  textPrimary: "#1a1a1a",
-  textSecondary: "#666666",
-  border: "#e0e0e0",
-  accent: "#0099cc",
-  accentDim: "#e8f4f8",
+  bg: "#f2faf7",
+  surface: "#ffffff",
+  accentPrimary: "#1fb9e7",
+  accentSecondary: "#47e4c8",
+  accentTertiary: "#63e8a8",
+  textPrimary: "#18221f",
+  textSecondary: "#5b7b6b",
+  border: "#cfe7dc",
 };
 
 interface ThemeContextType {

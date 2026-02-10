@@ -1,4 +1,4 @@
-import { styles } from "@/app/(tabs)/styles";
+import { createStyles } from "@/app/(tabs)/styles";
 import { useTheme } from "@/app/(tabs)/utils/themeContext";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import * as Haptics from "expo-haptics";
@@ -17,6 +17,7 @@ interface QuestCardProps {
 
 export function QuestCard({ quest, categoryName, onComplete, onEdit, onPin, onDelete }: QuestCardProps) {
   const { colors } = useTheme();
+  const styles = createStyles(colors);
   const [expanded, setExpanded] = useState(false);
   const [completePressed, setCompletePressed] = useState(false);
   const [editPressed, setEditPressed] = useState(false);
@@ -62,7 +63,7 @@ export function QuestCard({ quest, categoryName, onComplete, onEdit, onPin, onDe
   };
 
   return (
-    <View style={[styles.questCard, { backgroundColor: colors.bgCard, borderColor: colors.border }, quest.done && { backgroundColor: colors.bgInput, opacity: 0.5 }]}>
+    <View style={[styles.questCard, { backgroundColor: colors.surface, borderColor: colors.border }, quest.done && { backgroundColor: colors.bg, opacity: 0.5 }]}>
       <Pressable style={styles.questHeader} onPress={handleToggleExpanded}>
         <View style={{ flex: 1 }}>
           <Text style={[styles.questTitle, { color: colors.textPrimary }, quest.done && styles.questTitleDone]}>
@@ -84,12 +85,12 @@ export function QuestCard({ quest, categoryName, onComplete, onEdit, onPin, onDe
         </View>
         <View style={styles.questStatusStack}>
           {quest.pinned && (
-            <View style={[styles.statusPillIcon, { backgroundColor: colors.accentDim }]}>
-              <IconSymbol name="pin.fill" size={12} color={colors.accent} />
+            <View style={[styles.statusPillIcon, { backgroundColor: `${colors.accentPrimary}1A` }]}>
+              <IconSymbol name="pin.fill" size={12} color={colors.accentPrimary} />
             </View>
           )}
           {quest.done && (
-            <Text style={[styles.statusPill, { backgroundColor: colors.accent + "20", color: colors.accent }]}>Done</Text>
+            <Text style={[styles.statusPill, { backgroundColor: `${colors.accentSecondary}1A`, color: colors.accentSecondary }]}>Done</Text>
           )}
         </View>
       </Pressable>
@@ -98,16 +99,16 @@ export function QuestCard({ quest, categoryName, onComplete, onEdit, onPin, onDe
         <View style={styles.questActionsRow}>
           {!quest.done && (
             <Pressable
-              style={[styles.questActionBtn, { backgroundColor: colors.accent, borderColor: colors.accent }, completePressed && styles.btnPressed]}
+              style={[styles.questActionBtn, { backgroundColor: colors.accentPrimary, borderColor: colors.accentPrimary }, completePressed && styles.btnPressed]}
               onPress={handleComplete}
               onPressIn={() => setCompletePressed(true)}
               onPressOut={() => setCompletePressed(false)}
             >
-              <Text style={[styles.questActionText, { color: "#ffffff" }]}>Complete</Text>
+              <Text style={[styles.questActionText, { color: colors.textPrimary }]}>Complete</Text>
             </Pressable>
           )}
           <Pressable
-            style={[styles.questActionBtn, { backgroundColor: colors.bgInput, borderColor: colors.border }, editPressed && styles.btnPressed]}
+            style={[styles.questActionBtn, { backgroundColor: colors.bg, borderColor: colors.border }, editPressed && styles.btnPressed]}
             onPress={handleEdit}
             onPressIn={() => setEditPressed(true)}
             onPressOut={() => setEditPressed(false)}
@@ -118,8 +119,8 @@ export function QuestCard({ quest, categoryName, onComplete, onEdit, onPin, onDe
             style={[
               styles.questActionBtn,
               quest.pinned
-                ? { backgroundColor: colors.accent, borderColor: colors.accent }
-                : { backgroundColor: colors.bgInput, borderColor: colors.border },
+                ? { backgroundColor: colors.accentPrimary, borderColor: colors.accentPrimary }
+                : { backgroundColor: colors.bg, borderColor: colors.border },
               pinPressed && styles.btnPressed,
             ]}
             onPress={handlePin}
@@ -127,18 +128,18 @@ export function QuestCard({ quest, categoryName, onComplete, onEdit, onPin, onDe
             onPressOut={() => setPinPressed(false)}
           >
             {quest.pinned ? (
-              <IconSymbol name="pin.fill" size={14} color="#ffffff" />
+              <IconSymbol name="pin.fill" size={14} color={colors.textPrimary} />
             ) : (
               <Text style={[styles.questActionText, { color: colors.textSecondary }]}>Pin</Text>
             )}
           </Pressable>
           <Pressable
-            style={[styles.questActionBtn, { backgroundColor: "#ff3b3020", borderColor: "#ff3b30" }, deletePressed && styles.btnPressed]}
+            style={[styles.questActionBtn, { backgroundColor: `${colors.accentPrimary}1A`, borderColor: colors.accentPrimary }, deletePressed && styles.btnPressed]}
             onPress={handleDelete}
             onPressIn={() => setDeletePressed(true)}
             onPressOut={() => setDeletePressed(false)}
           >
-            <Text style={[styles.questActionText, { color: "#ff3b30" }]}>Delete</Text>
+            <Text style={[styles.questActionText, { color: colors.accentPrimary }]}>Delete</Text>
           </Pressable>
         </View>
       )}

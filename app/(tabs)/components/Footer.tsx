@@ -16,7 +16,7 @@ export function Footer() {
         borderTopColor: colors.border,
       }}
     >
-      <Text style={{ fontSize: 24, fontWeight: "900", color: colors.accent, marginBottom: 4 }}>
+      <Text style={{ fontSize: 24, fontWeight: "900", color: colors.accentPrimary, marginBottom: 4 }}>
         ⚔️ StatLife
       </Text>
       <Text style={{ fontSize: 11, color: colors.textSecondary, fontWeight: "600" }}>

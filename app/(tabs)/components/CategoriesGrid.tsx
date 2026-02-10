@@ -1,4 +1,5 @@
-import { styles } from "@/app/(tabs)/styles";
+import { createStyles } from "@/app/(tabs)/styles";
+import { useTheme } from "@/app/(tabs)/utils/themeContext";
 import React from "react";
 import { Text, View } from "react-native";
 import { clamp } from "../utils/gameHelpers";
@@ -9,6 +10,8 @@ interface CategoriesGridProps {
 }
 
 export function CategoriesGrid({ categories }: CategoriesGridProps) {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
   return (
     <View style={styles.grid}>
       {categories.map((c) => {

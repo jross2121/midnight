@@ -5,7 +5,7 @@ import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Achievements } from "./components/Achievements";
 import { Footer } from "./components/Footer";
-import { styles } from "./styles";
+import { createStyles } from "./styles";
 import { defaultAchievements } from "./utils/defaultData";
 import { useTheme } from "./utils/themeContext";
 import type { Achievement, StoredState } from "./utils/types";
@@ -13,6 +13,7 @@ import { STORAGE_KEY } from "./utils/types";
 
 export default function AchievementsScreen() {
   const { colors } = useTheme();
+  const styles = createStyles(colors);
   const [achievements, setAchievements] = useState<Achievement[]>(defaultAchievements);
   const [hydrated, setHydrated] = useState(false);
 
@@ -49,21 +50,21 @@ export default function AchievementsScreen() {
     <SafeAreaView edges={["top"]} style={[styles.safe, { backgroundColor: colors.bg }]}>
       <ScrollView contentContainerStyle={styles.container}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 }}>
-          <IconSymbol name="star.fill" size={36} color={colors.accent} />
-          <Text style={[styles.title, { color: colors.accent }]}>⭐ Achievements</Text>
+          <IconSymbol name="star.fill" size={36} color={colors.accentPrimary} />
+          <Text style={[styles.title, { color: colors.accentPrimary }]}>⭐ Achievements</Text>
         </View>
 
         <View style={styles.topRow}>
-          <View style={[styles.pill, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+          <View style={[styles.pill, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.pillLabel, { color: colors.textSecondary }]}>Unlocked</Text>
-            <Text style={[styles.pillValue, { color: colors.accent }]}>
+            <Text style={[styles.pillValue, { color: colors.accentPrimary }]}>
               {unlockedCount}/{totalCount}
             </Text>
           </View>
 
-          <View style={[styles.pill, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+          <View style={[styles.pill, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <Text style={[styles.pillLabel, { color: colors.textSecondary }]}>Progress</Text>
-            <Text style={[styles.pillValue, { color: colors.accent }]}>
+            <Text style={[styles.pillValue, { color: colors.accentPrimary }]}>
               {Math.round((unlockedCount / totalCount) * 100)}%
             </Text>
           </View>

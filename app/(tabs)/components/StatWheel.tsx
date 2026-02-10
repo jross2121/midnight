@@ -1,6 +1,7 @@
 import React from "react";
 import { Dimensions, Pressable, Text, View } from "react-native";
 import Svg, { Circle, G, Line, Path, Text as SvgText } from "react-native-svg";
+import { useTheme } from "../utils/themeContext";
 import type { Category } from "../utils/types";
 
 interface StatWheelProps {
@@ -10,6 +11,7 @@ interface StatWheelProps {
 }
 
 export function StatWheel({ categories, onSelectCategory, selectedCategory }: StatWheelProps) {
+  const { colors } = useTheme();
   // Get screen width and add padding constraints
   const screenWidth = Dimensions.get("window").width;
   // Account for container padding (20px each side = 40px total) and some breathing room
@@ -35,14 +37,14 @@ export function StatWheel({ categories, onSelectCategory, selectedCategory }: St
   const getCategoryColor = (categoryId: string): string => {
     const colorMap: { [key: string]: string } = {
       // health: use cyan/teal (distinct from money green)
-      health: "#00bcd4",
-      money: "#00ff00",
-      career: "#ff9800",
-      social: "#ff6b9d",
-      home: "#ff4444",
-      fun: "#9d4edd",
+      health: colors.accentPrimary,
+      money: colors.accentSecondary,
+      career: colors.accentTertiary,
+      social: colors.accentPrimary,
+      home: colors.accentSecondary,
+      fun: colors.accentTertiary,
     };
-    return colorMap[categoryId] || "#00d9ff";
+    return colorMap[categoryId] || colors.accentPrimary;
   };
 
   // Calculate point on circle
@@ -86,7 +88,7 @@ export function StatWheel({ categories, onSelectCategory, selectedCategory }: St
               cx={centerX}
               cy={centerY}
               r={radius}
-              stroke="#26343f"
+              stroke={colors.border}
               strokeWidth="1"
               fill="none"
               opacity="0.6"
@@ -104,7 +106,7 @@ export function StatWheel({ categories, onSelectCategory, selectedCategory }: St
               y1={centerY}
               x2={point.x}
               y2={point.y}
-              stroke="#26343f"
+              stroke={colors.border}
               strokeWidth="1"
               opacity="0.45"
             />
@@ -114,9 +116,9 @@ export function StatWheel({ categories, onSelectCategory, selectedCategory }: St
         {/* Radar area (filled) */}
         <Path
           d={radarPath}
-          fill="#00d9ff"
+          fill={colors.accentPrimary}
           fillOpacity="0.16"
-          stroke="#00d9ff"
+          stroke={colors.accentPrimary}
           strokeWidth={2.5 * scale}
         />
 
@@ -136,7 +138,7 @@ export function StatWheel({ categories, onSelectCategory, selectedCategory }: St
                 cy={dataPoint.y}
                 r={isSelected ? 10 * scale : 6 * scale}
                 fill={color}
-                stroke="#080c12"
+                stroke={colors.bg}
                 strokeWidth={2 * scale}
                 opacity={isSelected ? 1 : 0.8}
               />
@@ -171,13 +173,13 @@ export function StatWheel({ categories, onSelectCategory, selectedCategory }: St
         })}
 
         {/* Center circle with label */}
-        <Circle cx={centerX} cy={centerY} r={28 * scale} fill="#141d2a" stroke="#00d9ff" strokeWidth={2 * scale} />
+        <Circle cx={centerX} cy={centerY} r={28 * scale} fill={colors.surface} stroke={colors.accentPrimary} strokeWidth={2 * scale} />
         <SvgText
           x={centerX}
           y={centerY + 6 * scale}
           fontSize={16 * scale}
           fontWeight="900"
-          fill="#00d9ff"
+          fill={colors.accentPrimary}
           textAnchor="middle"
         >
           Stats
@@ -212,7 +214,7 @@ export function StatWheel({ categories, onSelectCategory, selectedCategory }: St
                     {
                       fontWeight: "700",
                       fontSize: 12,
-                      color: isSelected ? "#0a0e14" : color,
+                      color: isSelected ? colors.textPrimary : color,
                     },
                   ]}
                 >

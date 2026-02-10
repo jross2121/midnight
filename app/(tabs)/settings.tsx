@@ -3,18 +3,19 @@ import React from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Footer } from "./components/Footer";
-import { styles } from "./styles";
+import { createStyles } from "./styles";
 import { useTheme } from "./utils/themeContext";
 
 export default function SettingsScreen() {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme, colors } = useTheme();
+  const styles = createStyles(colors);
 
   return (
-    <SafeAreaView edges={["top"]} style={[styles.safe, { backgroundColor: useTheme().colors.bg }]}>
+    <SafeAreaView edges={["top"]} style={[styles.safe, { backgroundColor: colors.bg }]}>
       <ScrollView contentContainerStyle={styles.container}>
         {/* Header */}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 24 }}>
-          <IconSymbol name="gearshape.fill" size={36} color="#00d9ff" />
+          <IconSymbol name="gearshape.fill" size={36} color={colors.accentPrimary} />
           <Text style={styles.title}>⚙️ Settings</Text>
         </View>
 
@@ -23,20 +24,20 @@ export default function SettingsScreen() {
           style={[
             styles.card,
             {
-              backgroundColor: useTheme().colors.bgCard,
-              borderColor: useTheme().colors.border,
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
             },
           ]}
         >
           <View style={styles.cardTop}>
-            <Text style={[styles.cardTitle, { color: useTheme().colors.textPrimary }]}>
+            <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
               Theme
             </Text>
             <Pressable
               onPress={toggleTheme}
               style={({ pressed }) => [
                 {
-                  backgroundColor: useTheme().colors.accent,
+                  backgroundColor: colors.accentPrimary,
                   paddingVertical: 8,
                   paddingHorizontal: 14,
                   borderRadius: 8,
@@ -44,12 +45,12 @@ export default function SettingsScreen() {
                 },
               ]}
             >
-              <Text style={{ color: "#0a0e14", fontWeight: "900", fontSize: 12 }}>
+              <Text style={{ color: colors.textPrimary, fontWeight: "900", fontSize: 12 }}>
                 {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
               </Text>
             </Pressable>
           </View>
-          <Text style={[styles.questMeta, { color: useTheme().colors.textSecondary }]}>
+          <Text style={[styles.questMeta, { color: colors.textSecondary }]}>
             Current: <Text style={{ fontWeight: "700" }}>{theme === "dark" ? "Dark Mode" : "Light Mode"}</Text>
           </Text>
         </View>
@@ -59,19 +60,19 @@ export default function SettingsScreen() {
           style={[
             styles.card,
             {
-              backgroundColor: useTheme().colors.bgCard,
-              borderColor: useTheme().colors.border,
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
               marginTop: 16,
             },
           ]}
         >
-          <Text style={[styles.cardTitle, { color: useTheme().colors.textPrimary }]}>
+          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
             About
           </Text>
-          <Text style={[styles.questMeta, { color: useTheme().colors.textSecondary, marginTop: 10 }]}>
+          <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 10 }]}>
             StatLife v1.0
           </Text>
-          <Text style={[styles.questMeta, { color: useTheme().colors.textSecondary, marginTop: 8 }]}>
+          <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 8 }]}>
             Gamify your life and build better habits through quests and progression.
           </Text>
         </View>

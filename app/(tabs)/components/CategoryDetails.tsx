@@ -1,22 +1,24 @@
 import React from "react";
 import { Text, View } from "react-native";
-import { styles } from "../styles";
+import { createStyles } from "../styles";
+import type { ThemeColors } from "../utils/themeContext";
+import { useTheme } from "../utils/themeContext";
 import type { Category } from "../utils/types";
 
 interface CategoryDetailsProps {
   category: Category;
 }
 
-const getCategoryColor = (categoryId: string): string => {
+const getCategoryColor = (categoryId: string, colors: ThemeColors): string => {
   const colorMap: { [key: string]: string } = {
-    health: "#00bcd4",
-    money: "#00ff00",
-    career: "#ff9800",
-    social: "#ff6b9d",
-    home: "#ff4444",
-    fun: "#9d4edd",
+    health: colors.accentPrimary,
+    money: colors.accentSecondary,
+    career: colors.accentTertiary,
+    social: colors.accentPrimary,
+    home: colors.accentSecondary,
+    fun: colors.accentTertiary,
   };
-  return colorMap[categoryId] || "#00d9ff";
+  return colorMap[categoryId] || colors.accentPrimary;
 };
 
 const getCategoryDescription = (categoryId: string): string => {
@@ -32,7 +34,9 @@ const getCategoryDescription = (categoryId: string): string => {
 };
 
 export function CategoryDetails({ category }: CategoryDetailsProps) {
-  const color = getCategoryColor(category.id);
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
+  const color = getCategoryColor(category.id, colors);
   const description = getCategoryDescription(category.id);
 
   // Calculate XP progress to next level
@@ -96,7 +100,7 @@ export function CategoryDetails({ category }: CategoryDetailsProps) {
         <View
           style={{
             flex: 1,
-            backgroundColor: "#0a0e14",
+            backgroundColor: colors.bg,
             borderRadius: 10,
             padding: 12,
             borderWidth: 1.5,
@@ -104,7 +108,7 @@ export function CategoryDetails({ category }: CategoryDetailsProps) {
             opacity: 0.7,
           }}
         >
-          <Text style={[styles.questMeta, { fontSize: 11, color: "#8fa3b0" }]}>XP Needed</Text>
+          <Text style={[styles.questMeta, { fontSize: 11, color: colors.textSecondary }]}>XP Needed</Text>
           <Text style={[styles.pillValue, { color, fontSize: 14, marginTop: 4 }]}>
             {xpNeeded}
           </Text>
@@ -113,7 +117,7 @@ export function CategoryDetails({ category }: CategoryDetailsProps) {
         <View
           style={{
             flex: 1,
-            backgroundColor: "#0a0e14",
+            backgroundColor: colors.bg,
             borderRadius: 10,
             padding: 12,
             borderWidth: 1.5,
@@ -121,7 +125,7 @@ export function CategoryDetails({ category }: CategoryDetailsProps) {
             opacity: 0.7,
           }}
         >
-          <Text style={[styles.questMeta, { fontSize: 11, color: "#8fa3b0" }]}>Est. Days</Text>
+          <Text style={[styles.questMeta, { fontSize: 11, color: colors.textSecondary }]}>Est. Days</Text>
           <Text style={[styles.pillValue, { color, fontSize: 14, marginTop: 4 }]}>
             ~{estimatedDaysToNextLevel}
           </Text>
@@ -130,7 +134,7 @@ export function CategoryDetails({ category }: CategoryDetailsProps) {
         <View
           style={{
             flex: 1,
-            backgroundColor: "#0a0e14",
+            backgroundColor: colors.bg,
             borderRadius: 10,
             padding: 12,
             borderWidth: 1.5,
@@ -138,7 +142,7 @@ export function CategoryDetails({ category }: CategoryDetailsProps) {
             opacity: 0.7,
           }}
         >
-          <Text style={[styles.questMeta, { fontSize: 11, color: "#8fa3b0" }]}>Mastery</Text>
+          <Text style={[styles.questMeta, { fontSize: 11, color: colors.textSecondary }]}>Mastery</Text>
           <Text style={[styles.pillValue, { color, fontSize: 14, marginTop: 4 }]}>
             {Math.min(Math.round((category.level / 10) * 100), 100)}%
           </Text>
@@ -146,7 +150,7 @@ export function CategoryDetails({ category }: CategoryDetailsProps) {
       </View>
 
       {/* Achievement milestones */}
-      <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: "#1f2a3c" }}>
+      <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.border }}>
         <Text style={[styles.smallLabel, { color, marginBottom: 8 }]}>Next Milestones</Text>
         <View style={{ gap: 8 }}>
           {[category.level + 1, category.level + 2, category.level + 3].map((lvl) => {
@@ -160,13 +164,13 @@ export function CategoryDetails({ category }: CategoryDetailsProps) {
                   alignItems: "center",
                   paddingVertical: 8,
                   paddingHorizontal: 8,
-                  backgroundColor: isCurrent ? "#141d2a" : "transparent",
+                  backgroundColor: isCurrent ? colors.surface : "transparent",
                   borderRadius: 8,
                   borderWidth: isCurrent ? 1.5 : 0,
                   borderColor: color,
                 }}
               >
-                <Text style={[styles.questMeta, { color: isCurrent ? color : "#8fa3b0" }]}>
+                <Text style={[styles.questMeta, { color: isCurrent ? color : colors.textSecondary }]}>
                   Level {lvl}
                 </Text>
                 <View
@@ -178,7 +182,7 @@ export function CategoryDetails({ category }: CategoryDetailsProps) {
                     opacity: isCurrent ? 1 : 0.5,
                   }}
                 >
-                  <Text style={{ color: "#0a0e14", fontWeight: "700", fontSize: 11 }}>
+                  <Text style={{ color: colors.textPrimary, fontWeight: "700", fontSize: 11 }}>
                     {isCurrent ? "Next" : "Upcoming"}
                   </Text>
                 </View>

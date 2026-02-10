@@ -1,4 +1,4 @@
-import { styles } from "@/app/(tabs)/styles";
+import { createStyles } from "@/app/(tabs)/styles";
 import { useTheme } from "@/app/(tabs)/utils/themeContext";
 import * as Haptics from "expo-haptics";
 import React, { useState } from "react";
@@ -31,6 +31,7 @@ export function AddQuestForm({
   onAdd,
 }: AddQuestFormProps) {
   const { colors } = useTheme();
+  const styles = createStyles(colors);
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
   const [addPressed, setAddPressed] = useState(false);
 
@@ -50,7 +51,7 @@ export function AddQuestForm({
   };
 
   return (
-    <View style={[styles.addBox, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+    <View style={[styles.addBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <TextInput
         placeholder="Quest title (e.g., Clean 10 minutes)"
         placeholderTextColor={colors.textSecondary}
@@ -58,7 +59,7 @@ export function AddQuestForm({
         onChangeText={onTitleChange}
         onFocus={() => setFocusedInput("title")}
         onBlur={() => setFocusedInput(null)}
-        style={[styles.input, { backgroundColor: colors.bgInput, color: colors.textPrimary, borderColor: colors.border }, focusedInput === "title" && { borderColor: colors.accent }]}
+        style={[styles.input, { backgroundColor: colors.bg, color: colors.textPrimary, borderColor: colors.border }, focusedInput === "title" && { borderColor: colors.accentPrimary }]}
       />
 
       <Text style={[styles.smallLabel, { color: colors.textPrimary }]}>Category</Text>
@@ -69,9 +70,9 @@ export function AddQuestForm({
             <Pressable
               key={c.id}
               onPress={() => handleCategoryChange(c.id)}
-              style={[styles.pillPick, { backgroundColor: colors.bgInput, borderColor: colors.border }, active && { backgroundColor: colors.accent, borderColor: colors.accent }]}
+              style={[styles.pillPick, { backgroundColor: colors.bg, borderColor: colors.border }, active && { backgroundColor: colors.accentPrimary, borderColor: colors.accentPrimary }]}
             >
-              <Text style={[styles.pillPickText, { color: colors.textSecondary }, active && { color: '#ffffff' }]}>
+              <Text style={[styles.pillPickText, { color: colors.textSecondary }, active && { color: colors.textPrimary }]}>
                 {c.name}
               </Text>
             </Pressable>
@@ -87,7 +88,7 @@ export function AddQuestForm({
         onChangeText={onXPChange}
         onFocus={() => setFocusedInput("xp")}
         onBlur={() => setFocusedInput(null)}
-        style={[styles.input, { backgroundColor: colors.bgInput, color: colors.textPrimary, borderColor: colors.border }, focusedInput === "xp" && { borderColor: colors.accent }]}
+        style={[styles.input, { backgroundColor: colors.bg, color: colors.textPrimary, borderColor: colors.border }, focusedInput === "xp" && { borderColor: colors.accentPrimary }]}
       />
 
       <Text style={[styles.smallLabel, { color: colors.textPrimary }]}>Difficulty</Text>
@@ -98,9 +99,9 @@ export function AddQuestForm({
             <Pressable
               key={diff}
               onPress={() => handleDifficultyChange(diff)}
-              style={[styles.pillPick, { backgroundColor: colors.bgInput, borderColor: colors.border }, active && { backgroundColor: colors.accent, borderColor: colors.accent }]}
+              style={[styles.pillPick, { backgroundColor: colors.bg, borderColor: colors.border }, active && { backgroundColor: colors.accentPrimary, borderColor: colors.accentPrimary }]}
             >
-              <Text style={[styles.pillPickText, { color: colors.textSecondary }, active && { color: '#ffffff' }]}>
+              <Text style={[styles.pillPickText, { color: colors.textSecondary }, active && { color: colors.textPrimary }]}>
                 {diff.charAt(0).toUpperCase() + diff.slice(1)}
               </Text>
             </Pressable>
@@ -112,9 +113,9 @@ export function AddQuestForm({
         onPress={handleAdd}
         onPressIn={() => setAddPressed(true)}
         onPressOut={() => setAddPressed(false)}
-        style={[styles.addBtn, { backgroundColor: colors.accent, borderColor: colors.accent }, addPressed && styles.btnPressed]}
+        style={[styles.addBtn, { backgroundColor: colors.accentPrimary, borderColor: colors.accentPrimary }, addPressed && styles.btnPressed]}
       >
-        <Text style={[styles.addBtnText, { color: '#ffffff' }]}>Add Quest</Text>
+        <Text style={[styles.addBtnText, { color: colors.textPrimary }]}>Add Quest</Text>
       </Pressable>
     </View>
   );

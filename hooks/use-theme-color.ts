@@ -3,19 +3,31 @@
  * https://docs.expo.dev/guides/color-schemes/
  */
 
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useTheme } from '@/app/(tabs)/utils/themeContext';
 
 export function useThemeColor(
   props: { light?: string; dark?: string },
-  colorName: keyof typeof Colors.light & keyof typeof Colors.dark
+  colorName:
+    | 'text'
+    | 'background'
+    | 'tint'
+    | 'icon'
+    | 'tabIconDefault'
+    | 'tabIconSelected'
 ) {
-  const theme = useColorScheme() ?? 'light';
+  const { theme, colors } = useTheme();
   const colorFromProps = props[theme];
 
-  if (colorFromProps) {
-    return colorFromProps;
-  } else {
-    return Colors[theme][colorName];
-  }
+  if (colorFromProps) return colorFromProps;
+
+  const map = {
+    text: colors.textPrimary,
+    background: colors.bg,
+    tint: colors.accentPrimary,
+    icon: colors.textSecondary,
+    tabIconDefault: colors.textSecondary,
+    tabIconSelected: colors.accentPrimary,
+  };
+
+  return map[colorName] ?? colors.textPrimary;
 }

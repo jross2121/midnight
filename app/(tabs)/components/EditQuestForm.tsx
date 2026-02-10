@@ -1,4 +1,4 @@
-import { styles } from "@/app/(tabs)/styles";
+import { createStyles } from "@/app/(tabs)/styles";
 import { useTheme } from "@/app/(tabs)/utils/themeContext";
 import * as Haptics from "expo-haptics";
 import React, { useState } from "react";
@@ -19,6 +19,7 @@ export function EditQuestForm({
   onCancel,
 }: EditQuestFormProps) {
   const { colors } = useTheme();
+  const styles = createStyles(colors);
   const [editTitle, setEditTitle] = React.useState(quest.title);
   const [editCategory, setEditCategory] = React.useState(quest.categoryId);
   const [editXP, setEditXP] = React.useState(String(quest.xp));
@@ -56,7 +57,7 @@ export function EditQuestForm({
   };
 
   return (
-    <View style={[styles.addBox, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+    <View style={[styles.addBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <Text style={[styles.smallLabel, { color: colors.textPrimary }]}>Edit Quest</Text>
 
       <TextInput
@@ -66,7 +67,7 @@ export function EditQuestForm({
         onChangeText={setEditTitle}
         onFocus={() => setFocusedInput("title")}
         onBlur={() => setFocusedInput(null)}
-        style={[styles.input, { backgroundColor: colors.bgInput, color: colors.textPrimary, borderColor: colors.border }, focusedInput === "title" && { borderColor: colors.accent }]}
+        style={[styles.input, { backgroundColor: colors.bg, color: colors.textPrimary, borderColor: colors.border }, focusedInput === "title" && { borderColor: colors.accentPrimary }]}
       />
 
       <Text style={[styles.smallLabel, { color: colors.textPrimary }]}>Category</Text>
@@ -77,9 +78,9 @@ export function EditQuestForm({
             <Pressable
               key={c.id}
               onPress={() => handleCategoryChange(c.id)}
-              style={[styles.pillPick, { backgroundColor: colors.bgInput, borderColor: colors.border }, active && { backgroundColor: colors.accent, borderColor: colors.accent }]}
+              style={[styles.pillPick, { backgroundColor: colors.bg, borderColor: colors.border }, active && { backgroundColor: colors.accentPrimary, borderColor: colors.accentPrimary }]}
             >
-              <Text style={[styles.pillPickText, { color: colors.textSecondary }, active && { color: '#ffffff' }]}>
+              <Text style={[styles.pillPickText, { color: colors.textSecondary }, active && { color: colors.textPrimary }]}>
                 {c.name}
               </Text>
             </Pressable>
@@ -95,7 +96,7 @@ export function EditQuestForm({
         onChangeText={setEditXP}
         onFocus={() => setFocusedInput("xp")}
         onBlur={() => setFocusedInput(null)}
-        style={[styles.input, { backgroundColor: colors.bgInput, color: colors.textPrimary, borderColor: colors.border }, focusedInput === "xp" && { borderColor: colors.accent }]}
+        style={[styles.input, { backgroundColor: colors.bg, color: colors.textPrimary, borderColor: colors.border }, focusedInput === "xp" && { borderColor: colors.accentPrimary }]}
       />
 
       <Text style={[styles.smallLabel, { color: colors.textPrimary }]}>Difficulty</Text>
@@ -106,9 +107,9 @@ export function EditQuestForm({
             <Pressable
               key={diff}
               onPress={() => handleDifficultyChange(diff)}
-              style={[styles.pillPick, { backgroundColor: colors.bgInput, borderColor: colors.border }, active && { backgroundColor: colors.accent, borderColor: colors.accent }]}
+              style={[styles.pillPick, { backgroundColor: colors.bg, borderColor: colors.border }, active && { backgroundColor: colors.accentPrimary, borderColor: colors.accentPrimary }]}
             >
-              <Text style={[styles.pillPickText, { color: colors.textSecondary }, active && { color: '#ffffff' }]}>
+              <Text style={[styles.pillPickText, { color: colors.textSecondary }, active && { color: colors.textPrimary }]}>
                 {diff.charAt(0).toUpperCase() + diff.slice(1)}
               </Text>
             </Pressable>
@@ -121,17 +122,17 @@ export function EditQuestForm({
           onPress={handleSave}
           onPressIn={() => setSavePressed(true)}
           onPressOut={() => setSavePressed(false)}
-          style={[styles.addBtn, { flex: 1, backgroundColor: colors.accent, borderColor: colors.accent }, savePressed && styles.btnPressed]}
+          style={[styles.addBtn, { flex: 1, backgroundColor: colors.accentPrimary, borderColor: colors.accentPrimary }, savePressed && styles.btnPressed]}
         >
-          <Text style={[styles.addBtnText, { color: '#ffffff' }]}>Save</Text>
+          <Text style={[styles.addBtnText, { color: colors.textPrimary }]}>Save</Text>
         </Pressable>
         <Pressable
           onPress={handleCancel}
           onPressIn={() => setCancelPressed(true)}
           onPressOut={() => setCancelPressed(false)}
-          style={[styles.deleteBtn, { flex: 1, backgroundColor: '#ff3b3020', borderColor: '#ff3b30' }, cancelPressed && styles.btnPressed]}
+          style={[styles.deleteBtn, { flex: 1, backgroundColor: `${colors.accentPrimary}1A`, borderColor: colors.accentPrimary }, cancelPressed && styles.btnPressed]}
         >
-          <Text style={[styles.deleteText, { color: '#ff3b30' }]}>Cancel</Text>
+          <Text style={[styles.deleteText, { color: colors.accentPrimary }]}>Cancel</Text>
         </Pressable>
       </View>
     </View>

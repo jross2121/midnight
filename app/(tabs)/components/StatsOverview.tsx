@@ -1,6 +1,7 @@
 import React from "react";
 import { Text, View } from "react-native";
-import { styles } from "../styles";
+import { createStyles } from "../styles";
+import { useTheme } from "../utils/themeContext";
 import type { Category } from "../utils/types";
 
 interface StatsOverviewProps {
@@ -8,6 +9,8 @@ interface StatsOverviewProps {
 }
 
 export function StatsOverview({ categories }: StatsOverviewProps) {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
   // Calculate comprehensive metrics
   const totalLevel = categories.reduce((sum, c) => sum + c.level, 0);
   const avgLevel = categories.length ? Math.round((totalLevel / categories.length) * 10) / 10 : 0;
@@ -50,10 +53,10 @@ export function StatsOverview({ categories }: StatsOverviewProps) {
     <View style={{ gap: 12, marginBottom: 20 }}>
       {/* Next milestone hint */}
       {nextMilestoneCategory && (
-        <View style={[styles.card, { borderColor: "#2a3a4a" }]}>
+        <View style={[styles.card, { borderColor: colors.border }]}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" }}>
             <Text style={styles.cardTitle}>Next Milestone</Text>
-            <Text style={[styles.smallLabel, { color: "#8fa3b0" }]}>Avg +{xpToNextAvgLevel} XP</Text>
+            <Text style={[styles.smallLabel, { color: colors.textSecondary }]}>Avg +{xpToNextAvgLevel} XP</Text>
           </View>
           <Text style={[styles.questMeta, { marginTop: 8 }]}>
             Level up {nextMilestoneCategory.name} in {nextMilestoneCategory.remaining} XP
@@ -64,12 +67,12 @@ export function StatsOverview({ categories }: StatsOverviewProps) {
                 styles.barFill,
                 {
                   width: `${Math.round(nextMilestoneCategory.progress * 100)}%`,
-                  backgroundColor: "#00ff88",
+                  backgroundColor: colors.accentSecondary,
                 },
               ]}
             />
           </View>
-          <Text style={[styles.smallLabel, { color: "#00ff88", marginTop: 6 }]}>
+          <Text style={[styles.smallLabel, { color: colors.accentSecondary, marginTop: 6 }]}> 
             {Math.round(nextMilestoneCategory.progress * 100)}% to next level
           </Text>
         </View>
@@ -83,8 +86,8 @@ export function StatsOverview({ categories }: StatsOverviewProps) {
             {
               flex: 0,
               minWidth: "48%",
-              backgroundColor: "#0f1419",
-              borderColor: "#00d9ff",
+              backgroundColor: colors.surface,
+              borderColor: colors.accentPrimary,
             },
           ]}
         >
@@ -101,13 +104,13 @@ export function StatsOverview({ categories }: StatsOverviewProps) {
             {
               flex: 0,
               minWidth: "48%",
-              backgroundColor: "#0f1419",
-              borderColor: "#ffaa00",
+              backgroundColor: colors.surface,
+              borderColor: colors.accentTertiary,
             },
           ]}
         >
           <Text style={styles.pillLabel}>Mastery Score</Text>
-          <Text style={[styles.pillValue, { color: "#ffaa00" }]}>{masteryPercent}%</Text>
+          <Text style={[styles.pillValue, { color: colors.accentTertiary }]}>{masteryPercent}%</Text>
           <Text style={[styles.questMeta, { marginTop: 6, fontSize: 10 }]}>
             {masteryCategoriesCount}/6 maxed
           </Text>
@@ -119,13 +122,13 @@ export function StatsOverview({ categories }: StatsOverviewProps) {
             {
               flex: 0,
               minWidth: "48%",
-              backgroundColor: "#0f1419",
-              borderColor: "#00bcd4",
+              backgroundColor: colors.surface,
+              borderColor: colors.accentSecondary,
             },
           ]}
         >
           <Text style={styles.pillLabel}>Balance Score</Text>
-          <Text style={[styles.pillValue, { color: "#00ff88" }]}>{Math.round(balanceScore)}%</Text>
+          <Text style={[styles.pillValue, { color: colors.accentSecondary }]}>{Math.round(balanceScore)}%</Text>
           <Text style={[styles.questMeta, { marginTop: 6, fontSize: 10 }]}>
             Lv {minLevel} to {maxLevel}
           </Text>
@@ -137,13 +140,13 @@ export function StatsOverview({ categories }: StatsOverviewProps) {
             {
               flex: 0,
               minWidth: "48%",
-              backgroundColor: "#0f1419",
-              borderColor: "#ff6b9d",
+              backgroundColor: colors.surface,
+              borderColor: colors.accentPrimary,
             },
           ]}
         >
           <Text style={styles.pillLabel}>Total XP</Text>
-          <Text style={[styles.pillValue, { color: "#ff6b9d" }]}>{totalXP}</Text>
+          <Text style={[styles.pillValue, { color: colors.accentPrimary }]}>{totalXP}</Text>
           <Text style={[styles.questMeta, { marginTop: 6, fontSize: 10 }]}>
             Earned lifetime
           </Text>
@@ -162,15 +165,15 @@ export function StatsOverview({ categories }: StatsOverviewProps) {
             })
             .map((category, index) => {
               const colorMap: { [key: string]: string } = {
-                health: "#00bcd4",
-                money: "#00ff00",
-                career: "#ff9800",
-                social: "#ff6b9d",
-                home: "#ff4444",
-                fun: "#9d4edd",
+                health: colors.accentPrimary,
+                money: colors.accentSecondary,
+                career: colors.accentTertiary,
+                social: colors.accentPrimary,
+                home: colors.accentSecondary,
+                fun: colors.accentTertiary,
               };
               const medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣"];
-              const color = colorMap[category.id] || "#00d9ff";
+              const color = colorMap[category.id] || colors.accentPrimary;
               const medal = medals[index];
 
               return (
@@ -182,7 +185,7 @@ export function StatsOverview({ categories }: StatsOverviewProps) {
                     alignItems: "center",
                     paddingVertical: 10,
                     paddingHorizontal: 12,
-                    backgroundColor: "#141d2a",
+                    backgroundColor: colors.surface,
                     borderRadius: 10,
                     borderLeftWidth: 3,
                     borderLeftColor: color,
@@ -206,7 +209,7 @@ export function StatsOverview({ categories }: StatsOverviewProps) {
                       opacity: 0.8,
                     }}
                   >
-                    <Text style={{ color: "#0a0e14", fontWeight: "900", fontSize: 12 }}>
+                    <Text style={{ color: colors.textPrimary, fontWeight: "900", fontSize: 12 }}>
                       {((category.xp / category.xpToNext) * 100).toFixed(0)}%
                     </Text>
                   </View>
@@ -232,8 +235,8 @@ export function StatsOverview({ categories }: StatsOverviewProps) {
             return (
               <View key={`level-${level}`} style={{ gap: 6 }}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                  <Text style={[styles.smallLabel, { color: "#8fa3b0" }]}>Level {level}+</Text>
-                  <Text style={[styles.smallLabel, { color: "#00d9ff" }]}>
+                  <Text style={[styles.smallLabel, { color: colors.textSecondary }]}>Level {level}+</Text>
+                  <Text style={[styles.smallLabel, { color: colors.accentPrimary }]}>
                     {categoriesAtLevel}/6 categories
                   </Text>
                 </View>
@@ -243,7 +246,8 @@ export function StatsOverview({ categories }: StatsOverviewProps) {
                       styles.barFill,
                       {
                         width: `${percent}%`,
-                        backgroundColor: `rgba(0, 217, 255, ${0.3 + (level / 6) * 0.7})`,
+                        backgroundColor: colors.accentPrimary,
+                        opacity: 0.3 + (level / 6) * 0.7,
                       },
                     ]}
                   />
