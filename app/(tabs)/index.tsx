@@ -3,6 +3,7 @@ import * as Haptics from "expo-haptics";
 import React, { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Svg, { Path } from "react-native-svg";
 
 import { AddQuestForm } from "./components/AddQuestForm";
 import { EditQuestForm } from "./components/EditQuestForm";
@@ -31,6 +32,7 @@ export default function HomeScreen() {
   const [quests, setQuests] = useState<Quest[]>(defaultQuests);
   const [lastResetDate, setLastResetDate] = useState<string>(localDateKey());
   const [hydrated, setHydrated] = useState(false);
+  const [todayCardSize, setTodayCardSize] = useState<{ width: number; height: number } | null>(null);
 
   const [streakAny, setStreakAny] = useState<Streak>(defaultStreak);
   const [streakPerfect, setStreakPerfect] = useState<Streak>(defaultStreak);
@@ -175,6 +177,10 @@ export default function HomeScreen() {
   }, [quests, streakAny]);
 
   const doneCount = useMemo(() => quests.filter((q) => q.done).length, [quests]);
+  const todayProgress = useMemo(() => {
+    if (!quests.length) return 0;
+    return Math.min(1, Math.max(0, doneCount / quests.length));
+  }, [doneCount, quests.length]);
 
   const categoryName = (id: string) =>
     categories.find((c) => c.id === id)?.name ?? "Category";
@@ -395,6 +401,39 @@ export default function HomeScreen() {
 
   const topBandBg = colors.surface;
   const questBandBg = colors.bg;
+  const ringThickness = 3;
+  const ringRadius = 14;
+  const ringMetrics = useMemo(() => {
+    if (!todayCardSize) return null;
+    const rectWidth = todayCardSize.width;
+    const rectHeight = todayCardSize.height;
+    const x = ringThickness / 2;
+    const y = ringThickness / 2;
+    const w = rectWidth;
+    const h = rectHeight;
+    const r = Math.min(ringRadius, Math.max(0, Math.min(w, h) / 2 - 1));
+    const perimeter = 2 * (w + h - 4 * r) + 2 * Math.PI * r;
+    const path = [
+      `M ${x + w / 2} ${y}`,
+      `H ${x + w - r}`,
+      `A ${r} ${r} 0 0 1 ${x + w} ${y + r}`,
+      `V ${y + h - r}`,
+      `A ${r} ${r} 0 0 1 ${x + w - r} ${y + h}`,
+      `H ${x + r}`,
+      `A ${r} ${r} 0 0 1 ${x} ${y + h - r}`,
+      `V ${y + r}`,
+      `A ${r} ${r} 0 0 1 ${x + r} ${y}`,
+      `H ${x + w / 2}`,
+    ].join(" ");
+    return {
+      path,
+      perimeter,
+      svgWidth: rectWidth + ringThickness,
+      svgHeight: rectHeight + ringThickness,
+      offset: ringThickness / 2,
+    };
+  }, [todayCardSize]);
+  const ringDashoffset = ringMetrics ? ringMetrics.perimeter * (1 - todayProgress) : 0;
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
@@ -403,17 +442,64 @@ export default function HomeScreen() {
           <View style={[styles.sectionBand, styles.sectionBandTight, { backgroundColor: topBandBg }]}>
             <Text style={[styles.title, { color: colors.accentPrimary }]}>StatLife</Text>
 
-            <View style={styles.topRow}>
-              <View style={[styles.pill, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+            <View style={[styles.topRow, { marginBottom: 12 }]}>
+              <View style={[styles.pill, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                 <Text style={[styles.pillLabel, { color: colors.textSecondary }]}>Overall</Text>
                 <Text style={[styles.pillValue, { color: colors.accentPrimary }]}>Lv {overall}</Text>
               </View>
 
-              <View style={[styles.pill, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-                <Text style={[styles.pillLabel, { color: colors.textSecondary }]}>Today</Text>
-                <Text style={[styles.pillValue, { color: colors.accentPrimary }]}> 
-                  {doneCount}/{quests.length} • +{todayXP} XP
-                </Text>
+              <View
+                style={[styles.pill, styles.todayPill]}
+                onLayout={(event) => {
+                  const { width, height } = event.nativeEvent.layout;
+                  if (!todayCardSize || width !== todayCardSize.width || height !== todayCardSize.height) {
+                    setTodayCardSize({ width, height });
+                  }
+                }}
+              >
+                {ringMetrics && (
+                  <View
+                    style={[
+                      styles.todayRingWrap,
+                      {
+                        left: -ringMetrics.offset,
+                        top: -ringMetrics.offset,
+                        width: ringMetrics.svgWidth,
+                        height: ringMetrics.svgHeight,
+                      },
+                    ]}
+                    pointerEvents="none"
+                  >
+                    <Svg width={ringMetrics.svgWidth} height={ringMetrics.svgHeight}>
+                      <Path
+                        d={ringMetrics.path}
+                        stroke={`${colors.accentSecondary}33`}
+                        strokeWidth={ringThickness}
+                        fill="none"
+                      />
+                      <Path
+                        d={ringMetrics.path}
+                        stroke={colors.accentPrimary}
+                        strokeWidth={ringThickness}
+                        strokeLinecap="round"
+                        strokeDasharray={ringMetrics.perimeter}
+                        strokeDashoffset={ringDashoffset}
+                        fill="none"
+                      />
+                    </Svg>
+                  </View>
+                )}
+                <View style={styles.todayContent}>
+                  <View style={styles.todayLabelRow}>
+                    <Text style={[styles.pillLabel, { color: colors.textSecondary }]}>Today</Text>
+                    <View style={[styles.todayAccentDot, { backgroundColor: colors.accentPrimary }]} />
+                  </View>
+                  <View style={styles.todayXPRow}>
+                    <Text style={[styles.pillValue, styles.todayValue, { color: colors.accentPrimary }]}>
+                      {doneCount}/{quests.length} • +{todayXP} XP
+                    </Text>
+                  </View>
+                </View>
               </View>
 
               <View style={[styles.pill, { backgroundColor: colors.surface, borderColor: colors.border }]}> 

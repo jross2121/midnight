@@ -39,8 +39,34 @@ export const createStyles = (colors: ThemeColors) =>
       shadowOpacity: 1,
       shadowRadius: 4,
     },
+    todayPill: {
+      backgroundColor: colors.bg,
+      position: "relative",
+      shadowColor: colors.accentPrimary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.35,
+      shadowRadius: 10,
+    },
     pillLabel: { color: colors.textSecondary, fontSize: 10, fontWeight: "600", letterSpacing: 0.3, textTransform: "uppercase" },
     pillValue: { color: colors.accentPrimary, fontSize: 15, fontWeight: "900", marginTop: 3, letterSpacing: 0.3 },
+    todayLabelRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
+    todayAccentDot: { width: 6, height: 6, borderRadius: 999 },
+    todayContent: { zIndex: 1, alignItems: "center" },
+    todayRingWrap: { position: "absolute", zIndex: 0 },
+    todayXPRow: {
+      alignSelf: "center",
+      backgroundColor: `${colors.accentPrimary}1A`,
+      borderRadius: 9,
+      paddingVertical: 4,
+      paddingHorizontal: 8,
+      marginTop: 6,
+    },
+    todayValue: {
+      fontSize: 16,
+      textShadowColor: colors.accentPrimary,
+      textShadowOffset: { width: 0, height: 0 },
+      textShadowRadius: 6,
+    },
 
     row: { flexDirection: "row", gap: 10, marginBottom: 18, flexWrap: "wrap" },
     btn: {
@@ -141,27 +167,32 @@ export const createStyles = (colors: ThemeColors) =>
     questCard: {
       flexDirection: "column",
       alignItems: "stretch",
-      gap: 12,
+      gap: 10,
       backgroundColor: colors.surface,
-      borderRadius: 12,
-      padding: 14,
-      borderWidth: 1.5,
+      borderRadius: 14,
+      padding: 16,
+      borderWidth: 2,
       borderColor: colors.border,
-      shadowColor: "rgba(0,0,0,0.2)",
+      shadowColor: colors.border,
       shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 1,
-      shadowRadius: 4,
+      shadowOpacity: 0.25,
+      shadowRadius: 6,
     },
     questHeader: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 10,
+      gap: 12,
+    },
+    questHeaderPressed: {
+      backgroundColor: colors.bg,
+      borderRadius: 10,
+      opacity: 0.92,
     },
     questMetaRow: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 8,
-      marginTop: 4,
+      gap: 10,
+      marginTop: 6,
     },
     questStatusStack: {
       alignItems: "flex-end",
@@ -184,20 +215,38 @@ export const createStyles = (colors: ThemeColors) =>
     questActionsRow: {
       flexDirection: "row",
       flexWrap: "wrap",
-      gap: 8,
+      gap: 6,
       alignItems: "center",
     },
     questActionBtn: {
-      paddingVertical: 7,
-      paddingHorizontal: 10,
-      borderRadius: 8,
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      borderRadius: 10,
       borderWidth: 1.5,
     },
-    questActionText: { fontWeight: "900", fontSize: 11 },
-    questDone: { opacity: 0.5, backgroundColor: colors.bg },
-    questTitle: { color: colors.textPrimary, fontSize: 15, fontWeight: "900" },
+    questActionText: { fontWeight: "900", fontSize: 12 },
+    questDone: {
+      opacity: 0.78,
+      backgroundColor: colors.bg,
+      borderColor: colors.accentSecondary,
+      shadowColor: colors.accentSecondary,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.25,
+      shadowRadius: 8,
+    },
+    questDoneBar: {
+      height: 4,
+      borderRadius: 999,
+      backgroundColor: `${colors.accentSecondary}55`,
+      shadowColor: colors.accentSecondary,
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.35,
+      shadowRadius: 4,
+      marginBottom: 8,
+    },
+    questTitle: { color: colors.textPrimary, fontSize: 16, fontWeight: "900" },
     questTitleDone: { textDecorationLine: "line-through", opacity: 0.6 },
-    questMeta: { color: colors.textSecondary, marginTop: 5, fontSize: 11 },
+    questMeta: { color: colors.textSecondary, marginTop: 6, fontSize: 12 },
 
     rightStack: { gap: 9, alignItems: "flex-end" },
 
@@ -242,7 +291,7 @@ export const createStyles = (colors: ThemeColors) =>
       borderRadius: 9,
     },
     pinText: { color: colors.textSecondary, fontWeight: "900", fontSize: 11 },
-    
+
     deleteBtn: {
       backgroundColor: colors.bg,
       borderWidth: 1.5,
@@ -253,10 +302,10 @@ export const createStyles = (colors: ThemeColors) =>
     },
     deleteText: { color: colors.accentPrimary, fontWeight: "900", fontSize: 11 },
 
-  btnPressed: {
-    opacity: 0.7,
-    transform: [{ scale: 0.95 }],
-  },
+    btnPressed: {
+      opacity: 0.7,
+      transform: [{ scale: 0.95 }],
+    },
 
     grid: { gap: 12 },
     card: {

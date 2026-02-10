@@ -63,8 +63,12 @@ export function QuestCard({ quest, categoryName, onComplete, onEdit, onPin, onDe
   };
 
   return (
-    <View style={[styles.questCard, { backgroundColor: colors.surface, borderColor: colors.border }, quest.done && { backgroundColor: colors.bg, opacity: 0.5 }]}>
-      <Pressable style={styles.questHeader} onPress={handleToggleExpanded}>
+    <View style={[styles.questCard, { backgroundColor: colors.surface, borderColor: colors.border }, quest.done && styles.questDone]}>
+      {quest.done && <View style={styles.questDoneBar} />}
+      <Pressable
+        style={({ pressed }) => [styles.questHeader, pressed && styles.questHeaderPressed]}
+        onPress={handleToggleExpanded}
+      >
         <View style={{ flex: 1 }}>
           <Text style={[styles.questTitle, { color: colors.textPrimary }, quest.done && styles.questTitleDone]}>
             {quest.title}
