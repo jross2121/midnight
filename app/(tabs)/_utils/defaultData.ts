@@ -1,4 +1,4 @@
-import type { Achievement, Category, Quest, Streak } from "./types";
+import type { Achievement, Category, DrHistoryEntry, Quest } from "./types";
 
 export const defaultCategories: Category[] = [
   { id: "health", name: "Health", level: 3, xp: 40, xpToNext: 120 },
@@ -19,15 +19,18 @@ export const defaultQuests: Quest[] = [
   { id: "q7", title: "Relax guilt-free (30 min)", categoryId: "fun", xp: 10, difficulty: "easy", done: false, pinned: false },
 ];
 
-export const defaultStreak: Streak = { current: 0, best: 0, lastDate: null };
-
 export const defaultAchievements: Achievement[] = [
   { id: "first_quest", name: "First Step", description: "Complete your first quest", icon: "🎯", unlockedAt: null },
   { id: "level_5", name: "Climbing", description: "Reach level 5 in any category", icon: "📈", unlockedAt: null },
   { id: "hard_mode", name: "Challenge Accepted", description: "Complete a hard difficulty quest", icon: "⚡", unlockedAt: null },
-  { id: "streak_7", name: "On Fire", description: "Achieve a 7-day streak", icon: "🔥", unlockedAt: null },
   { id: "100_xp", name: "Century", description: "Earn 100 XP in a single day", icon: "💯", unlockedAt: null },
   { id: "all_categories", name: "Balanced Life", description: "Reach level 3 in all categories", icon: "⚖️", unlockedAt: null },
   { id: "perfect_day", name: "Perfectionist", description: "Complete all quests in one day", icon: "✨", unlockedAt: null },
   { id: "30_quests", name: "Quest Master", description: "Complete 30 quests total", icon: "👑", unlockedAt: null },
 ];
+
+export const defaultDisciplineRating = 0;
+export const defaultLastDrDelta = 0;
+export const defaultLastCompletionPct = 0;
+export const defaultLastDrUpdateDate = "";
+export const defaultDrHistory: DrHistoryEntry[] = [];

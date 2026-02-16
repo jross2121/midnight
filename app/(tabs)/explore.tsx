@@ -8,8 +8,8 @@ import { ThemedView } from '@/components/themed-view';
 import { Collapsible } from '@/components/ui/collapsible';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Fonts } from '@/constants/theme';
-import { Footer } from './components/Footer';
-import { useTheme } from './utils/themeContext';
+import { Footer } from './_components/Footer';
+import { useTheme } from './_utils/themeContext';
 
 export default function TabTwoScreen() {
   const { colors } = useTheme();

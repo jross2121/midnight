@@ -1,8 +1,8 @@
-import { createStyles } from "@/app/(tabs)/styles";
-import { useTheme } from "@/app/(tabs)/utils/themeContext";
 import React from "react";
 import { Text, View } from "react-native";
-import type { Achievement } from "../utils/types";
+import { createStyles } from "../_styles";
+import { useTheme } from "../_utils/themeContext";
+import type { Achievement } from "../_utils/types";
 
 interface AchievementsProps {
   achievements: Achievement[];

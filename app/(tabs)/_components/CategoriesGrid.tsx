@@ -1,9 +1,9 @@
-import { createStyles } from "@/app/(tabs)/styles";
-import { useTheme } from "@/app/(tabs)/utils/themeContext";
 import React from "react";
 import { Text, View } from "react-native";
-import { clamp } from "../utils/gameHelpers";
-import type { Category } from "../utils/types";
+import { createStyles } from "../_styles";
+import { clamp } from "../_utils/gameHelpers";
+import { useTheme } from "../_utils/themeContext";
+import type { Category } from "../_utils/types";
 
 interface CategoriesGridProps {
   categories: Category[];

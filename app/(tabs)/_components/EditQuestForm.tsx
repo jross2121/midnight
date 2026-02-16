@@ -1,9 +1,9 @@
-import { createStyles } from "@/app/(tabs)/styles";
-import { useTheme } from "@/app/(tabs)/utils/themeContext";
 import * as Haptics from "expo-haptics";
 import React, { useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
-import type { Category, Quest } from "../utils/types";
+import { createStyles } from "../_styles";
+import { useTheme } from "../_utils/themeContext";
+import type { Category, Quest } from "../_utils/types";
 
 interface EditQuestFormProps {
   quest: Quest;

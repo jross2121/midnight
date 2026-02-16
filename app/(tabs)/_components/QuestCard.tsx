@@ -1,10 +1,10 @@
-import { createStyles } from "@/app/(tabs)/styles";
-import { useTheme } from "@/app/(tabs)/utils/themeContext";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import * as Haptics from "expo-haptics";
 import React, { useState } from "react";
 import { Pressable, Text, View } from "react-native";
-import type { Quest } from "../utils/types";
+import { createStyles } from "../_styles";
+import { useTheme } from "../_utils/themeContext";
+import type { Quest } from "../_utils/types";
 
 interface QuestCardProps {
   quest: Quest;

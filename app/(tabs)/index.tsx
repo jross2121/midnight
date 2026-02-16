@@ -5,22 +5,88 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 
-import { AddQuestForm } from "./components/AddQuestForm";
-import { EditQuestForm } from "./components/EditQuestForm";
-import { Footer } from "./components/Footer";
-import { QuestCard } from "./components/QuestCard";
-import { createStyles } from "./styles";
+import { AddQuestForm } from "./_components/AddQuestForm";
+import { EditQuestForm } from "./_components/EditQuestForm";
+import { Footer } from "./_components/Footer";
+import { QuestCard } from "./_components/QuestCard";
+import { createStyles } from "./_styles";
+import { diffDays, localDateKey, parseDateKey } from "./_utils/dateHelpers";
 import {
-    applyDayResult,
-    diffDays,
-    liveStreak,
-    localDateKey,
-} from "./utils/dateHelpers";
-import { defaultAchievements, defaultCategories, defaultQuests, defaultStreak } from "./utils/defaultData";
-import { getStreakMultiplier, levelUp } from "./utils/gameHelpers";
-import { useTheme } from "./utils/themeContext";
-import type { Achievement, Category, Quest, StoredState, Streak } from "./utils/types";
-import { STORAGE_KEY } from "./utils/types";
+  defaultAchievements,
+  defaultCategories,
+  defaultDisciplineRating,
+  defaultDrHistory,
+  defaultLastCompletionPct,
+  defaultLastDrDelta,
+  defaultLastDrUpdateDate,
+  defaultQuests,
+} from "./_utils/defaultData";
+import { levelUp } from "./_utils/gameHelpers";
+import { getNextRank, getRankEmoji, getRankFromDR } from "./_utils/rank";
+import { useTheme } from "./_utils/themeContext";
+import type { Achievement, Category, DrHistoryEntry, Quest, StoredState } from "./_utils/types";
+import { STORAGE_KEY } from "./_utils/types";
+
+/* =======================
+   DR HELPERS
+======================= */
+function drDeltaFromCompletion(done: number, total: number): number {
+  if (total <= 0) return -8; // no quests => treat as 0%
+  if (done <= 0) return -8; // 0%
+
+  if (done >= total) return +10; // 100%
+
+  const pct = (done / total) * 100;
+
+  if (pct >= 1 && pct <= 29) return -4;
+  if (pct >= 30 && pct <= 59) return 0;
+  if (pct >= 60 && pct <= 84) return +4;
+  if (pct >= 85 && pct <= 99) return +7;
+
+  // Safety fallback (shouldn't hit)
+  return 0;
+}
+
+function applyDrChange(current: number, delta: number): number {
+  return Math.max(0, current + delta);
+}
+
+function completionPct(done: number, total: number): number {
+  if (total <= 0 || done <= 0) return 0;
+  const pct = Math.round((done / total) * 100);
+  return Math.max(0, Math.min(100, pct));
+}
+
+function addDaysToDateKey(dateKey: string, days: number): string {
+  const d = parseDateKey(dateKey);
+  d.setDate(d.getDate() + days);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function formatDelta(delta: number): string {
+  return delta >= 0 ? `+${delta}` : `${delta}`;
+}
+
+function isDrHistoryEntry(value: unknown): value is DrHistoryEntry {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Partial<DrHistoryEntry>;
+  return (
+    typeof candidate.date === "string" &&
+    typeof candidate.dr === "number" &&
+    typeof candidate.delta === "number" &&
+    typeof candidate.pct === "number"
+  );
+}
+
+function loadDrHistory(value: unknown): DrHistoryEntry[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((entry): entry is DrHistoryEntry => isDrHistoryEntry(entry))
+    .slice(-30);
+}
 
 /* =======================
    SCREEN
@@ -28,14 +94,20 @@ import { STORAGE_KEY } from "./utils/types";
 export default function HomeScreen() {
   const { colors } = useTheme();
   const styles = createStyles(colors);
+
   const [categories, setCategories] = useState<Category[]>(defaultCategories);
   const [quests, setQuests] = useState<Quest[]>(defaultQuests);
   const [lastResetDate, setLastResetDate] = useState<string>(localDateKey());
   const [hydrated, setHydrated] = useState(false);
   const [todayCardSize, setTodayCardSize] = useState<{ width: number; height: number } | null>(null);
 
-  const [streakAny, setStreakAny] = useState<Streak>(defaultStreak);
-  const [streakPerfect, setStreakPerfect] = useState<Streak>(defaultStreak);
+  const [disciplineRating, setDisciplineRating] = useState<number>(defaultDisciplineRating);
+  const [lastDrDelta, setLastDrDelta] = useState<number>(defaultLastDrDelta);
+  const [lastCompletionPct, setLastCompletionPct] = useState<number>(defaultLastCompletionPct);
+  const [lastDrUpdateDate, setLastDrUpdateDate] = useState<string>(defaultLastDrUpdateDate);
+  const [drHistory, setDrHistory] = useState<DrHistoryEntry[]>(defaultDrHistory);
+  const [lastFinalizedCounts, setLastFinalizedCounts] = useState<{ done: number; total: number } | null>(null);
+
   const [achievements, setAchievements] = useState<Achievement[]>(defaultAchievements);
 
   // Add quest form state
@@ -48,142 +120,10 @@ export default function HomeScreen() {
   // Edit quest state
   const [editingQuestId, setEditingQuestId] = useState<string | null>(null);
 
-  // LOAD (and apply daily reset if needed + update streaks)
-  useEffect(() => {
-    (async () => {
-      const today = localDateKey();
-
-      try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
-
-        if (!raw) {
-          setLastResetDate(today);
-          setHydrated(true);
-          return;
-        }
-
-        const parsed = JSON.parse(raw) as Partial<StoredState>;
-
-        const loadedCategories =
-          Array.isArray(parsed.categories) && parsed.categories.length
-            ? parsed.categories
-            : defaultCategories;
-
-        const loadedQuests =
-          Array.isArray(parsed.quests) && parsed.quests.length
-            ? parsed.quests
-            : defaultQuests;
-
-        const savedResetDate =
-          typeof parsed.lastResetDate === "string" ? parsed.lastResetDate : today;
-
-        const loadedStreakAny =
-          parsed.streakAny && typeof parsed.streakAny.current === "number"
-            ? parsed.streakAny
-            : defaultStreak;
-
-        const loadedStreakPerfect =
-          parsed.streakPerfect && typeof parsed.streakPerfect.current === "number"
-            ? parsed.streakPerfect
-            : defaultStreak;
-
-        const loadedAchievements = Array.isArray(parsed.achievements)
-          ? parsed.achievements
-          : defaultAchievements;
-
-        // ✅ If a new day, finalize yesterday's streak result
-        const gap = diffDays(savedResetDate, today);
-
-        let nextStreakAny = loadedStreakAny;
-        let nextStreakPerfect = loadedStreakPerfect;
-
-        if (gap >= 1) {
-          const donePrev = loadedQuests.filter((q) => q.done).length;
-          const totalPrev = loadedQuests.length;
-
-          const successAnyPrev = donePrev > 0;
-          const successPerfectPrev = totalPrev > 0 && donePrev === totalPrev;
-
-          nextStreakAny = applyDayResult(loadedStreakAny, savedResetDate, successAnyPrev, gap);
-          nextStreakPerfect = applyDayResult(
-            loadedStreakPerfect,
-            savedResetDate,
-            successPerfectPrev,
-            gap
-          );
-        }
-
-        // ✅ Daily reset + normalize difficulty
-        const finalQuests =
-          savedResetDate !== today
-            ? loadedQuests.map((q) => ({ ...q, done: false }))
-            : loadedQuests;
-
-        const normalizedFinalQuests = finalQuests.map((q) => ({
-          ...q,
-          difficulty: normalizeDifficulty((q as any).difficulty),
-          pinned: Boolean((q as any).pinned),
-        }));
-
-        setCategories(loadedCategories);
-        setQuests(normalizedFinalQuests);
-        setStreakAny(nextStreakAny);
-        setStreakPerfect(nextStreakPerfect);
-        setAchievements(loadedAchievements);
-        setLastResetDate(today);
-      } catch (e) {
-        console.log("Failed to load storage:", e);
-        setLastResetDate(today);
-      } finally {
-        setHydrated(true);
-      }
-    })();
-  }, []);
-
-  // SAVE on changes
-  useEffect(() => {
-    if (!hydrated) return;
-
-    (async () => {
-      try {
-        const state: StoredState = {
-          categories,
-          quests,
-          lastResetDate,
-          streakAny,
-          streakPerfect,
-          achievements,
-        };
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      } catch (e) {
-        console.log("Failed to save storage:", e);
-      }
-    })();
-  }, [categories, quests, lastResetDate, streakAny, streakPerfect, achievements, hydrated]);
-
-  const overall = useMemo(() => {
-    const totalLevel = categories.reduce((sum, c) => sum + c.level, 0);
-    const avg = categories.length ? totalLevel / categories.length : 0;
-    return Math.round(avg * 10) / 10;
-  }, [categories]);
-
-  const todayXP = useMemo(() => {
-    const baseXP = quests.filter((q) => q.done).reduce((sum, q) => {
-      const diffMultiplier = getDifficultyMultiplier(q.difficulty);
-      return sum + Math.floor(q.xp * diffMultiplier);
-    }, 0);
-    const streakMultiplier = getStreakMultiplier(streakAny.current);
-    return Math.floor(baseXP * streakMultiplier);
-  }, [quests, streakAny]);
-
-  const doneCount = useMemo(() => quests.filter((q) => q.done).length, [quests]);
-  const todayProgress = useMemo(() => {
-    if (!quests.length) return 0;
-    return Math.min(1, Math.max(0, doneCount / quests.length));
-  }, [doneCount, quests.length]);
-
-  const categoryName = (id: string) =>
-    categories.find((c) => c.id === id)?.name ?? "Category";
+  const normalizeDifficulty = (d: unknown): "easy" | "medium" | "hard" => {
+    if (d === "medium" || d === "hard") return d;
+    return "easy";
+  };
 
   function getDifficultyMultiplier(difficulty: "easy" | "medium" | "hard") {
     switch (difficulty) {
@@ -195,11 +135,6 @@ export default function HomeScreen() {
         return 2;
     }
   }
-
-  const normalizeDifficulty = (d: any): "easy" | "medium" | "hard" => {
-    if (d === "medium" || d === "hard") return d;
-    return "easy";
-  };
 
   const unlockAchievement = (achievementId: string) => {
     setAchievements((prev) =>
@@ -265,11 +200,209 @@ export default function HomeScreen() {
       unlockAchievement("30_quests");
     }
 
-    // streak_7: Achieve 7-day streak
-    if (streakAny.current >= 7 && !achievements.find((a) => a.id === "streak_7")?.unlockedAt) {
-      unlockAchievement("streak_7");
-    }
   };
+
+  /*
+    DEV TEST CHECKLIST:
+    a) Complete some quests, change device date to tomorrow, relaunch app:
+       expect DR recap line + DR delta + one new DR history entry.
+    b) Skip 2 days, relaunch app:
+       expect multiple missed-day entries in DR history with pct=0 and delta=-8.
+  */
+  // LOAD (and apply daily reset if needed + update DR)
+  useEffect(() => {
+    (async () => {
+      const today = localDateKey();
+
+      try {
+        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+
+        if (!raw) {
+          setLastResetDate(today);
+          setHydrated(true);
+          return;
+        }
+
+        const parsed = JSON.parse(raw) as Partial<StoredState>;
+
+        const loadedCategories =
+          Array.isArray(parsed.categories) && parsed.categories.length
+            ? parsed.categories
+            : defaultCategories;
+
+        const loadedQuests =
+          Array.isArray(parsed.quests) && parsed.quests.length
+            ? parsed.quests
+            : defaultQuests;
+
+        const savedResetDate =
+          typeof parsed.lastResetDate === "string" ? parsed.lastResetDate : today;
+
+        const loadedAchievements = Array.isArray(parsed.achievements)
+          ? parsed.achievements
+          : defaultAchievements;
+
+        const loadedDR =
+          typeof parsed.disciplineRating === "number" ? parsed.disciplineRating : defaultDisciplineRating;
+        const loadedLastDrDelta =
+          typeof parsed.lastDrDelta === "number" ? parsed.lastDrDelta : defaultLastDrDelta;
+        const loadedLastCompletionPct =
+          typeof parsed.lastCompletionPct === "number"
+            ? Math.max(0, Math.min(100, Math.round(parsed.lastCompletionPct)))
+            : defaultLastCompletionPct;
+        const loadedLastDrUpdateDate =
+          typeof parsed.lastDrUpdateDate === "string" ? parsed.lastDrUpdateDate : defaultLastDrUpdateDate;
+        const loadedHistory = loadDrHistory(parsed.drHistory);
+
+        const gap = diffDays(savedResetDate, today);
+
+        let nextDR = loadedDR;
+        let nextLastDrDelta = loadedLastDrDelta;
+        let nextLastCompletionPct = loadedLastCompletionPct;
+        let nextLastDrUpdateDate = loadedLastDrUpdateDate;
+        let nextHistory = loadedHistory;
+
+        if (gap >= 1) {
+          // Day 1 (the "previous day" based on saved quests)
+          const donePrev = loadedQuests.filter((q) => q.done).length;
+          const totalPrev = loadedQuests.length;
+          const pctPrev = completionPct(donePrev, totalPrev);
+          const deltaPrev = drDeltaFromCompletion(donePrev, totalPrev);
+          nextDR = applyDrChange(nextDR, deltaPrev);
+          nextHistory = [
+            ...nextHistory,
+            {
+              date: savedResetDate,
+              dr: nextDR,
+              delta: deltaPrev,
+              pct: pctPrev,
+            },
+          ];
+          setLastFinalizedCounts({ done: donePrev, total: totalPrev });
+
+          // Additional missed days (if you were away multiple days)
+          // Treat each missed day as 0% => -8
+          for (let i = 1; i < gap; i++) {
+            const missedDate = addDaysToDateKey(savedResetDate, i);
+            nextDR = applyDrChange(nextDR, -8);
+            nextHistory.push({
+              date: missedDate,
+              dr: nextDR,
+              delta: -8,
+              pct: 0,
+            });
+          }
+
+          if (nextHistory.length > 30) {
+            nextHistory = nextHistory.slice(-30);
+          }
+
+          const latestEntry = nextHistory[nextHistory.length - 1];
+          if (latestEntry) {
+            nextLastDrDelta = latestEntry.delta;
+            nextLastCompletionPct = latestEntry.pct;
+          }
+          nextLastDrUpdateDate = today;
+        } else {
+          setLastFinalizedCounts(null);
+        }
+
+        // ✅ Daily reset + normalize difficulty
+        const finalQuests =
+          savedResetDate !== today
+            ? loadedQuests.map((q) => ({ ...q, done: false }))
+            : loadedQuests;
+
+        const normalizedFinalQuests = finalQuests.map((q) => ({
+          ...q,
+          difficulty: normalizeDifficulty(q.difficulty),
+          pinned: Boolean(q.pinned),
+        }));
+
+        setCategories(loadedCategories);
+        setQuests(normalizedFinalQuests);
+        setAchievements(loadedAchievements);
+        setDisciplineRating(nextDR);
+        setLastDrDelta(nextLastDrDelta);
+        setLastCompletionPct(nextLastCompletionPct);
+        setLastDrUpdateDate(nextLastDrUpdateDate);
+        setDrHistory(nextHistory);
+        setLastResetDate(today);
+      } catch (e) {
+        console.log("Failed to load storage:", e);
+        setLastResetDate(today);
+      } finally {
+        setHydrated(true);
+      }
+    })();
+  }, []);
+
+  // SAVE on changes
+  useEffect(() => {
+    if (!hydrated) return;
+
+    (async () => {
+      try {
+        const state: StoredState = {
+          categories,
+          quests,
+          lastResetDate,
+          achievements,
+          disciplineRating,
+          lastDrDelta,
+          lastCompletionPct,
+          lastDrUpdateDate,
+          drHistory,
+        };
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (e) {
+        console.log("Failed to save storage:", e);
+      }
+    })();
+  }, [
+    categories,
+    quests,
+    lastResetDate,
+    achievements,
+    disciplineRating,
+    lastDrDelta,
+    lastCompletionPct,
+    lastDrUpdateDate,
+    drHistory,
+    hydrated,
+  ]);
+
+  const overall = useMemo(() => {
+    const totalLevel = categories.reduce((sum, c) => sum + c.level, 0);
+    const avg = categories.length ? totalLevel / categories.length : 0;
+    return Math.round(avg * 10) / 10;
+  }, [categories]);
+
+  const doneCount = useMemo(() => quests.filter((q) => q.done).length, [quests]);
+  const rankName = useMemo(() => getRankFromDR(disciplineRating), [disciplineRating]);
+  const nextRank = useMemo(() => getNextRank(disciplineRating), [disciplineRating]);
+  const todayProgress = useMemo(() => {
+    if (!quests.length) return 0;
+    return Math.min(1, Math.max(0, doneCount / quests.length));
+  }, [doneCount, quests.length]);
+  const recapCounts = useMemo(() => {
+    if (lastFinalizedCounts) return lastFinalizedCounts;
+    const total = quests.length;
+    const estimatedDone = Math.round((lastCompletionPct / 100) * total);
+    return { done: Math.max(0, Math.min(total, estimatedDone)), total };
+  }, [lastCompletionPct, lastFinalizedCounts, quests.length]);
+  const hasDailyRecap = Boolean(lastDrUpdateDate);
+
+  const todayXP = useMemo(() => {
+    const baseXP = quests.filter((q) => q.done).reduce((sum, q) => {
+      const diffMultiplier = getDifficultyMultiplier(q.difficulty);
+      return sum + Math.floor(q.xp * diffMultiplier);
+    }, 0);
+    return Math.floor(baseXP);
+  }, [quests]);
+
+  const categoryName = (id: string) =>
+    categories.find((c) => c.id === id)?.name ?? "Category";
 
   const completeQuest = (questId: string) => {
     const quest = quests.find((q) => q.id === questId);
@@ -279,8 +412,7 @@ export default function HomeScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     const difficultyMultiplier = getDifficultyMultiplier(quest.difficulty);
-    const streakMultiplier = getStreakMultiplier(streakAny.current);
-    const xpAwarded = Math.floor(quest.xp * difficultyMultiplier * streakMultiplier);
+    const xpAwarded = Math.floor(quest.xp * difficultyMultiplier);
 
     const updatedQuests = quests.map((q) =>
       q.id === questId ? { ...q, done: true } : q
@@ -336,9 +468,13 @@ export default function HomeScreen() {
     setCategories(resetCategories);
     setQuests(defaultQuests);
 
-    // wipe streaks
-    setStreakAny(defaultStreak);
-    setStreakPerfect(defaultStreak);
+    // ✅ wipe DR
+    setDisciplineRating(defaultDisciplineRating);
+    setLastDrDelta(defaultLastDrDelta);
+    setLastCompletionPct(defaultLastCompletionPct);
+    setLastDrUpdateDate(defaultLastDrUpdateDate);
+    setDrHistory(defaultDrHistory);
+    setLastFinalizedCounts(null);
 
     setShowAdd(false);
     setEditingQuestId(null);
@@ -355,8 +491,13 @@ export default function HomeScreen() {
         JSON.stringify({
           categories: resetCategories,
           quests: defaultQuests,
-          streakAny: defaultStreak,
-          streakPerfect: defaultStreak,
+          achievements: defaultAchievements,
+          disciplineRating: defaultDisciplineRating,
+          lastDrDelta: defaultLastDrDelta,
+          lastCompletionPct: defaultLastCompletionPct,
+          lastDrUpdateDate: defaultLastDrUpdateDate,
+          drHistory: defaultDrHistory,
+          lastResetDate: localDateKey(),
         })
       );
     } catch (e) {
@@ -390,14 +531,6 @@ export default function HomeScreen() {
     setNewDifficulty("easy");
     setShowAdd(false);
   };
-
-  // ✅ live streak display for TODAY
-  const todayKeyStr = localDateKey();
-  const todaySuccessAny = doneCount > 0;
-  const todaySuccessPerfect = quests.length > 0 && doneCount === quests.length;
-
-  const liveAny = liveStreak(streakAny, todayKeyStr, todaySuccessAny);
-  const livePerfect = liveStreak(streakPerfect, todayKeyStr, todaySuccessPerfect);
 
   const topBandBg = colors.surface;
   const questBandBg = colors.bg;
@@ -441,11 +574,38 @@ export default function HomeScreen() {
         <ScrollView contentContainerStyle={styles.container}>
           <View style={[styles.sectionBand, styles.sectionBandTight, { backgroundColor: topBandBg }]}>
             <Text style={[styles.title, { color: colors.accentPrimary }]}>StatLife</Text>
+            <Text style={styles.homeSubtitle}>Daily progress. Built through discipline.</Text>
 
             <View style={[styles.topRow, { marginBottom: 12 }]}>
+              <View
+                style={[
+                  styles.pill,
+                  styles.drPrimaryPill,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                ]}
+              >
+                <Text style={[styles.pillLabel, styles.drLabelText, { color: colors.textSecondary }]}>Discipline Rating</Text>
+                <Text style={[styles.pillValue, styles.drPrimaryValue, { color: colors.accentPrimary }]}>
+                  {disciplineRating}
+                </Text>
+                <Text style={[styles.drRankText, { color: colors.textSecondary }]}>
+                  {getRankEmoji(rankName)} {rankName}
+                </Text>
+                <Text style={[styles.drSupportText, { color: colors.textSecondary }]}>
+                  {hasDailyRecap
+                    ? `Yesterday: ${recapCounts.done}/${recapCounts.total} (${lastCompletionPct}%) -> DR ${formatDelta(lastDrDelta)}`
+                    : "Complete quests to start building DR."}
+                </Text>
+                <Text style={[styles.drSupportText, { color: colors.textSecondary }]}>
+                  {nextRank
+                    ? `Next Rank: ${nextRank.name} in ${nextRank.remainingDr} DR`
+                    : "Top Rank: Grand Discipline"}
+                </Text>
+              </View>
+
               <View style={[styles.pill, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <Text style={[styles.pillLabel, { color: colors.textSecondary }]}>Overall</Text>
-                <Text style={[styles.pillValue, { color: colors.accentPrimary }]}>Lv {overall}</Text>
+                <Text style={[styles.pillLabel, styles.secondaryPillLabel, { color: colors.textSecondary }]}>Overall</Text>
+                <Text style={[styles.pillValue, styles.secondaryPillValue, { color: colors.accentPrimary }]}>Lv {overall}</Text>
               </View>
 
               <View
@@ -491,47 +651,25 @@ export default function HomeScreen() {
                 )}
                 <View style={styles.todayContent}>
                   <View style={styles.todayLabelRow}>
-                    <Text style={[styles.pillLabel, { color: colors.textSecondary }]}>Today</Text>
+                    <Text style={[styles.pillLabel, styles.secondaryPillLabel, { color: colors.textSecondary }]}>Today</Text>
                     <View style={[styles.todayAccentDot, { backgroundColor: colors.accentPrimary }]} />
                   </View>
                   <View style={styles.todayXPRow}>
-                    <Text style={[styles.pillValue, styles.todayValue, { color: colors.accentPrimary }]}>
+                    <Text style={[styles.pillValue, styles.secondaryPillValue, styles.todayValue, { color: colors.accentPrimary }]}>
                       {doneCount}/{quests.length} • +{todayXP} XP
                     </Text>
                   </View>
                 </View>
               </View>
 
-              <View style={[styles.pill, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-                <Text style={[styles.pillLabel, { color: colors.textSecondary }]}>Streak</Text>
-                <Text style={[styles.pillValue, { color: colors.accentPrimary }]}> 
-                  {liveAny} day{liveAny === 1 ? "" : "s"} • best {streakAny.best}
-                </Text>
-              </View>
-
-              <View style={[styles.pill, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-                <Text style={[styles.pillLabel, { color: colors.textSecondary }]}>Perfect</Text>
-                <Text style={[styles.pillValue, { color: colors.accentPrimary }]}> 
-                  {livePerfect} day{livePerfect === 1 ? "" : "s"} • best {streakPerfect.best}
-                </Text>
-              </View>
-
-              {streakAny.current >= 3 && (
-                <View style={[styles.pill, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
-                  <Text style={[styles.pillLabel, { color: colors.textSecondary }]}>Streak Bonus</Text>
-                  <Text style={[styles.pillValue, { color: colors.accentPrimary }]}> 
-                    +{Math.round((getStreakMultiplier(streakAny.current) - 1) * 100)}% XP
-                  </Text>
-                </View>
-              )}
             </View>
 
-            <View style={styles.row}>
-              <Pressable style={[styles.btn, { backgroundColor: colors.surface, borderColor: colors.border }]} onPress={resetToday}>
-                <Text style={[styles.btnText, { color: colors.textPrimary }]}>Reset Today</Text>
+            <View style={styles.homeActionRow}>
+              <Pressable style={styles.homeActionBtn} onPress={resetToday}>
+                <Text style={styles.homeActionText}>Reset Today</Text>
               </Pressable>
-              <Pressable style={styles.btnDanger} onPress={resetDemo}>
-                <Text style={[styles.btnText, { color: colors.textPrimary }]}>Reset Demo</Text>
+              <Pressable style={styles.homeActionBtnDanger} onPress={resetDemo}>
+                <Text style={styles.homeActionText}>Reset Demo</Text>
               </Pressable>
             </View>
           </View>
@@ -544,6 +682,9 @@ export default function HomeScreen() {
                 <Text style={[styles.link, { color: colors.accentPrimary }]}>{showAdd ? "Cancel" : "+ Add"}</Text>
               </Pressable>
             </View>
+            <Text style={styles.sectionSubtext}>
+              Complete what matters most. Pinned quests stay at the top.
+            </Text>
 
             {/* ADD/EDIT QUEST FORM */}
             {showAdd && (
@@ -590,10 +731,11 @@ export default function HomeScreen() {
                   />
                 ))}
             </View>
-
-            <Text style={styles.hint}>
-              💡 Check the "Stats" tab for category progression. Visit "Achievements" to track your badges!
-            </Text>
+            <View style={styles.homeHintCard}>
+              <Text style={styles.homeHintText}>
+                Tip: Check the "Stats" tab for progression and DR history. Visit "Achievements" to track badges.
+              </Text>
+            </View>
             <Footer />
           </View>
         </ScrollView>
@@ -601,3 +743,5 @@ export default function HomeScreen() {
     </View>
   );
 }
+
+

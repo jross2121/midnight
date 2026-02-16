@@ -16,12 +16,6 @@ export type Quest = {
   pinned: boolean;
 };
 
-export type Streak = {
-  current: number;
-  best: number;
-  lastDate: string | null;
-};
-
 export type Achievement = {
   id: string;
   name: string;
@@ -30,12 +24,22 @@ export type Achievement = {
   unlockedAt: string | null; // ISO date when unlocked
 };
 
+export type DrHistoryEntry = {
+  date: string;
+  dr: number;
+  delta: number;
+  pct: number;
+};
+
 export type StoredState = {
   categories: Category[];
   quests: Quest[];
+  disciplineRating: number;
+  lastDrDelta: number;
+  lastCompletionPct: number;
+  lastDrUpdateDate: string;
+  drHistory: DrHistoryEntry[];
   lastResetDate: string;
-  streakAny: Streak;
-  streakPerfect: Streak;
   achievements: Achievement[];
 };
 

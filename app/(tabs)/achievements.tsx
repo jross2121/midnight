@@ -3,13 +3,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Achievements } from "./components/Achievements";
-import { Footer } from "./components/Footer";
-import { createStyles } from "./styles";
-import { defaultAchievements } from "./utils/defaultData";
-import { useTheme } from "./utils/themeContext";
-import type { Achievement, StoredState } from "./utils/types";
-import { STORAGE_KEY } from "./utils/types";
+import { Achievements } from "./_components/Achievements";
+import { Footer } from "./_components/Footer";
+import { createStyles } from "./_styles";
+import { defaultAchievements } from "./_utils/defaultData";
+import { useTheme } from "./_utils/themeContext";
+import type { Achievement, StoredState } from "./_utils/types";
+import { STORAGE_KEY } from "./_utils/types";
 
 export default function AchievementsScreen() {
   const { colors } = useTheme();
@@ -73,7 +73,7 @@ export default function AchievementsScreen() {
         <Achievements achievements={achievements} />
 
         <Text style={styles.hint}>
-          🏆 Complete quests, build streaks, reach milestones, and level up your categories to unlock all achievements!
+          🏆 Complete quests, build discipline, reach milestones, and level up your categories to unlock all achievements!
         </Text>
         <Footer />
       </ScrollView>

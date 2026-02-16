@@ -1,5 +1,5 @@
 import { StyleSheet } from "react-native";
-import type { ThemeColors } from "./utils/themeContext";
+import type { ThemeColors } from "./_utils/themeContext";
 
 export const createStyles = (colors: ThemeColors) =>
   StyleSheet.create({
@@ -23,6 +23,14 @@ export const createStyles = (colors: ThemeColors) =>
     container: { padding: 16, paddingBottom: 24 },
 
     title: { fontSize: 26, fontWeight: "900", color: colors.accentPrimary, marginBottom: 16, letterSpacing: 0.3 },
+    homeSubtitle: {
+      color: colors.textSecondary,
+      fontSize: 13,
+      fontWeight: "600",
+      marginTop: -8,
+      marginBottom: 12,
+      letterSpacing: 0.2,
+    },
 
     topRow: { flexDirection: "row", gap: 10, marginBottom: 18, flexWrap: "wrap" },
     pill: {
@@ -49,6 +57,54 @@ export const createStyles = (colors: ThemeColors) =>
     },
     pillLabel: { color: colors.textSecondary, fontSize: 10, fontWeight: "600", letterSpacing: 0.3, textTransform: "uppercase" },
     pillValue: { color: colors.accentPrimary, fontSize: 15, fontWeight: "900", marginTop: 3, letterSpacing: 0.3 },
+    drPrimaryPill: {
+      width: "100%",
+      flexBasis: "100%",
+      minWidth: "100%",
+      paddingVertical: 20,
+      paddingHorizontal: 18,
+      borderWidth: 2.5,
+      alignItems: "center",
+      shadowColor: colors.accentPrimary,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.22,
+      shadowRadius: 10,
+      elevation: 3,
+    },
+    drPrimaryValue: {
+      fontSize: 38,
+      marginTop: 10,
+      letterSpacing: 0.4,
+      textAlign: "center",
+    },
+    drRankText: {
+      marginTop: 10,
+      fontSize: 14,
+      fontWeight: "800",
+      letterSpacing: 0.2,
+      textAlign: "center",
+    },
+    drSupportText: {
+      textAlign: "center",
+      marginTop: 8,
+      fontSize: 12,
+      lineHeight: 17,
+    },
+    drLabelText: {
+      fontSize: 13,
+      fontWeight: "800",
+      letterSpacing: 0.35,
+      textTransform: "uppercase",
+    },
+    secondaryPillLabel: {
+      fontSize: 9,
+      opacity: 0.75,
+    },
+    secondaryPillValue: {
+      fontSize: 13,
+      marginTop: 2,
+      opacity: 0.85,
+    },
     todayLabelRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
     todayAccentDot: { width: 6, height: 6, borderRadius: 999 },
     todayContent: { zIndex: 1, alignItems: "center" },
@@ -62,13 +118,14 @@ export const createStyles = (colors: ThemeColors) =>
       marginTop: 6,
     },
     todayValue: {
-      fontSize: 16,
+      fontSize: 14,
       textShadowColor: colors.accentPrimary,
       textShadowOffset: { width: 0, height: 0 },
       textShadowRadius: 6,
     },
 
     row: { flexDirection: "row", gap: 10, marginBottom: 18, flexWrap: "wrap" },
+    homeActionRow: { flexDirection: "row", gap: 10, marginBottom: 18 },
     btn: {
       backgroundColor: colors.surface,
       paddingVertical: 11,
@@ -94,6 +151,37 @@ export const createStyles = (colors: ThemeColors) =>
       shadowRadius: 3,
     },
     btnText: { color: colors.textPrimary, fontWeight: "800", fontSize: 12 },
+    homeActionBtn: {
+      flex: 1,
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+      borderWidth: 1.8,
+      borderRadius: 12,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      alignItems: "center",
+      justifyContent: "center",
+      shadowColor: "rgba(0,0,0,0.2)",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 1,
+      shadowRadius: 3,
+    },
+    homeActionBtnDanger: {
+      flex: 1,
+      backgroundColor: colors.bg,
+      borderColor: colors.accentPrimary,
+      borderWidth: 1.8,
+      borderRadius: 12,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      alignItems: "center",
+      justifyContent: "center",
+      shadowColor: "rgba(0,0,0,0.2)",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 1,
+      shadowRadius: 3,
+    },
+    homeActionText: { color: colors.textPrimary, fontWeight: "900", fontSize: 12, letterSpacing: 0.2 },
 
     sectionRow: {
       flexDirection: "row",
@@ -103,6 +191,13 @@ export const createStyles = (colors: ThemeColors) =>
       marginTop: 18,
     },
     section: { fontSize: 18, fontWeight: "900", color: colors.textPrimary, letterSpacing: 0.2 },
+    sectionSubtext: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      marginBottom: 10,
+      marginTop: -4,
+      lineHeight: 17,
+    },
     link: { color: colors.accentPrimary, fontWeight: "900", fontSize: 12 },
 
     addBox: {
@@ -326,6 +421,65 @@ export const createStyles = (colors: ThemeColors) =>
       marginBottom: 9,
     },
     cardTitle: { fontSize: 16, fontWeight: "900", color: colors.textPrimary, letterSpacing: 0.2 },
+    drSystemSubhead: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      fontWeight: "800",
+      letterSpacing: 0.3,
+      textTransform: "uppercase",
+      marginTop: 14,
+      marginBottom: 8,
+    },
+    drSystemTopRow: {
+      backgroundColor: `${colors.accentPrimary}14`,
+      borderWidth: 1.5,
+      borderColor: `${colors.accentPrimary}55`,
+      borderRadius: 12,
+      paddingVertical: 8,
+      paddingHorizontal: 10,
+      marginBottom: 10,
+    },
+    drSystemTopText: {
+      color: colors.textPrimary,
+      fontSize: 13,
+      fontWeight: "700",
+      lineHeight: 18,
+    },
+    drSystemRow: {
+      backgroundColor: colors.bg,
+      borderWidth: 1.2,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingVertical: 8,
+      paddingHorizontal: 10,
+      marginTop: 6,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    drSystemRowActive: {
+      borderColor: colors.accentPrimary,
+      backgroundColor: `${colors.accentPrimary}1A`,
+    },
+    drSystemRankName: {
+      color: colors.textPrimary,
+      fontSize: 13,
+      fontWeight: "700",
+    },
+    drSystemRankRange: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: "800",
+    },
+    drSystemRuleLabel: {
+      color: colors.textPrimary,
+      fontSize: 12,
+      fontWeight: "700",
+    },
+    drSystemRuleDelta: {
+      fontSize: 12,
+      fontWeight: "900",
+    },
     level: { fontSize: 14, fontWeight: "700", color: colors.accentPrimary, letterSpacing: 0.2 },
     xpText: { color: colors.textSecondary, marginBottom: 9, fontSize: 12, fontWeight: "500" },
     barTrack: {
@@ -424,4 +578,14 @@ export const createStyles = (colors: ThemeColors) =>
     achievementDate: { color: colors.accentSecondary, fontWeight: "800", fontSize: 11, marginTop: 4 },
 
     hint: { marginTop: 24, color: colors.textSecondary, lineHeight: 20, fontSize: 13 },
+    homeHintCard: {
+      marginTop: 22,
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+      borderWidth: 1.5,
+      borderRadius: 12,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+    },
+    homeHintText: { color: colors.textSecondary, lineHeight: 19, fontSize: 12, fontWeight: "600" },
   });

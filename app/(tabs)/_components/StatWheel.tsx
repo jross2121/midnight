@@ -1,8 +1,8 @@
 import React from "react";
 import { Dimensions, Pressable, Text, View } from "react-native";
 import Svg, { Circle, G, Line, Path, Text as SvgText } from "react-native-svg";
-import { useTheme } from "../utils/themeContext";
-import type { Category } from "../utils/types";
+import { useTheme } from "../_utils/themeContext";
+import type { Category } from "../_utils/types";
 
 interface StatWheelProps {
   categories: Category[];

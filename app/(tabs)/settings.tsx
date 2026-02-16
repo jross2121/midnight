@@ -2,9 +2,9 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import React from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Footer } from "./components/Footer";
-import { createStyles } from "./styles";
-import { useTheme } from "./utils/themeContext";
+import { Footer } from "./_components/Footer";
+import { createStyles } from "./_styles";
+import { useTheme } from "./_utils/themeContext";
 
 export default function SettingsScreen() {
   const { theme, toggleTheme, colors } = useTheme();

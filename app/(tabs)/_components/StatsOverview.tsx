@@ -1,8 +1,8 @@
 import React from "react";
 import { Text, View } from "react-native";
-import { createStyles } from "../styles";
-import { useTheme } from "../utils/themeContext";
-import type { Category } from "../utils/types";
+import { createStyles } from "../_styles";
+import { useTheme } from "../_utils/themeContext";
+import type { Category } from "../_utils/types";
 
 interface StatsOverviewProps {
   categories: Category[];
