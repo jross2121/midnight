@@ -1,9 +1,9 @@
+import { PrimaryButton, SecondaryButton } from "@/components/ui/app-buttons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
-import React, { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Animated, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import Svg, { Path } from "react-native-svg";
 
 import { AddQuestForm } from "./_components/AddQuestForm";
 import { EditQuestForm } from "./_components/EditQuestForm";
@@ -21,8 +21,9 @@ import {
   defaultLastDrUpdateDate,
   defaultQuests,
 } from "./_utils/defaultData";
+import { ui, withAlpha } from "./_utils/designSystem";
 import { levelUp } from "./_utils/gameHelpers";
-import { getNextRank, getRankEmoji, getRankFromDR } from "./_utils/rank";
+import { DR_RANK_THRESHOLDS, getNextRank, getRankEmoji, getRankFromDR } from "./_utils/rank";
 import { useTheme } from "./_utils/themeContext";
 import type { Achievement, Category, DrHistoryEntry, Quest, StoredState } from "./_utils/types";
 import { STORAGE_KEY } from "./_utils/types";
@@ -94,19 +95,18 @@ function loadDrHistory(value: unknown): DrHistoryEntry[] {
 export default function HomeScreen() {
   const { colors } = useTheme();
   const styles = createStyles(colors);
+  const drHeroAnim = useRef(new Animated.Value(0)).current;
 
   const [categories, setCategories] = useState<Category[]>(defaultCategories);
   const [quests, setQuests] = useState<Quest[]>(defaultQuests);
   const [lastResetDate, setLastResetDate] = useState<string>(localDateKey());
   const [hydrated, setHydrated] = useState(false);
-  const [todayCardSize, setTodayCardSize] = useState<{ width: number; height: number } | null>(null);
 
   const [disciplineRating, setDisciplineRating] = useState<number>(defaultDisciplineRating);
   const [lastDrDelta, setLastDrDelta] = useState<number>(defaultLastDrDelta);
   const [lastCompletionPct, setLastCompletionPct] = useState<number>(defaultLastCompletionPct);
   const [lastDrUpdateDate, setLastDrUpdateDate] = useState<string>(defaultLastDrUpdateDate);
   const [drHistory, setDrHistory] = useState<DrHistoryEntry[]>(defaultDrHistory);
-  const [lastFinalizedCounts, setLastFinalizedCounts] = useState<{ done: number; total: number } | null>(null);
 
   const [achievements, setAchievements] = useState<Achievement[]>(defaultAchievements);
 
@@ -278,7 +278,6 @@ export default function HomeScreen() {
               pct: pctPrev,
             },
           ];
-          setLastFinalizedCounts({ done: donePrev, total: totalPrev });
 
           // Additional missed days (if you were away multiple days)
           // Treat each missed day as 0% => -8
@@ -303,8 +302,6 @@ export default function HomeScreen() {
             nextLastCompletionPct = latestEntry.pct;
           }
           nextLastDrUpdateDate = today;
-        } else {
-          setLastFinalizedCounts(null);
         }
 
         // ✅ Daily reset + normalize difficulty
@@ -372,34 +369,35 @@ export default function HomeScreen() {
     hydrated,
   ]);
 
-  const overall = useMemo(() => {
-    const totalLevel = categories.reduce((sum, c) => sum + c.level, 0);
-    const avg = categories.length ? totalLevel / categories.length : 0;
-    return Math.round(avg * 10) / 10;
-  }, [categories]);
+  useEffect(() => {
+    Animated.timing(drHeroAnim, {
+      toValue: 1,
+      duration: 150,
+      useNativeDriver: true,
+    }).start();
+  }, [drHeroAnim]);
 
   const doneCount = useMemo(() => quests.filter((q) => q.done).length, [quests]);
   const rankName = useMemo(() => getRankFromDR(disciplineRating), [disciplineRating]);
   const nextRank = useMemo(() => getNextRank(disciplineRating), [disciplineRating]);
-  const todayProgress = useMemo(() => {
-    if (!quests.length) return 0;
-    return Math.min(1, Math.max(0, doneCount / quests.length));
-  }, [doneCount, quests.length]);
-  const recapCounts = useMemo(() => {
-    if (lastFinalizedCounts) return lastFinalizedCounts;
-    const total = quests.length;
-    const estimatedDone = Math.round((lastCompletionPct / 100) * total);
-    return { done: Math.max(0, Math.min(total, estimatedDone)), total };
-  }, [lastCompletionPct, lastFinalizedCounts, quests.length]);
-  const hasDailyRecap = Boolean(lastDrUpdateDate);
-
-  const todayXP = useMemo(() => {
-    const baseXP = quests.filter((q) => q.done).reduce((sum, q) => {
-      const diffMultiplier = getDifficultyMultiplier(q.difficulty);
-      return sum + Math.floor(q.xp * diffMultiplier);
-    }, 0);
-    return Math.floor(baseXP);
-  }, [quests]);
+  const lastHistoryEntry = useMemo(
+    () => (drHistory.length > 0 ? drHistory[drHistory.length - 1] : null),
+    [drHistory]
+  );
+  const currentRankMin = useMemo(
+    () => DR_RANK_THRESHOLDS.find((rank) => rank.name === rankName)?.minDr ?? 0,
+    [rankName]
+  );
+  const nextRankThreshold = useMemo(
+    () => (nextRank ? disciplineRating + nextRank.remainingDr : null),
+    [disciplineRating, nextRank]
+  );
+  const nextRankProgress = useMemo(() => {
+    if (!nextRankThreshold) return 1;
+    const range = nextRankThreshold - currentRankMin;
+    if (range <= 0) return 1;
+    return Math.min(1, Math.max(0, (disciplineRating - currentRankMin) / range));
+  }, [currentRankMin, disciplineRating, nextRankThreshold]);
 
   const categoryName = (id: string) =>
     categories.find((c) => c.id === id)?.name ?? "Category";
@@ -474,7 +472,6 @@ export default function HomeScreen() {
     setLastCompletionPct(defaultLastCompletionPct);
     setLastDrUpdateDate(defaultLastDrUpdateDate);
     setDrHistory(defaultDrHistory);
-    setLastFinalizedCounts(null);
 
     setShowAdd(false);
     setEditingQuestId(null);
@@ -532,152 +529,85 @@ export default function HomeScreen() {
     setShowAdd(false);
   };
 
-  const topBandBg = colors.surface;
-  const questBandBg = colors.bg;
-  const ringThickness = 3;
-  const ringRadius = 14;
-  const ringMetrics = useMemo(() => {
-    if (!todayCardSize) return null;
-    const rectWidth = todayCardSize.width;
-    const rectHeight = todayCardSize.height;
-    const x = ringThickness / 2;
-    const y = ringThickness / 2;
-    const w = rectWidth;
-    const h = rectHeight;
-    const r = Math.min(ringRadius, Math.max(0, Math.min(w, h) / 2 - 1));
-    const perimeter = 2 * (w + h - 4 * r) + 2 * Math.PI * r;
-    const path = [
-      `M ${x + w / 2} ${y}`,
-      `H ${x + w - r}`,
-      `A ${r} ${r} 0 0 1 ${x + w} ${y + r}`,
-      `V ${y + h - r}`,
-      `A ${r} ${r} 0 0 1 ${x + w - r} ${y + h}`,
-      `H ${x + r}`,
-      `A ${r} ${r} 0 0 1 ${x} ${y + h - r}`,
-      `V ${y + r}`,
-      `A ${r} ${r} 0 0 1 ${x + r} ${y}`,
-      `H ${x + w / 2}`,
-    ].join(" ");
-    return {
-      path,
-      perimeter,
-      svgWidth: rectWidth + ringThickness,
-      svgHeight: rectHeight + ringThickness,
-      offset: ringThickness / 2,
-    };
-  }, [todayCardSize]);
-  const ringDashoffset = ringMetrics ? ringMetrics.perimeter * (1 - todayProgress) : 0;
-
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       <SafeAreaView edges={["top"]} style={[styles.safe, { backgroundColor: "transparent" }]}>
         <ScrollView contentContainerStyle={styles.container}>
-          <View style={[styles.sectionBand, styles.sectionBandTight, { backgroundColor: topBandBg }]}>
-            <Text style={[styles.title, { color: colors.accentPrimary }]}>StatLife</Text>
-            <Text style={styles.homeSubtitle}>Daily progress. Built through discipline.</Text>
+          <View style={[styles.sectionBand, styles.sectionBandTight, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.title, { color: colors.accentPrimary }]}>Midnight</Text>
+            <Text style={styles.homeSubtitle}>Daily Discipline Tracker</Text>
 
-            <View style={[styles.topRow, { marginBottom: 12 }]}>
-              <View
+            <View
+              style={[
+                styles.pill,
+                styles.drPrimaryPill,
+                { backgroundColor: colors.surface, borderColor: withAlpha(colors.border, 0.32) },
+              ]}
+            >
+              <Animated.Text
                 style={[
-                  styles.pill,
-                  styles.drPrimaryPill,
-                  { backgroundColor: colors.surface, borderColor: colors.border },
+                  styles.pillValue,
+                  styles.drPrimaryValue,
+                  {
+                    color: colors.accentPrimary,
+                    opacity: drHeroAnim,
+                    transform: [
+                      {
+                        scale: drHeroAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.985, 1],
+                        }),
+                      },
+                    ],
+                  },
                 ]}
               >
-                <Text style={[styles.pillLabel, styles.drLabelText, { color: colors.textSecondary }]}>Discipline Rating</Text>
-                <Text style={[styles.pillValue, styles.drPrimaryValue, { color: colors.accentPrimary }]}>
-                  {disciplineRating}
-                </Text>
-                <Text style={[styles.drRankText, { color: colors.textSecondary }]}>
-                  {getRankEmoji(rankName)} {rankName}
-                </Text>
-                <Text style={[styles.drSupportText, { color: colors.textSecondary }]}>
-                  {hasDailyRecap
-                    ? `Yesterday: ${recapCounts.done}/${recapCounts.total} (${lastCompletionPct}%) -> DR ${formatDelta(lastDrDelta)}`
-                    : "Complete quests to start building DR."}
-                </Text>
-                <Text style={[styles.drSupportText, { color: colors.textSecondary }]}>
-                  {nextRank
-                    ? `Next Rank: ${nextRank.name} in ${nextRank.remainingDr} DR`
-                    : "Top Rank: Grand Discipline"}
-                </Text>
-              </View>
+                {disciplineRating}
+              </Animated.Text>
+              <Text style={[styles.drRankText, { color: colors.textSecondary }]}>
+                {getRankEmoji(rankName)} {rankName}
+              </Text>
 
-              <View style={[styles.pill, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <Text style={[styles.pillLabel, styles.secondaryPillLabel, { color: colors.textSecondary }]}>Overall</Text>
-                <Text style={[styles.pillValue, styles.secondaryPillValue, { color: colors.accentPrimary }]}>Lv {overall}</Text>
-              </View>
-
-              <View
-                style={[styles.pill, styles.todayPill]}
-                onLayout={(event) => {
-                  const { width, height } = event.nativeEvent.layout;
-                  if (!todayCardSize || width !== todayCardSize.width || height !== todayCardSize.height) {
-                    setTodayCardSize({ width, height });
-                  }
-                }}
-              >
-                {ringMetrics && (
+              <View style={styles.drProgressBlock}>
+                <View style={[styles.drProgressTrack, { backgroundColor: colors.bg, borderColor: colors.border }]}>
                   <View
                     style={[
-                      styles.todayRingWrap,
+                      styles.drProgressFill,
                       {
-                        left: -ringMetrics.offset,
-                        top: -ringMetrics.offset,
-                        width: ringMetrics.svgWidth,
-                        height: ringMetrics.svgHeight,
+                        width: `${nextRankProgress * 100}%`,
+                        backgroundColor: colors.accentPrimary,
                       },
                     ]}
-                    pointerEvents="none"
-                  >
-                    <Svg width={ringMetrics.svgWidth} height={ringMetrics.svgHeight}>
-                      <Path
-                        d={ringMetrics.path}
-                        stroke={`${colors.accentSecondary}33`}
-                        strokeWidth={ringThickness}
-                        fill="none"
-                      />
-                      <Path
-                        d={ringMetrics.path}
-                        stroke={colors.accentPrimary}
-                        strokeWidth={ringThickness}
-                        strokeLinecap="round"
-                        strokeDasharray={ringMetrics.perimeter}
-                        strokeDashoffset={ringDashoffset}
-                        fill="none"
-                      />
-                    </Svg>
-                  </View>
-                )}
-                <View style={styles.todayContent}>
-                  <View style={styles.todayLabelRow}>
-                    <Text style={[styles.pillLabel, styles.secondaryPillLabel, { color: colors.textSecondary }]}>Today</Text>
-                    <View style={[styles.todayAccentDot, { backgroundColor: colors.accentPrimary }]} />
-                  </View>
-                  <View style={styles.todayXPRow}>
-                    <Text style={[styles.pillValue, styles.secondaryPillValue, styles.todayValue, { color: colors.accentPrimary }]}>
-                      {doneCount}/{quests.length} • +{todayXP} XP
-                    </Text>
-                  </View>
+                  />
                 </View>
+                <Text style={[styles.drProgressText, { color: colors.textSecondary }]}>
+                  {nextRankThreshold ? `${disciplineRating} / ${nextRankThreshold}` : "Max Rank"}
+                </Text>
               </View>
 
+              <Text style={[styles.drSupportText, { color: colors.textSecondary }]}>Discipline is built daily.</Text>
+              <Text style={[styles.drSupportText, { color: colors.textSecondary }]}>
+                {lastHistoryEntry
+                  ? `Yesterday: ${lastHistoryEntry.pct}% → ${formatDelta(lastHistoryEntry.delta)} DR`
+                  : "No DR history yet. Complete quests and roll to the next day."}
+              </Text>
+            </View>
+
+            <View style={[styles.todaySummaryCard, { backgroundColor: withAlpha(colors.accentPrimary, 0.06) }]}>
+              <Text style={[styles.todaySummaryLabel, { color: colors.textSecondary }]}>Today Progress</Text>
+              <Text style={[styles.todaySummaryValue, { color: colors.textPrimary }]}>{doneCount}/{quests.length} completed</Text>
             </View>
 
             <View style={styles.homeActionRow}>
-              <Pressable style={styles.homeActionBtn} onPress={resetToday}>
-                <Text style={styles.homeActionText}>Reset Today</Text>
-              </Pressable>
-              <Pressable style={styles.homeActionBtnDanger} onPress={resetDemo}>
-                <Text style={styles.homeActionText}>Reset Demo</Text>
-              </Pressable>
+              <SecondaryButton style={{ flex: 1 }} label="Reset Today" onPress={resetToday} />
+              <PrimaryButton style={{ flex: 1 }} label="Reset Demo" onPress={resetDemo} />
             </View>
           </View>
 
-          <View style={[styles.sectionBand, { backgroundColor: questBandBg, marginTop: 12 }]}>
+          <View style={[styles.sectionBand, { backgroundColor: colors.bg, marginTop: ui.spacing.lg }]}>
             {/* TODAY'S QUESTS HEADER */}
             <View style={styles.sectionRow}>
-              <Text style={[styles.section, { color: colors.textPrimary }]}>Today's Quests</Text>
+              <Text style={[styles.section, { color: colors.textPrimary }]}>Today&apos;s Quests</Text>
               <Pressable onPress={() => setShowAdd((s) => !s)}>
                 <Text style={[styles.link, { color: colors.accentPrimary }]}>{showAdd ? "Cancel" : "+ Add"}</Text>
               </Pressable>
@@ -733,7 +663,7 @@ export default function HomeScreen() {
             </View>
             <View style={styles.homeHintCard}>
               <Text style={styles.homeHintText}>
-                Tip: Check the "Stats" tab for progression and DR history. Visit "Achievements" to track badges.
+                Tip: Check the &quot;Discipline&quot; tab for DR progression and rank thresholds. Visit &quot;Achievements&quot; to track badges.
               </Text>
             </View>
             <Footer />

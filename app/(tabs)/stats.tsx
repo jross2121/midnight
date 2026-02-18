@@ -4,12 +4,10 @@ import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useEffect, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { CategoryDetails } from "./_components/CategoryDetails";
-import { Footer } from "./_components/Footer";
-import { StatWheel } from "./_components/StatWheel";
 import { StatsOverview } from "./_components/StatsOverview";
 import { createStyles } from "./_styles";
 import { defaultCategories, defaultDrHistory } from "./_utils/defaultData";
+import { ui } from "./_utils/designSystem";
 import { DR_RANK_THRESHOLDS, getNextRank, getRankEmoji, getRankFromDR } from "./_utils/rank";
 import { useTheme } from "./_utils/themeContext";
 import type { Category, DrHistoryEntry, StoredState } from "./_utils/types";
@@ -22,7 +20,6 @@ export default function StatsScreen() {
   const [disciplineRating, setDisciplineRating] = useState<number>(0);
   const [drHistory, setDrHistory] = useState<DrHistoryEntry[]>(defaultDrHistory);
   const [hydrated, setHydrated] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const isDrHistoryEntry = (value: unknown): value is DrHistoryEntry => {
     if (typeof value !== "object" || value === null) return false;
@@ -77,13 +74,10 @@ export default function StatsScreen() {
     return null;
   }
 
-  const selectedCategoryData = selectedCategory
-    ? categories.find((c) => c.id === selectedCategory)
-    : null;
   const rankName = getRankFromDR(disciplineRating);
   const nextRank = getNextRank(disciplineRating);
   const latestHistory = drHistory.slice(-7).reverse();
-  const drRules: Array<{ label: string; delta: string; tone: "pos" | "neu" | "neg" }> = [
+  const drRules: { label: string; delta: string; tone: "pos" | "neu" | "neg" }[] = [
     { label: "100% completion", delta: "+10", tone: "pos" },
     { label: "85-99%", delta: "+7", tone: "pos" },
     { label: "60-84%", delta: "+4", tone: "pos" },
@@ -95,44 +89,60 @@ export default function StatsScreen() {
     <SafeAreaView edges={["top"]} style={[styles.safe, { backgroundColor: colors.bg }]}>
       <ScrollView contentContainerStyle={styles.container}>
         {/* Header */}
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: ui.spacing.sm }}>
           <IconSymbol name="chart.bar.fill" size={36} color={colors.accentPrimary} />
-          <Text style={styles.title}>📊 Stats</Text>
+          <Text style={styles.title}>🧭 Discipline</Text>
         </View>
 
         <View
           style={[
-            styles.pill,
-            styles.drPrimaryPill,
-            { backgroundColor: colors.surface, borderColor: colors.border, marginBottom: 24 },
+            styles.card,
+            {
+              marginBottom: ui.spacing.xl,
+              paddingTop: ui.spacing.md,
+              shadowOpacity: 0,
+              shadowRadius: 0,
+              elevation: 0,
+            },
           ]}
         >
-          <Text style={[styles.pillLabel, styles.drLabelText, { color: colors.textSecondary }]}>Discipline Rating</Text>
-          <Text style={[styles.pillValue, styles.drPrimaryValue, { color: colors.accentPrimary }]}>
+          <Text style={[styles.cardTitle, { marginBottom: ui.spacing.sm }]}>Discipline Overview</Text>
+          <Text
+            style={[
+              styles.pillValue,
+              styles.drPrimaryValue,
+              {
+                color: colors.accentPrimary,
+                fontSize: 62,
+                lineHeight: 66,
+                marginTop: ui.spacing.md,
+                marginBottom: ui.spacing.md,
+              },
+            ]}
+          >
             {disciplineRating}
           </Text>
-          <Text style={[styles.drRankText, { color: colors.textSecondary }]}>
-            {getRankEmoji(rankName)} {rankName}
+          <Text
+            style={[
+              styles.drRankText,
+              { color: colors.textSecondary, marginTop: ui.spacing.sm, fontWeight: "900" },
+            ]}
+          >
+            {getRankEmoji(rankName)} Current Rank: {rankName}
           </Text>
+          <View style={[styles.drSystemTopRow, { marginTop: ui.spacing.sm, marginBottom: 0 }]}>
+            {nextRank ? (
+              <Text style={styles.drSystemTopText}>
+                Next Rank: <Text style={{ color: colors.accentPrimary, fontWeight: "900" }}>{nextRank.name}</Text> • {nextRank.remainingDr} DR needed
+              </Text>
+            ) : (
+              <Text style={styles.drSystemTopText}>Top Rank reached: Grand Discipline</Text>
+            )}
+          </View>
         </View>
 
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, marginBottom: 24, paddingTop: 16 }]}>
-          <Text style={[styles.cardTitle, { marginBottom: 10 }]}>DR Rating System</Text>
-          <View style={styles.drSystemTopRow}>
-            <Text style={styles.drSystemTopText}>
-              Current Rank: <Text style={{ color: colors.accentPrimary, fontWeight: "900" }}>{rankName}</Text>
-            </Text>
-            <Text style={[styles.drSystemTopText, { color: colors.textSecondary }]}>
-              {disciplineRating} points
-            </Text>
-          </View>
-          <Text style={[styles.questMeta, { color: colors.textSecondary, marginBottom: 8, marginTop: 0 }]}>
-            {nextRank
-              ? `Next Rank: ${nextRank.name} in ${nextRank.remainingDr}`
-              : "Top Rank reached: Grand Discipline"}
-          </Text>
-
-          <Text style={styles.drSystemSubhead}>Rank Thresholds</Text>
+        <View style={styles.statsSectionFlat}>
+          <Text style={[styles.cardTitle, { marginBottom: ui.spacing.xs }]}>Rank Thresholds</Text>
           {DR_RANK_THRESHOLDS.map((rank, idx) => {
             const next = DR_RANK_THRESHOLDS[idx + 1];
             const min = rank.minDr;
@@ -142,26 +152,33 @@ export default function StatsScreen() {
               <View
                 key={rank.name}
                 style={[
-                  styles.drSystemRow,
-                  isCurrent && styles.drSystemRowActive,
+                  styles.drRankRow,
+                  isCurrent && styles.drRankRowActive,
                 ]}
               >
-                <Text
-                  style={[
-                    styles.drSystemRankName,
-                    isCurrent && { color: colors.accentPrimary, fontWeight: "900" },
-                  ]}
-                >
-                  {rank.name}
-                </Text>
-                <Text style={styles.drSystemRankRange}>
-                  {min}-{maxLabel}
-                </Text>
+                {isCurrent ? <View style={styles.drRankAccentBar} /> : null}
+                <View style={styles.drRankRowContent}>
+                  <Text
+                    style={[
+                      styles.drSystemRankName,
+                      isCurrent && { color: colors.accentPrimary, fontWeight: "900" },
+                    ]}
+                  >
+                    {rank.name}
+                  </Text>
+                  <Text style={styles.drSystemRankRange}>
+                    {min}-{maxLabel}
+                  </Text>
+                </View>
               </View>
             );
           })}
+        </View>
 
-          <Text style={styles.drSystemSubhead}>Daily Change Rules</Text>
+        <View style={styles.statsSectionDivider} />
+
+        <View style={[styles.card, { marginBottom: ui.spacing.xl, paddingTop: ui.spacing.md }]}>
+          <Text style={[styles.cardTitle, { marginBottom: ui.spacing.xs }]}>Daily Change Rules</Text>
           {drRules.map((rule) => (
             <View key={rule.label} style={styles.drSystemRow}>
               <Text style={styles.drSystemRuleLabel}>{rule.label}</Text>
@@ -184,8 +201,8 @@ export default function StatsScreen() {
           ))}
         </View>
 
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border, marginBottom: 24 }]}>
-          <Text style={[styles.cardTitle, { marginBottom: 10 }]}>DR History</Text>
+        <View style={styles.statsSectionFlat}>
+          <Text style={[styles.cardTitle, { marginBottom: ui.spacing.xs }]}>Recent DR History</Text>
           {latestHistory.length ? (
             latestHistory.map((entry) => (
               <Text key={entry.date} style={[styles.questMeta, { marginTop: 4 }]}>
@@ -199,45 +216,12 @@ export default function StatsScreen() {
           )}
         </View>
 
-        {/* Stat Wheel - Interactive radar chart */}
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={[styles.cardTitle, { marginBottom: 16 }]}>Life Wheel</Text>
-          <StatWheel
-            categories={categories}
-            onSelectCategory={setSelectedCategory}
-            selectedCategory={selectedCategory}
-          />
-          {selectedCategoryData ? (
-            <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.border }}>
-              <Text style={[styles.questMeta, { color: colors.textSecondary, marginBottom: 8 }]}> 
-                Selected: <Text style={{ color: colors.accentPrimary, fontWeight: "900" }}>{selectedCategoryData.name}</Text>
-              </Text>
-              <Text style={[styles.questMeta, { fontSize: 12 }]}>
-                Level {selectedCategoryData.level} • {selectedCategoryData.xp}/{selectedCategoryData.xpToNext} XP
-              </Text>
-            </View>
-          ) : (
-            <Text style={[styles.questMeta, { marginTop: 12, color: colors.textSecondary, textAlign: "center" }]}>
-              Tap a category to view details
-            </Text>
-          )}
-        </View>
+        <View style={styles.statsSectionDivider} />
 
-        {/* Overview stats */}
-        <View style={{ marginTop: 24 }}>
-          <Text style={styles.section}>Overview</Text>
+        <View style={[styles.statsSectionFlat, { marginBottom: ui.spacing.sm }]}>
+          <Text style={styles.sectionSecondary}>Areas of Focus</Text>
           <StatsOverview categories={categories} />
         </View>
-
-        {/* Selected category detailed view */}
-        {selectedCategoryData && (
-          <View style={{ marginTop: 24 }}>
-            <Text style={styles.section}>Detailed Stats</Text>
-            <CategoryDetails category={selectedCategoryData} />
-          </View>
-        )}
-
-        <Footer />
       </ScrollView>
     </SafeAreaView>
   );

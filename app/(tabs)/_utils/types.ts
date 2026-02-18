@@ -44,3 +44,4 @@ export type StoredState = {
 };
 
 export const STORAGE_KEY = "lifeRpg:v1";
+export const ONBOARDING_STORAGE_KEY = "hasSeenOnboarding";

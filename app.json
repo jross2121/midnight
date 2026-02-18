@@ -1,7 +1,8 @@
 {
   "expo": {
-    "name": "StatLife",
-    "slug": "life-rpg",
+    "name": "Midnight",
+    "slug": "midnight",
+    "description": "Midnight is a daily discipline tracker that turns consistent effort into measurable progress.",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",

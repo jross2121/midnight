@@ -17,10 +17,10 @@ export function Footer() {
       }}
     >
       <Text style={{ fontSize: 24, fontWeight: "900", color: colors.accentPrimary, marginBottom: 4 }}>
-        ⚔️ StatLife
+        🌙 Midnight
       </Text>
       <Text style={{ fontSize: 11, color: colors.textSecondary, fontWeight: "600" }}>
-        Gamify Your Life • Level Up Daily
+        Daily Discipline Tracker
       </Text>
     </View>
   );

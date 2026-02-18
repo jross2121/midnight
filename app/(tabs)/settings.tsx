@@ -70,10 +70,10 @@ export default function SettingsScreen() {
             About
           </Text>
           <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 10 }]}>
-            StatLife v1.0
+            Midnight v1.0
           </Text>
           <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 8 }]}>
-            Gamify your life and build better habits through quests and progression.
+            Daily Discipline Tracker focused on consistency, accountability, and measurable progress.
           </Text>
         </View>
         <Footer />

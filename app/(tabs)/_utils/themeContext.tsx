@@ -1,3 +1,4 @@
+import { AppThemeColors } from "@/constants/theme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useState } from "react";
 
@@ -6,6 +7,11 @@ export type Theme = "dark" | "light";
 export interface ThemeColors {
   bg: string;
   surface: string;
+  surface2: string;
+  text: string;
+  mutedText: string;
+  accentCyan: string;
+  accentGreen: string;
   accentPrimary: string;
   accentSecondary: string;
   accentTertiary: string;
@@ -14,27 +20,25 @@ export interface ThemeColors {
   border: string;
 }
 
-const DARK_COLORS: ThemeColors = {
-  bg: "#18171b",
-  surface: "#1f2228",
-  accentPrimary: "#2fd2e3",
-  accentSecondary: "#63e8a8",
-  accentTertiary: "#91ed89",
-  textPrimary: "#f2f6f4",
-  textSecondary: "#9cc5b1",
-  border: "#305d4e",
-};
+function createThemeColors(mode: Theme): ThemeColors {
+  const base = mode === "dark" ? AppThemeColors.dark : AppThemeColors.light;
 
-const LIGHT_COLORS: ThemeColors = {
-  bg: "#f2faf7",
-  surface: "#ffffff",
-  accentPrimary: "#1fb9e7",
-  accentSecondary: "#47e4c8",
-  accentTertiary: "#63e8a8",
-  textPrimary: "#18221f",
-  textSecondary: "#5b7b6b",
-  border: "#cfe7dc",
-};
+  return {
+    bg: base.bg,
+    surface: base.surface,
+    surface2: base.surface2,
+    text: base.text,
+    mutedText: base.mutedText,
+    accentCyan: base.accentCyan,
+    accentGreen: base.accentGreen,
+    accentPrimary: base.accentCyan,
+    accentSecondary: base.accentGreen,
+    accentTertiary: base.accentGreen,
+    textPrimary: base.text,
+    textSecondary: base.mutedText,
+    border: base.border,
+  };
+}
 
 interface ThemeContextType {
   theme: Theme;
@@ -78,7 +82,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     return null;
   }
 
-  const colors = theme === "dark" ? DARK_COLORS : LIGHT_COLORS;
+  const colors = createThemeColors(theme);
 
   return (
     <ThemeContext.Provider value={{ theme, colors, toggleTheme }}>

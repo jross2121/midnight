@@ -84,7 +84,7 @@ export function QuestCard({ quest, categoryName, onComplete, onEdit, onPin, onDe
                 </View>
               );
             })()}
-            <Text style={[styles.questMeta, { color: colors.textSecondary }]}> {categoryName} • +{quest.xp} XP</Text>
+            <Text style={[styles.questMetaCategory, { color: colors.textSecondary }]}>{categoryName}</Text>
           </View>
         </View>
         <View style={styles.questStatusStack}>
@@ -100,7 +100,9 @@ export function QuestCard({ quest, categoryName, onComplete, onEdit, onPin, onDe
       </Pressable>
 
       {expanded && (
-        <View style={styles.questActionsRow}>
+        <>
+          <View style={styles.questDivider} />
+          <View style={styles.questActionsRow}>
           {!quest.done && (
             <Pressable
               style={[styles.questActionBtn, { backgroundColor: colors.accentPrimary, borderColor: colors.accentPrimary }, completePressed && styles.btnPressed]}
@@ -145,7 +147,8 @@ export function QuestCard({ quest, categoryName, onComplete, onEdit, onPin, onDe
           >
             <Text style={[styles.questActionText, { color: colors.accentPrimary }]}>Delete</Text>
           </Pressable>
-        </View>
+          </View>
+        </>
       )}
     </View>
   );
