@@ -5,11 +5,17 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 export type Theme = "dark" | "light";
 
 export interface ThemeColors {
+  bg0: string;
+  bg1: string;
   bg: string;
   surface: string;
   surface2: string;
   text: string;
   mutedText: string;
+  textTertiary: string;
+  accent: string;
+  positive: string;
+  negative: string;
   accentCyan: string;
   accentGreen: string;
   accentPrimary: string;
@@ -18,17 +24,25 @@ export interface ThemeColors {
   textPrimary: string;
   textSecondary: string;
   border: string;
+  cardBorder: string;
+  divider: string;
 }
 
 function createThemeColors(mode: Theme): ThemeColors {
   const base = mode === "dark" ? AppThemeColors.dark : AppThemeColors.light;
 
   return {
+    bg0: base.bg,
+    bg1: base.surface,
     bg: base.bg,
     surface: base.surface,
     surface2: base.surface2,
     text: base.text,
     mutedText: base.mutedText,
+    textTertiary: base.textTertiary,
+    accent: base.accentCyan,
+    positive: base.accentGreen,
+    negative: base.negative,
     accentCyan: base.accentCyan,
     accentGreen: base.accentGreen,
     accentPrimary: base.accentCyan,
@@ -37,6 +51,8 @@ function createThemeColors(mode: Theme): ThemeColors {
     textPrimary: base.text,
     textSecondary: base.mutedText,
     border: base.border,
+    cardBorder: base.cardBorder,
+    divider: base.divider,
   };
 }
 

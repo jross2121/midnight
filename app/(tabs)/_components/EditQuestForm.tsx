@@ -1,47 +1,153 @@
 import * as Haptics from "expo-haptics";
-import React, { useState } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import {
+    KeyboardAvoidingView,
+    LayoutChangeEvent,
+    Modal,
+    Platform,
+    Pressable,
+    ScrollView,
+    Text,
+    TextInput,
+    View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { createStyles } from "../_styles";
+import { withAlpha } from "../_utils/designSystem";
 import { useTheme } from "../_utils/themeContext";
 import type { Category, Quest } from "../_utils/types";
 
 interface EditQuestFormProps {
   quest: Quest;
   categories: Category[];
-  onSave: (questId: string, title: string, categoryId: string, xp: number, difficulty: "easy" | "medium" | "hard") => void;
+  onSave: (
+    questId: string,
+    title: string,
+    categoryId: string,
+    xp: number,
+    difficulty: "easy" | "medium" | "hard",
+    target: string
+  ) => void;
   onCancel: () => void;
 }
 
-export function EditQuestForm({
-  quest,
+function CategoryChips({
   categories,
-  onSave,
-  onCancel,
-}: EditQuestFormProps) {
+  selectedCategory,
+  onSelect,
+}: {
+  categories: Category[];
+  selectedCategory: string;
+  onSelect: (categoryId: string) => void;
+}) {
   const { colors } = useTheme();
   const styles = createStyles(colors);
+
+  return (
+    <View style={styles.editSheetChipRow}>
+      {categories.map((category) => {
+        const isSelected = selectedCategory === category.id;
+        return (
+          <Pressable
+            key={category.id}
+            onPress={() => onSelect(category.id)}
+            style={[
+              styles.editSheetChip,
+              isSelected
+                ? { backgroundColor: colors.accentPrimary }
+                : { backgroundColor: colors.surface, borderColor: "transparent" },
+            ]}
+          >
+            <Text
+              style={[
+                styles.editSheetChipText,
+                isSelected ? { color: colors.bg } : { color: colors.textSecondary },
+              ]}
+            >
+              {category.name}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+function DifficultyChips({
+  selectedDifficulty,
+  onSelect,
+}: {
+  selectedDifficulty: "easy" | "medium" | "hard";
+  onSelect: (difficulty: "easy" | "medium" | "hard") => void;
+}) {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
+
+  return (
+    <View style={styles.editSheetDifficultyRow}>
+      {(["easy", "medium", "hard"] as const).map((difficulty) => {
+        const isSelected = selectedDifficulty === difficulty;
+        return (
+          <Pressable
+            key={difficulty}
+            onPress={() => onSelect(difficulty)}
+            style={[
+              styles.editSheetDifficultyChip,
+              isSelected
+                ? { backgroundColor: colors.accentPrimary }
+                : { backgroundColor: colors.surface, borderColor: "transparent" },
+            ]}
+          >
+            <Text
+              style={[
+                styles.editSheetChipText,
+                isSelected ? { color: colors.bg } : { color: colors.textSecondary },
+              ]}
+            >
+              {difficulty.charAt(0).toUpperCase() + difficulty.slice(1)}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+export function EditQuestSheet({ quest, categories, onSave, onCancel }: EditQuestFormProps) {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
+  const insets = useSafeAreaInsets();
   const [editTitle, setEditTitle] = React.useState(quest.title);
   const [editCategory, setEditCategory] = React.useState(quest.categoryId);
-  const [editXP, setEditXP] = React.useState(String(quest.xp));
+  const [editTarget, setEditTarget] = React.useState(quest.target ?? "");
   const [editDifficulty, setEditDifficulty] = React.useState<"easy" | "medium" | "hard">(
     (quest.difficulty as "easy" | "medium" | "hard") ?? "easy"
   );
   const [focusedInput, setFocusedInput] = useState<string | null>(null);
   const [savePressed, setSavePressed] = useState(false);
-  const [cancelPressed, setCancelPressed] = useState(false);
+  const [actionBarHeight, setActionBarHeight] = useState(0);
+
+  useEffect(() => {
+    setEditTitle(quest.title);
+    setEditCategory(quest.categoryId);
+    setEditTarget(quest.target ?? "");
+    setEditDifficulty((quest.difficulty as "easy" | "medium" | "hard") ?? "easy");
+  }, [quest]);
 
   const handleSave = () => {
     const title = editTitle.trim();
     if (!title) return;
 
-    const xpNum = Number(editXP);
-    const safeXP = Number.isFinite(xpNum) && xpNum > 0 ? Math.floor(xpNum) : 10;
+    const normalizedTarget = editTarget.trim();
+    const targetDigits = normalizedTarget.replace(/[^0-9]/g, "");
+    const xpNum = Number(targetDigits);
+    const safeXP = Number.isFinite(xpNum) && xpNum > 0 ? Math.floor(xpNum) : quest.xp;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    onSave(quest.id, title, editCategory, safeXP, editDifficulty);
+    onSave(quest.id, title, editCategory, safeXP, editDifficulty, normalizedTarget);
   };
 
-  const handleCancel = () => {
+  const handleClose = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onCancel();
   };
@@ -56,85 +162,164 @@ export function EditQuestForm({
     setEditDifficulty(difficulty);
   };
 
+  const handleActionBarLayout = (event: LayoutChangeEvent) => {
+    const nextHeight = event.nativeEvent.layout.height;
+    if (nextHeight !== actionBarHeight) {
+      setActionBarHeight(nextHeight);
+    }
+  };
+
   return (
-    <View style={[styles.addBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-      <Text style={[styles.smallLabel, { color: colors.textPrimary }]}>Edit Quest</Text>
-
-      <TextInput
-        placeholder="Quest title"
-        placeholderTextColor={colors.textSecondary}
-        value={editTitle}
-        onChangeText={setEditTitle}
-        onFocus={() => setFocusedInput("title")}
-        onBlur={() => setFocusedInput(null)}
-        style={[styles.input, { backgroundColor: colors.bg, color: colors.textPrimary, borderColor: colors.border }, focusedInput === "title" && { borderColor: colors.accentPrimary }]}
-      />
-
-      <Text style={[styles.smallLabel, { color: colors.textPrimary }]}>Category</Text>
-      <View style={styles.pickerRow}>
-        {categories.map((c) => {
-          const active = editCategory === c.id;
-          return (
-            <Pressable
-              key={c.id}
-              onPress={() => handleCategoryChange(c.id)}
-              style={[styles.pillPick, { backgroundColor: colors.bg, borderColor: colors.border }, active && { backgroundColor: colors.accentPrimary, borderColor: colors.accentPrimary }]}
-            >
-              <Text style={[styles.pillPickText, { color: colors.textSecondary }, active && { color: colors.textPrimary }]}>
-                {c.name}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      <TextInput
-        placeholder="XP"
-        placeholderTextColor={colors.textSecondary}
-        keyboardType="numeric"
-        value={editXP}
-        onChangeText={setEditXP}
-        onFocus={() => setFocusedInput("xp")}
-        onBlur={() => setFocusedInput(null)}
-        style={[styles.input, { backgroundColor: colors.bg, color: colors.textPrimary, borderColor: colors.border }, focusedInput === "xp" && { borderColor: colors.accentPrimary }]}
-      />
-
-      <Text style={[styles.smallLabel, { color: colors.textPrimary }]}>Difficulty</Text>
-      <View style={styles.pickerRow}>
-        {(["easy", "medium", "hard"] as const).map((diff) => {
-          const active = editDifficulty === diff;
-          return (
-            <Pressable
-              key={diff}
-              onPress={() => handleDifficultyChange(diff)}
-              style={[styles.pillPick, { backgroundColor: colors.bg, borderColor: colors.border }, active && { backgroundColor: colors.accentPrimary, borderColor: colors.accentPrimary }]}
-            >
-              <Text style={[styles.pillPickText, { color: colors.textSecondary }, active && { color: colors.textPrimary }]}>
-                {diff.charAt(0).toUpperCase() + diff.slice(1)}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      <View style={{ flexDirection: "row", gap: 10 }}>
+    <Modal
+      visible
+      transparent
+      animationType="slide"
+      statusBarTranslucent
+      onRequestClose={handleClose}
+    >
+      <View style={styles.editSheetModalRoot}>
         <Pressable
-          onPress={handleSave}
-          onPressIn={() => setSavePressed(true)}
-          onPressOut={() => setSavePressed(false)}
-          style={[styles.addBtn, { flex: 1, backgroundColor: colors.accentPrimary, borderColor: colors.accentPrimary }, savePressed && styles.btnPressed]}
+          style={[styles.editSheetBackdrop, { backgroundColor: withAlpha(colors.bg, 0.66) }]}
+          onPress={handleClose}
+          accessibilityRole="button"
+          accessibilityLabel="Close edit quest sheet"
+        />
+        <KeyboardAvoidingView
+          style={styles.editSheetKeyboardWrap}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          <Text style={[styles.addBtnText, { color: colors.textPrimary }]}>Save</Text>
-        </Pressable>
-        <Pressable
-          onPress={handleCancel}
-          onPressIn={() => setCancelPressed(true)}
-          onPressOut={() => setCancelPressed(false)}
-          style={[styles.deleteBtn, { flex: 1, backgroundColor: `${colors.accentPrimary}1A`, borderColor: colors.accentPrimary }, cancelPressed && styles.btnPressed]}
-        >
-          <Text style={[styles.deleteText, { color: colors.accentPrimary }]}>Cancel</Text>
-        </Pressable>
+          <View
+            style={[
+              styles.editSheetContainer,
+              {
+                backgroundColor: colors.surface2,
+                borderColor: withAlpha(colors.border, 0.3),
+                paddingBottom: insets.bottom,
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.editSheetHeader,
+                { borderBottomColor: withAlpha(colors.border, 0.24) },
+              ]}
+            >
+              <Text style={[styles.editSheetTitle, { color: colors.textPrimary }]}>Edit Quest</Text>
+              <Pressable
+                style={[styles.editSheetCloseButton, { backgroundColor: colors.surface }]}
+                onPress={handleClose}
+                accessibilityRole="button"
+                accessibilityLabel="Close edit quest"
+              >
+                <Text style={[styles.editSheetCloseText, { color: colors.textSecondary }]}>×</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView
+              style={styles.editSheetScroll}
+              contentContainerStyle={[
+                styles.editSheetFormContent,
+                { paddingBottom: actionBarHeight + insets.bottom },
+              ]}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.editSheetFieldBlock}>
+                <Text style={[styles.editSheetLabel, { color: colors.textSecondary }]}>Title</Text>
+                <TextInput
+                  placeholder="Quest title"
+                  placeholderTextColor={colors.textSecondary}
+                  value={editTitle}
+                  onChangeText={setEditTitle}
+                  onFocus={() => setFocusedInput("title")}
+                  onBlur={() => setFocusedInput(null)}
+                  style={[
+                    styles.editSheetInput,
+                    {
+                      backgroundColor: colors.surface,
+                      color: colors.textPrimary,
+                    },
+                    focusedInput === "title" && {
+                      borderColor: withAlpha(colors.accentPrimary, 0.6),
+                      borderWidth: 1,
+                    },
+                  ]}
+                />
+              </View>
+
+              <View style={styles.editSheetFieldBlock}>
+                <Text style={[styles.editSheetLabel, { color: colors.textSecondary }]}>Area</Text>
+                <CategoryChips
+                  categories={categories}
+                  selectedCategory={editCategory}
+                  onSelect={handleCategoryChange}
+                />
+              </View>
+
+              <View style={styles.editSheetFieldBlock}>
+                <Text style={[styles.editSheetLabel, { color: colors.textSecondary }]}>Target (optional)</Text>
+                <TextInput
+                  placeholder="20 min, 8 cups, $0"
+                  placeholderTextColor={colors.textSecondary}
+                  value={editTarget}
+                  onChangeText={setEditTarget}
+                  onFocus={() => setFocusedInput("target")}
+                  onBlur={() => setFocusedInput(null)}
+                  style={[
+                    styles.editSheetInput,
+                    {
+                      backgroundColor: colors.surface,
+                      color: colors.textPrimary,
+                    },
+                    focusedInput === "target" && {
+                      borderColor: withAlpha(colors.accentPrimary, 0.6),
+                      borderWidth: 1,
+                    },
+                  ]}
+                />
+              </View>
+
+              <View style={styles.editSheetFieldBlock}>
+                <Text style={[styles.editSheetLabel, { color: colors.textSecondary }]}>Intensity</Text>
+                <DifficultyChips
+                  selectedDifficulty={editDifficulty}
+                  onSelect={handleDifficultyChange}
+                />
+              </View>
+            </ScrollView>
+
+            <View
+              style={[
+                styles.editSheetActionBar,
+                {
+                  borderTopColor: withAlpha(colors.border, 0.24),
+                  paddingBottom: insets.bottom,
+                },
+              ]}
+              onLayout={handleActionBarLayout}
+            >
+              <Pressable
+                onPress={handleSave}
+                onPressIn={() => setSavePressed(true)}
+                onPressOut={() => setSavePressed(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Save quest changes"
+                style={[
+                  styles.editSheetPrimaryButton,
+                  { backgroundColor: colors.accentPrimary },
+                  savePressed && styles.btnPressed,
+                ]}
+              >
+                <Text style={[styles.editSheetPrimaryButtonText, { color: colors.bg }]}>Save Changes</Text>
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </View>
-    </View>
+    </Modal>
   );
+}
+
+export function EditQuestForm(props: EditQuestFormProps) {
+  return <EditQuestSheet {...props} />;
 }

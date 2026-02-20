@@ -51,7 +51,7 @@ export default function AchievementsScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 }}>
           <IconSymbol name="star.fill" size={36} color={colors.accentPrimary} />
-          <Text style={[styles.title, { color: colors.accentPrimary }]}>⭐ Achievements</Text>
+          <Text style={[styles.title, { color: colors.accentPrimary }]}>Achievements</Text>
         </View>
 
         <View style={styles.topRow}>
@@ -73,7 +73,7 @@ export default function AchievementsScreen() {
         <Achievements achievements={achievements} />
 
         <Text style={styles.hint}>
-          🏆 Complete quests, build discipline, reach milestones, and level up your categories to unlock all achievements!
+          Complete quests, build discipline, and reach milestones to unlock all achievements.
         </Text>
         <Footer />
       </ScrollView>

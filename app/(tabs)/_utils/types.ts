@@ -11,6 +11,7 @@ export type Quest = {
   title: string;
   categoryId: string;
   xp: number;
+  target?: string;
   difficulty: "easy" | "medium" | "hard";
   done: boolean;
   pinned: boolean;

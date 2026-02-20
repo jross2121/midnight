@@ -9,6 +9,11 @@ export const ui = {
     heading: AppThemeTokens.typography.heading as TextStyle,
     body: AppThemeTokens.typography.body as TextStyle,
     caption: AppThemeTokens.typography.caption as TextStyle,
+    mono: {
+      ...(AppThemeTokens.typography.body as TextStyle),
+      fontFamily: "monospace",
+      fontWeight: "700",
+    } as TextStyle,
     drHero: AppThemeTokens.typography.drHero as TextStyle,
   },
 } as const;
@@ -30,7 +35,7 @@ export function withAlpha(hexColor: string, opacity: number): string {
   return `${normalized}${alpha}`;
 }
 
-export function createGlow(colors: ThemeColors, glowOpacity = 0.08): ViewStyle {
+export function createGlow(colors: ThemeColors, glowOpacity = 0.03): ViewStyle {
   return {
     shadowColor: colors.text,
     shadowOffset: ui.shadow.soft.shadowOffset,
@@ -54,8 +59,8 @@ export function createCardSurface(
     backgroundColor: options?.backgroundColor ?? colors.surface,
     borderRadius: options?.radius ?? ui.radius.card,
     borderWidth: ui.border.width,
-    borderColor: withAlpha(colors.border, options?.borderOpacity ?? ui.border.opacityCard),
+    borderColor: withAlpha(colors.border, options?.borderOpacity ?? 0.4),
     padding: options?.padding ?? ui.spacing.card,
-    ...createGlow(colors, options?.glowOpacity ?? 0.08),
+    ...createGlow(colors, options?.glowOpacity ?? 0.03),
   };
 }

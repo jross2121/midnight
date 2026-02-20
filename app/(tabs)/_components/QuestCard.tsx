@@ -9,16 +9,26 @@ import type { Quest } from "../_utils/types";
 interface QuestCardProps {
   quest: Quest;
   categoryName: string;
+  isOpen: boolean;
+  onToggle: (questId: string) => void;
   onComplete: (questId: string) => void;
   onEdit: (questId: string) => void;
   onPin: (questId: string) => void;
   onDelete: (questId: string) => void;
 }
 
-export function QuestCard({ quest, categoryName, onComplete, onEdit, onPin, onDelete }: QuestCardProps) {
+export const QuestCard = React.memo(function QuestCard({
+  quest,
+  categoryName,
+  isOpen,
+  onToggle,
+  onComplete,
+  onEdit,
+  onPin,
+  onDelete,
+}: QuestCardProps) {
   const { colors } = useTheme();
   const styles = createStyles(colors);
-  const [expanded, setExpanded] = useState(false);
   const [completePressed, setCompletePressed] = useState(false);
   const [editPressed, setEditPressed] = useState(false);
   const [pinPressed, setPinPressed] = useState(false);
@@ -46,42 +56,30 @@ export function QuestCard({ quest, categoryName, onComplete, onEdit, onPin, onDe
 
   const handleToggleExpanded = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setExpanded((prev) => !prev);
-  };
-
-  const getDifficultyStyle = (difficulty: string) => {
-    switch (difficulty) {
-      case "easy":
-        return styles.difficultyEasy;
-      case "medium":
-        return styles.difficultyMedium;
-      case "hard":
-        return styles.difficultyHard;
-      default:
-        return styles.difficultyEasy;
-    }
+    onToggle(quest.id);
   };
 
   return (
-    <View style={[styles.questCard, { backgroundColor: colors.surface, borderColor: colors.border }, quest.done && styles.questDone]}>
-      {quest.done && <View style={styles.questDoneBar} />}
+    <View style={[styles.questCard, { borderColor: colors.border }, quest.done && styles.questDone]}>
       <Pressable
         style={({ pressed }) => [styles.questHeader, pressed && styles.questHeaderPressed]}
         onPress={handleToggleExpanded}
       >
+        <IconSymbol
+          name={quest.done ? "checkmark.circle.fill" : "circle"}
+          size={18}
+          color={quest.done ? colors.accentPrimary : colors.textSecondary}
+        />
         <View style={{ flex: 1 }}>
           <Text style={[styles.questTitle, { color: colors.textPrimary }, quest.done && styles.questTitleDone]}>
             {quest.title}
           </Text>
           <View style={styles.questMetaRow}>
-            {/* Safely handle missing difficulty values */}
             {(() => {
               const diff = typeof quest.difficulty === "string" ? quest.difficulty : "easy";
-              const label = diff.charAt(0).toUpperCase() + diff.slice(1);
+              const label = diff.charAt(0).toUpperCase();
               return (
-                <View style={getDifficultyStyle(diff)}>
-                  <Text style={styles.difficultyText}>{label}</Text>
-                </View>
+                <Text style={[styles.questMetaDifficulty, { color: colors.textSecondary }]}>• {label}</Text>
               );
             })()}
             <Text style={[styles.questMetaCategory, { color: colors.textSecondary }]}>{categoryName}</Text>
@@ -94,12 +92,12 @@ export function QuestCard({ quest, categoryName, onComplete, onEdit, onPin, onDe
             </View>
           )}
           {quest.done && (
-            <Text style={[styles.statusPill, { backgroundColor: `${colors.accentSecondary}1A`, color: colors.accentSecondary }]}>Done</Text>
+            <Text style={[styles.statusPill, { color: colors.accentPrimary }]}>DONE</Text>
           )}
         </View>
       </Pressable>
 
-      {expanded && (
+      {isOpen && (
         <>
           <View style={styles.questDivider} />
           <View style={styles.questActionsRow}>
@@ -152,4 +150,4 @@ export function QuestCard({ quest, categoryName, onComplete, onEdit, onPin, onDe
       )}
     </View>
   );
-}
+});

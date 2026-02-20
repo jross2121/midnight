@@ -10,17 +10,23 @@ export type DisciplineRank =
 type RankThreshold = {
   name: DisciplineRank;
   minDr: number;
+  maxDr: number;
+  tier: number;
 };
 
 export const DR_RANK_THRESHOLDS: RankThreshold[] = [
-  { name: "Foundation", minDr: 0 },
-  { name: "Consistent", minDr: 100 },
-  { name: "Focused", minDr: 250 },
-  { name: "Driven", minDr: 500 },
-  { name: "Relentless", minDr: 800 },
-  { name: "Elite", minDr: 1200 },
-  { name: "Grand Discipline", minDr: 1600 },
+  { name: "Foundation", minDr: 0, maxDr: 99, tier: 1 },
+  { name: "Consistent", minDr: 100, maxDr: 249, tier: 2 },
+  { name: "Focused", minDr: 250, maxDr: 499, tier: 3 },
+  { name: "Driven", minDr: 500, maxDr: 799, tier: 4 },
+  { name: "Relentless", minDr: 800, maxDr: 1199, tier: 5 },
+  { name: "Elite", minDr: 1200, maxDr: 1599, tier: 6 },
+  { name: "Grand Discipline", minDr: 1600, maxDr: Number.POSITIVE_INFINITY, tier: 7 },
 ];
+
+export function getRankMeta(rank: DisciplineRank): RankThreshold {
+  return DR_RANK_THRESHOLDS.find((entry) => entry.name === rank) ?? DR_RANK_THRESHOLDS[0];
+}
 
 export function getRankFromDR(dr: number): DisciplineRank {
   const safeDr = Number.isFinite(dr) ? Math.max(0, Math.floor(dr)) : 0;
@@ -41,25 +47,4 @@ export function getNextRank(dr: number): { name: DisciplineRank; remainingDr: nu
     name: next.name,
     remainingDr: next.minDr - safeDr,
   };
-}
-
-export function getRankEmoji(rank: DisciplineRank): string {
-  switch (rank) {
-    case "Foundation":
-      return "🌱";
-    case "Consistent":
-      return "✅";
-    case "Focused":
-      return "🎯";
-    case "Driven":
-      return "🚀";
-    case "Relentless":
-      return "⚔️";
-    case "Elite":
-      return "👑";
-    case "Grand Discipline":
-      return "🔥";
-    default:
-      return "🌱";
-  }
 }

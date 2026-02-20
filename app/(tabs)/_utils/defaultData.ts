@@ -10,23 +10,23 @@ export const defaultCategories: Category[] = [
 ];
 
 export const defaultQuests: Quest[] = [
-  { id: "q1", title: "Workout (20 min)", categoryId: "health", xp: 25, difficulty: "medium", done: false, pinned: false },
-  { id: "q2", title: "Drink water (8 cups)", categoryId: "health", xp: 10, difficulty: "easy", done: false, pinned: false },
-  { id: "q3", title: "No impulse buys today", categoryId: "money", xp: 20, difficulty: "easy", done: false, pinned: false },
-  { id: "q4", title: "Apply to 1 job", categoryId: "career", xp: 30, difficulty: "hard", done: false, pinned: false },
-  { id: "q5", title: "Clean for 10 minutes", categoryId: "home", xp: 15, difficulty: "easy", done: false, pinned: false },
-  { id: "q6", title: "Text/call someone you care about", categoryId: "social", xp: 15, difficulty: "medium", done: false, pinned: false },
-  { id: "q7", title: "Relax guilt-free (30 min)", categoryId: "fun", xp: 10, difficulty: "easy", done: false, pinned: false },
+  { id: "q1", title: "Workout (20 min)", categoryId: "health", xp: 25, target: "20 min", difficulty: "medium", done: false, pinned: false },
+  { id: "q2", title: "Drink water (8 cups)", categoryId: "health", xp: 10, target: "8 cups", difficulty: "easy", done: false, pinned: false },
+  { id: "q3", title: "No impulse buys today", categoryId: "money", xp: 20, target: "$0", difficulty: "easy", done: false, pinned: false },
+  { id: "q4", title: "Apply to 1 job", categoryId: "career", xp: 30, target: "1", difficulty: "hard", done: false, pinned: false },
+  { id: "q5", title: "Clean for 10 minutes", categoryId: "home", xp: 15, target: "10 min", difficulty: "easy", done: false, pinned: false },
+  { id: "q6", title: "Text/call someone you care about", categoryId: "social", xp: 15, target: "1 person", difficulty: "medium", done: false, pinned: false },
+  { id: "q7", title: "Relax guilt-free (30 min)", categoryId: "fun", xp: 10, target: "30 min", difficulty: "easy", done: false, pinned: false },
 ];
 
 export const defaultAchievements: Achievement[] = [
-  { id: "first_quest", name: "First Step", description: "Complete your first quest", icon: "🎯", unlockedAt: null },
-  { id: "level_5", name: "Climbing", description: "Reach level 5 in any category", icon: "📈", unlockedAt: null },
-  { id: "hard_mode", name: "Challenge Accepted", description: "Complete a hard difficulty quest", icon: "⚡", unlockedAt: null },
-  { id: "100_xp", name: "Century", description: "Earn 100 XP in a single day", icon: "💯", unlockedAt: null },
-  { id: "all_categories", name: "Balanced Life", description: "Reach level 3 in all categories", icon: "⚖️", unlockedAt: null },
-  { id: "perfect_day", name: "Perfectionist", description: "Complete all quests in one day", icon: "✨", unlockedAt: null },
-  { id: "30_quests", name: "Quest Master", description: "Complete 30 quests total", icon: "👑", unlockedAt: null },
+  { id: "first_quest", name: "First Step", description: "Complete your first quest", icon: "I", unlockedAt: null },
+  { id: "level_5", name: "Climbing", description: "Reach level 5 in any category", icon: "II", unlockedAt: null },
+  { id: "hard_mode", name: "Challenge Accepted", description: "Complete a hard difficulty quest", icon: "III", unlockedAt: null },
+  { id: "100_xp", name: "Century", description: "Earn 100 XP in a single day", icon: "IV", unlockedAt: null },
+  { id: "all_categories", name: "Balanced Life", description: "Reach level 3 in all categories", icon: "V", unlockedAt: null },
+  { id: "perfect_day", name: "Perfectionist", description: "Complete all quests in one day", icon: "VI", unlockedAt: null },
+  { id: "30_quests", name: "Quest Master", description: "Complete 30 quests total", icon: "VII", unlockedAt: null },
 ];
 
 export const defaultDisciplineRating = 0;
