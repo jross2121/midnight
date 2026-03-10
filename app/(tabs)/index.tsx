@@ -8,7 +8,6 @@ import { AddQuestForm } from "./_components/AddQuestForm";
 import { EditQuestForm } from "./_components/EditQuestForm";
 import { Footer } from "./_components/Footer";
 import { QuestCard } from "./_components/QuestCard";
-import { RankBadge } from "./_components/RankBadge";
 import { createStyles } from "./_styles";
 import { diffDays, localDateKey, parseDateKey } from "./_utils/dateHelpers";
 import {
@@ -21,7 +20,6 @@ import {
   defaultLastDrUpdateDate,
   defaultQuests,
 } from "./_utils/defaultData";
-import { ui } from "./_utils/designSystem";
 import {
   DAILY_STANDARD,
   formatDelta,
@@ -30,7 +28,7 @@ import {
   getDRChangeFromPercent,
 } from "./_utils/discipline";
 import { levelUp } from "./_utils/gameHelpers";
-import { getNextRank, getRankFromDR, getRankMeta } from "./_utils/rank";
+import { getNextRank, getRankFromDR } from "./_utils/rank";
 import { useTheme } from "./_utils/themeContext";
 import type { Achievement, Category, DrHistoryEntry, Quest, StoredState } from "./_utils/types";
 import { STORAGE_KEY } from "./_utils/types";
@@ -376,7 +374,6 @@ export default function HomeScreen() {
   );
   const rankName = useMemo(() => getRankFromDR(disciplineRating), [disciplineRating]);
   const rankLabel = rankName.toUpperCase();
-  const rankMeta = useMemo(() => getRankMeta(rankName), [rankName]);
   const nextRank = useMemo(() => getNextRank(disciplineRating), [disciplineRating]);
   const projectionColor =
     projectedDelta > 0 ? colors.positive : projectedDelta < 0 ? colors.negative : colors.textSecondary;
@@ -536,26 +533,27 @@ export default function HomeScreen() {
         <ScrollView contentContainerStyle={styles.container}>
           <View style={[styles.sectionBand, styles.sectionBandTight]}>
             <View style={styles.homeTopBar}>
-              <Pressable onLongPress={() => __DEV__ && setShowDevActions((prev) => !prev)}>
+              <Pressable
+                style={styles.homeTitleWrap}
+                onLongPress={() => __DEV__ && setShowDevActions((prev) => !prev)}
+              >
                 <Text style={[styles.title, { color: colors.textPrimary }]}>MIDNIGHT</Text>
+                <Text style={styles.homeSubtitle}>Performance Log</Text>
               </Pressable>
               <Pressable onPress={() => undefined} hitSlop={8}>
-                <Text style={styles.homeSubtitle}>Performance Log</Text>
+                <Text style={styles.homeMetaText}>Daily View</Text>
               </Pressable>
             </View>
 
             <View style={styles.statusHeader}>
               <View style={styles.statusHeaderTop}>
-                <View style={styles.rankBadgeRail}>
-                  <RankBadge rankTier={rankMeta.tier} size={36} active />
-                </View>
                 <View style={styles.statusHeaderMain}>
                   <Text style={styles.statusLabel}>DISCIPLINE RATING</Text>
                   <Animated.Text
                     style={[
                       styles.statusDrValue,
                       {
-                        color: colors.textPrimary,
+                        color: "#E6EDF3",
                         opacity: drHeroAnim,
                         transform: [
                           {
@@ -570,36 +568,50 @@ export default function HomeScreen() {
                   >
                     {disciplineRating}
                   </Animated.Text>
-                  <View style={styles.statusRankRow}>
-                    <Text style={styles.statusRankName}>{rankLabel}</Text>
-                    {nextRank ? (
-                      <Text style={styles.statusRankNext}>+{nextRank.remainingDr} → {nextRank.name.toUpperCase()}</Text>
-                    ) : (
-                      <Text style={styles.statusRankNext}>TOP RANK</Text>
-                    )}
+                  <View style={styles.statusRankBadge}>
+                    <Text style={styles.statusRankBadgeText}>{rankLabel}</Text>
                   </View>
+                  {nextRank ? (
+                    <Text style={styles.statusRankNext}>+{nextRank.remainingDr} to {nextRank.name.toUpperCase()}</Text>
+                  ) : (
+                    <Text style={styles.statusRankNext}>TOP RANK</Text>
+                  )}
                 </View>
               </View>
 
-              <View style={styles.midnightStrip}>
-                <View style={styles.midnightCell}>
-                  <Text style={styles.midnightLabel}>JUDGMENT IN</Text>
-                  <Text style={styles.midnightValue}>{judgmentCountdown}</Text>
+              <View style={styles.statusProgressBlock}>
+                <View style={styles.statusProgressRow}>
+                  <Text style={styles.statusProgressLabel}>Daily Progress</Text>
+                  <Text style={styles.statusProgressValue}>{doneForStandard} / {DAILY_STANDARD}</Text>
                 </View>
-                <View style={[styles.midnightCell, styles.midnightCellRight]}>
-                  <Text style={styles.midnightLabel}>NEXT UPDATE</Text>
-                  <Text style={[styles.midnightUpdateValue, { color: projectionColor }]}>{formatDelta(projectedDelta)}</Text>
+                <View style={styles.statusProgressTrack}>
+                  <View
+                    style={[
+                      styles.statusProgressFill,
+                      { width: `${(doneForStandard / DAILY_STANDARD) * 100}%`, backgroundColor: colors.accentPrimary },
+                    ]}
+                  />
                 </View>
               </View>
 
-              <View style={styles.progressMicroRow}>
-                <View style={styles.progressMicroItem}>
-                  <Text style={styles.progressMicroLabel}>COMPLETION</Text>
-                  <Text style={styles.progressMicroValue}>{todayCompletionPercent}%</Text>
+              <View style={styles.statusStatsGrid}>
+                <View style={styles.statusStatCell}>
+                  <Text style={styles.statusStatValue}>{judgmentCountdown}</Text>
+                  <Text style={styles.statusStatLabel}>JUDGMENT IN</Text>
                 </View>
-                <View style={styles.progressMicroItem}>
-                  <Text style={styles.progressMicroLabel}>DONE</Text>
-                  <Text style={styles.progressMicroValue}>{doneForStandard}/{DAILY_STANDARD}</Text>
+                <View style={styles.statusStatCell}>
+                  <Text style={[styles.statusStatValue, styles.statusStatValueStrong]}>
+                    {formatDelta(projectedDelta)}
+                  </Text>
+                  <Text style={styles.statusStatLabel}>NEXT UPDATE</Text>
+                </View>
+                <View style={styles.statusStatCell}>
+                  <Text style={styles.statusStatValue}>{todayCompletionPercent}%</Text>
+                  <Text style={styles.statusStatLabel}>COMPLETION</Text>
+                </View>
+                <View style={styles.statusStatCell}>
+                  <Text style={styles.statusStatValue}>{doneForStandard}/{DAILY_STANDARD}</Text>
+                  <Text style={styles.statusStatLabel}>DONE</Text>
                 </View>
               </View>
             </View>
@@ -616,17 +628,19 @@ export default function HomeScreen() {
             ) : null}
           </View>
 
-          <View style={[styles.sectionBand, { marginTop: ui.spacing.md }]}>
+          <View style={[styles.sectionBand, styles.dailySection]}>
             {/* TODAY'S QUESTS HEADER */}
-            <View style={styles.sectionRow}>
-              <Text style={[styles.sectionSecondary, { marginBottom: 0 }]}>Daily Inputs</Text>
-              <Pressable onPress={() => setShowAdd((s) => !s)}>
-                <Text style={[styles.link, { color: colors.accentPrimary }]}>{showAdd ? "Cancel" : "+ Add"}</Text>
-              </Pressable>
+            <View style={styles.dailyHeaderCard}>
+              <View style={styles.sectionRow}>
+                <Text style={[styles.sectionSecondary, { marginBottom: 0 }]}>Daily Inputs</Text>
+                <Pressable onPress={() => setShowAdd((s) => !s)}>
+                  <Text style={[styles.link, { color: colors.accentPrimary }]}>{showAdd ? "Cancel" : "+ Add"}</Text>
+                </Pressable>
+              </View>
+              <Text style={styles.sectionSubtext}>
+                Priority list for today.
+              </Text>
             </View>
-            <Text style={styles.sectionSubtext}>
-              Priority list for today.
-            </Text>
 
             {/* ADD/EDIT QUEST FORM */}
             {showAdd && (

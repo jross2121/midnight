@@ -236,7 +236,9 @@ export function EditQuestSheet({ quest, categories, onSave, onCancel }: EditQues
                   style={[
                     styles.editSheetInput,
                     {
-                      backgroundColor: colors.surface,
+                      backgroundColor: withAlpha(colors.surface, 0.96),
+                      borderColor: withAlpha(colors.border, 0.46),
+                      borderWidth: 1,
                       color: colors.textPrimary,
                     },
                     focusedInput === "title" && {
@@ -268,7 +270,9 @@ export function EditQuestSheet({ quest, categories, onSave, onCancel }: EditQues
                   style={[
                     styles.editSheetInput,
                     {
-                      backgroundColor: colors.surface,
+                      backgroundColor: withAlpha(colors.surface, 0.96),
+                      borderColor: withAlpha(colors.border, 0.46),
+                      borderWidth: 1,
                       color: colors.textPrimary,
                     },
                     focusedInput === "target" && {
