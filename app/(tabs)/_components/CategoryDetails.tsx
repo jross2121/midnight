@@ -1,6 +1,7 @@
 import React from "react";
 import { Text, View } from "react-native";
 import { createStyles } from "../_styles";
+import { getCategoryDisplayName } from "../_utils/categoryLabels";
 import type { ThemeColors } from "../_utils/themeContext";
 import { useTheme } from "../_utils/themeContext";
 import type { Category } from "../_utils/types";
@@ -28,7 +29,7 @@ const getCategoryDescription = (categoryId: string): string => {
     career: "Professional development and growth",
     social: "Relationships and connections",
     home: "Living space and domestic life",
-    fun: "Leisure and personal enjoyment",
+    fun: "Personal reset and intentional enjoyment",
   };
   return descriptions[categoryId] || "";
 };
@@ -60,7 +61,7 @@ export function CategoryDetails({ category }: CategoryDetailsProps) {
         }}
       >
         <View>
-          <Text style={[styles.cardTitle, { color }]}>{category.name}</Text>
+          <Text style={[styles.cardTitle, { color }]}>{getCategoryDisplayName(category)}</Text>
           <Text style={[styles.questMeta, { marginTop: 4 }]}>{description}</Text>
         </View>
         <View style={{ alignItems: "center" }}>

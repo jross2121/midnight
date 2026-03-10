@@ -1,6 +1,7 @@
 import React from "react";
 import { Text, View } from "react-native";
 import { createStyles } from "../_styles";
+import { getCategoryDisplayName } from "../_utils/categoryLabels";
 import { clamp } from "../_utils/gameHelpers";
 import { useTheme } from "../_utils/themeContext";
 import type { Category } from "../_utils/types";
@@ -19,7 +20,7 @@ export function CategoriesGrid({ categories }: CategoriesGridProps) {
         return (
           <View key={c.id} style={styles.card}>
             <View style={styles.cardTop}>
-              <Text style={styles.cardTitle}>{c.name}</Text>
+              <Text style={styles.cardTitle}>{getCategoryDisplayName(c)}</Text>
               <Text style={styles.level}>Lv {c.level}</Text>
             </View>
 

@@ -1,6 +1,7 @@
 import React from "react";
 import { Text, View } from "react-native";
 import { createStyles } from "../_styles";
+import { getCategoryDisplayName } from "../_utils/categoryLabels";
 import { useTheme } from "../_utils/themeContext";
 import type { Category } from "../_utils/types";
 
@@ -18,7 +19,7 @@ export function StatsOverview({ categories }: StatsOverviewProps) {
         {categories.map((category, index) => (
           <React.Fragment key={category.id}>
             <View style={styles.focusRow}>
-              <Text style={styles.focusLabel}>{category.name}</Text>
+              <Text style={styles.focusLabel}>{getCategoryDisplayName(category)}</Text>
               <Text style={styles.focusMeta}>Lv {category.level}</Text>
             </View>
             {index < categories.length - 1 ? <View style={styles.focusDivider} /> : null}

@@ -2,6 +2,7 @@ import * as Haptics from "expo-haptics";
 import React, { useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
 import { createStyles } from "../_styles";
+import { getCategoryDisplayName } from "../_utils/categoryLabels";
 import { useTheme } from "../_utils/themeContext";
 import type { Category } from "../_utils/types";
 
@@ -73,7 +74,7 @@ export function AddQuestForm({
               style={[styles.pillPick, { backgroundColor: colors.bg, borderColor: colors.border }, active && { backgroundColor: colors.accentPrimary, borderColor: colors.accentPrimary }]}
             >
               <Text style={[styles.pillPickText, { color: colors.textSecondary }, active && { color: colors.textPrimary }]}>
-                {c.name}
+                {getCategoryDisplayName(c)}
               </Text>
             </Pressable>
           );

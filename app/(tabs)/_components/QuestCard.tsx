@@ -1,7 +1,7 @@
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import * as Haptics from "expo-haptics";
-import React, { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import React, { useRef, useState } from "react";
+import { Animated, Easing, Pressable, Text, View } from "react-native";
 import { createStyles } from "../_styles";
 import { useTheme } from "../_utils/themeContext";
 import type { Quest } from "../_utils/types";
@@ -32,10 +32,89 @@ export const QuestCard = React.memo(function QuestCard({
   const [editPressed, setEditPressed] = useState(false);
   const [pinPressed, setPinPressed] = useState(false);
   const [deletePressed, setDeletePressed] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
+
+  const flashOpacity = useRef(new Animated.Value(0)).current;
+  const cardOpacity = useRef(new Animated.Value(1)).current;
+  const cardScale = useRef(new Animated.Value(1)).current;
+  const cardTranslateY = useRef(new Animated.Value(0)).current;
+  const checkScale = useRef(new Animated.Value(0.4)).current;
+  const checkOpacity = useRef(new Animated.Value(0)).current;
 
   const handleComplete = () => {
+    if (quest.done || isCompleting) return;
+
+    setIsCompleting(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onComplete(quest.id);
+
+    const duration = 340;
+    Animated.parallel([
+      Animated.sequence([
+        Animated.timing(flashOpacity, {
+          toValue: 0.42,
+          duration: 110,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(flashOpacity, {
+          toValue: 0,
+          duration: 230,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(checkScale, {
+            toValue: 1.12,
+            duration: 150,
+            easing: Easing.out(Easing.back(1.4)),
+            useNativeDriver: true,
+          }),
+          Animated.timing(checkOpacity, {
+            toValue: 1,
+            duration: 100,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.timing(checkScale, {
+          toValue: 1,
+          duration: 120,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.timing(cardOpacity, {
+        toValue: 0,
+        duration,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(cardScale, {
+        toValue: 0.96,
+        duration,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(cardTranslateY, {
+        toValue: -8,
+        duration,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      onComplete(quest.id);
+
+      requestAnimationFrame(() => {
+        setIsCompleting(false);
+        flashOpacity.setValue(0);
+        cardOpacity.setValue(1);
+        cardScale.setValue(1);
+        cardTranslateY.setValue(0);
+        checkScale.setValue(0.4);
+        checkOpacity.setValue(0);
+      });
+    });
   };
 
   const handleEdit = () => {
@@ -59,18 +138,53 @@ export const QuestCard = React.memo(function QuestCard({
   };
 
   return (
-    <View style={[styles.questCard, { borderColor: colors.border }, quest.done && styles.questDone]}>
+    <Animated.View
+      style={[
+        styles.questCard,
+        { borderColor: colors.border },
+        quest.done && styles.questDone,
+        {
+          opacity: cardOpacity,
+          transform: [{ scale: cardScale }, { translateY: cardTranslateY }],
+        },
+      ]}
+    >
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.questCompletionFlashOverlay,
+          { backgroundColor: colors.accentPrimary, opacity: flashOpacity },
+        ]}
+      />
+
       <View style={styles.questHeader}>
         <Pressable
-          style={({ pressed }) => [styles.questCompleteToggle, pressed && styles.questHeaderPressed]}
+          style={({ pressed }) => [
+            styles.questCompleteToggle,
+            pressed && styles.questHeaderPressed,
+            isCompleting && styles.questHeaderPressed,
+          ]}
           onPress={handleComplete}
           hitSlop={8}
+          disabled={isCompleting}
         >
-          <IconSymbol
-            name={quest.done ? "checkmark.circle.fill" : "circle"}
-            size={19}
-            color={quest.done ? colors.accentPrimary : colors.textSecondary}
-          />
+          <View style={styles.questCompleteIconWrap}>
+            <IconSymbol
+              name={quest.done ? "checkmark.circle.fill" : "circle"}
+              size={19}
+              color={quest.done ? colors.accentPrimary : colors.textSecondary}
+            />
+            {!quest.done && (
+              <Animated.View
+                style={[
+                  styles.questCompleteAnimatedCheck,
+                  { opacity: checkOpacity, transform: [{ scale: checkScale }] },
+                ]}
+              >
+                <IconSymbol name="checkmark.circle.fill" size={19} color={colors.accentPrimary} />
+              </Animated.View>
+            )}
+          </View>
         </Pressable>
 
         <Pressable
@@ -99,10 +213,22 @@ export const QuestCard = React.memo(function QuestCard({
         </Pressable>
       </View>
 
-      {isOpen && (
+      {isOpen && !isCompleting && (
         <>
           <View style={styles.questDivider} />
           <View style={styles.questActionsRow}>
+            {!quest.done && (
+              <Pressable
+                style={[
+                  styles.questActionBtnPrimary,
+                  { backgroundColor: `${colors.accentPrimary}20`, borderColor: colors.accentPrimary },
+                ]}
+                onPress={handleComplete}
+              >
+                <Text style={[styles.questActionTextPrimary, { color: colors.accentPrimary }]}>Complete</Text>
+              </Pressable>
+            )}
+
             <Pressable
               style={[styles.questActionBtnSubtle, { backgroundColor: colors.bg, borderColor: colors.border }, editPressed && styles.btnPressed]}
               onPress={handleEdit}
@@ -140,6 +266,6 @@ export const QuestCard = React.memo(function QuestCard({
           </View>
         </>
       )}
-    </View>
+    </Animated.View>
   );
 });

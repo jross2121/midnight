@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { createStyles } from "../_styles";
+import { getCategoryDisplayName } from "../_utils/categoryLabels";
 import { withAlpha } from "../_utils/designSystem";
 import { useTheme } from "../_utils/themeContext";
 import type { Category, Quest } from "../_utils/types";
@@ -64,7 +65,7 @@ function CategoryChips({
                 isSelected ? { color: colors.bg } : { color: colors.textSecondary },
               ]}
             >
-              {category.name}
+              {getCategoryDisplayName(category)}
             </Text>
           </Pressable>
         );

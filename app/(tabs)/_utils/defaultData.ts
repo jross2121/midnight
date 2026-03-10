@@ -6,7 +6,7 @@ export const defaultCategories: Category[] = [
   { id: "career", name: "Career", level: 4, xp: 10, xpToNext: 140 },
   { id: "social", name: "Social", level: 1, xp: 25, xpToNext: 90 },
   { id: "home", name: "Home", level: 2, xp: 15, xpToNext: 110 },
-  { id: "fun", name: "Fun", level: 5, xp: 60, xpToNext: 160 },
+  { id: "fun", name: "Personal", level: 5, xp: 60, xpToNext: 160 },
 ];
 
 export const defaultQuests: Quest[] = [

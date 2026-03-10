@@ -1,14 +1,16 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Pressable, ScrollView, Text, View } from "react-native";
+import { Animated, Easing, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AddQuestForm } from "./_components/AddQuestForm";
+import { DayScoreRing } from "./_components/DayScoreRing";
 import { EditQuestForm } from "./_components/EditQuestForm";
 import { Footer } from "./_components/Footer";
 import { QuestCard } from "./_components/QuestCard";
 import { createStyles } from "./_styles";
+import { getCategoryDisplayName } from "./_utils/categoryLabels";
 import { diffDays, localDateKey, parseDateKey } from "./_utils/dateHelpers";
 import {
   defaultAchievements,
@@ -28,7 +30,7 @@ import {
   getDRChangeFromPercent,
 } from "./_utils/discipline";
 import { levelUp } from "./_utils/gameHelpers";
-import { getNextRank, getRankFromDR } from "./_utils/rank";
+import { getNextRank, getRankFromDR, getRankMeta } from "./_utils/rank";
 import { useTheme } from "./_utils/themeContext";
 import type { Achievement, Category, DrHistoryEntry, Quest, StoredState } from "./_utils/types";
 import { STORAGE_KEY } from "./_utils/types";
@@ -71,6 +73,8 @@ export default function HomeScreen() {
   const { colors } = useTheme();
   const styles = createStyles(colors);
   const drHeroAnim = useRef(new Animated.Value(0)).current;
+  const dailyProgressAnim = useRef(new Animated.Value(0)).current;
+  const rankProgressAnim = useRef(new Animated.Value(0)).current;
   const [judgmentCountdown, setJudgmentCountdown] = useState(getCountdownToMidnight());
   const [showDevActions, setShowDevActions] = useState(false);
 
@@ -364,6 +368,11 @@ export default function HomeScreen() {
 
   const doneCount = useMemo(() => quests.filter((q) => q.done).length, [quests]);
   const doneForStandard = useMemo(() => Math.min(doneCount, DAILY_STANDARD), [doneCount]);
+  const totalQuestCount = quests.length;
+  const dayScorePercent = useMemo(
+    () => (totalQuestCount > 0 ? Math.round((doneCount / totalQuestCount) * 100) : 0),
+    [doneCount, totalQuestCount]
+  );
   const todayCompletionPercent = useMemo(
     () => getCompletionPercent(doneCount, DAILY_STANDARD),
     [doneCount]
@@ -375,11 +384,66 @@ export default function HomeScreen() {
   const rankName = useMemo(() => getRankFromDR(disciplineRating), [disciplineRating]);
   const rankLabel = rankName.toUpperCase();
   const nextRank = useMemo(() => getNextRank(disciplineRating), [disciplineRating]);
+  const currentRankMeta = useMemo(() => getRankMeta(rankName), [rankName]);
+  const nextRankMeta = useMemo(
+    () => (nextRank ? getRankMeta(nextRank.name) : null),
+    [nextRank]
+  );
+  const rankProgress = useMemo(() => {
+    if (!nextRankMeta) return 1;
+    const tierSpan = Math.max(1, nextRankMeta.minDr - currentRankMeta.minDr);
+    const intoTier = Math.max(0, Math.min(tierSpan, disciplineRating - currentRankMeta.minDr));
+    return intoTier / tierSpan;
+  }, [currentRankMeta.minDr, disciplineRating, nextRankMeta]);
+  const rankProgressDrValue = useMemo(() => {
+    if (!nextRankMeta) return Math.max(0, disciplineRating);
+    return Math.max(0, disciplineRating - currentRankMeta.minDr);
+  }, [currentRankMeta.minDr, disciplineRating, nextRankMeta]);
+  const rankProgressDrGoal = useMemo(() => {
+    if (!nextRankMeta) return Math.max(1, disciplineRating);
+    return Math.max(1, nextRankMeta.minDr - currentRankMeta.minDr);
+  }, [currentRankMeta.minDr, disciplineRating, nextRankMeta]);
   const projectionColor =
     projectedDelta > 0 ? colors.positive : projectedDelta < 0 ? colors.negative : colors.textSecondary;
 
+  useEffect(() => {
+    Animated.timing(rankProgressAnim, {
+      toValue: Math.max(0, Math.min(1, rankProgress)),
+      duration: 340,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [rankProgress, rankProgressAnim]);
+
+  const animatedRankProgressWidth = useMemo(
+    () =>
+      rankProgressAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: ["0%", "100%"],
+      }),
+    [rankProgressAnim]
+  );
+
+  useEffect(() => {
+    Animated.timing(dailyProgressAnim, {
+      toValue: Math.max(0, Math.min(1, doneForStandard / DAILY_STANDARD)),
+      duration: 340,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [dailyProgressAnim, doneForStandard]);
+
+  const animatedDailyProgressWidth = useMemo(
+    () =>
+      dailyProgressAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: ["0%", "100%"],
+      }),
+    [dailyProgressAnim]
+  );
+
   const categoryName = (id: string) =>
-    categories.find((c) => c.id === id)?.name ?? "Category";
+    getCategoryDisplayName(categories.find((c) => c.id === id) ?? { id, name: "Category" });
 
   const completeQuest = (questId: string) => {
     const quest = quests.find((q) => q.id === questId);
@@ -545,6 +609,15 @@ export default function HomeScreen() {
               </Pressable>
             </View>
 
+            <View style={styles.dayScoreCard}>
+              <DayScoreRing
+                completionPercent={dayScorePercent}
+                completedCount={doneCount}
+                totalCount={totalQuestCount}
+                colors={colors}
+              />
+            </View>
+
             <View style={styles.statusHeader}>
               <View style={styles.statusHeaderTop}>
                 <View style={styles.statusHeaderMain}>
@@ -576,6 +649,24 @@ export default function HomeScreen() {
                   ) : (
                     <Text style={styles.statusRankNext}>TOP RANK</Text>
                   )}
+
+                  <View style={styles.rankProgressBlock}>
+                    <Text style={styles.rankProgressCurrent}>{rankName}</Text>
+                    <Text style={styles.rankProgressTarget}>
+                      {nextRank ? `Progress to ${nextRank.name}` : "Maximum rank reached"}
+                    </Text>
+                    <View style={styles.rankProgressTrack}>
+                      <Animated.View
+                        style={[
+                          styles.rankProgressFill,
+                          { width: animatedRankProgressWidth, backgroundColor: colors.accentPrimary },
+                        ]}
+                      />
+                    </View>
+                    <Text style={styles.rankProgressMeta}>
+                      {nextRank ? `${rankProgressDrValue} / ${rankProgressDrGoal} DR` : `${disciplineRating} DR`}
+                    </Text>
+                  </View>
                 </View>
               </View>
 
@@ -585,10 +676,10 @@ export default function HomeScreen() {
                   <Text style={styles.statusProgressValue}>{doneForStandard} / {DAILY_STANDARD}</Text>
                 </View>
                 <View style={styles.statusProgressTrack}>
-                  <View
+                  <Animated.View
                     style={[
                       styles.statusProgressFill,
-                      { width: `${(doneForStandard / DAILY_STANDARD) * 100}%`, backgroundColor: colors.accentPrimary },
+                      { width: animatedDailyProgressWidth, backgroundColor: colors.accentPrimary },
                     ]}
                   />
                 </View>
