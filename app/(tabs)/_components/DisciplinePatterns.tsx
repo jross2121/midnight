@@ -8,14 +8,8 @@ export type DisciplinePatternInsightInput = {
   completionPct: number;
 };
 
-export type DisciplinePatternCategoryInput = {
-  label: string;
-  completionPct: number;
-};
-
 type DisciplinePatternsProps = {
   days: DisciplinePatternInsightInput[];
-  categories: DisciplinePatternCategoryInput[];
   colors: ThemeColors;
 };
 
@@ -33,15 +27,23 @@ function average(values: number[]): number {
   return Math.round(total / values.length);
 }
 
+function standardDeviation(values: number[]): number {
+  if (values.length === 0) return 0;
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const variance =
+    values.reduce((sum, value) => sum + (value - mean) * (value - mean), 0) / values.length;
+  return Math.sqrt(variance);
+}
+
 function buildPatternInsights(
-  days: DisciplinePatternInsightInput[],
-  categories: DisciplinePatternCategoryInput[]
+  days: DisciplinePatternInsightInput[]
 ): string[] {
   const insights: string[] = [];
+  const nonZeroDays = days.filter((day) => day.completionPct > 0);
 
   const weekdayValues: number[] = [];
   const weekendValues: number[] = [];
-  for (const day of days) {
+  for (const day of nonZeroDays) {
     const weekday = parseWeekday(day.date);
     if (weekday === null) continue;
     if (weekday === 0 || weekday === 6) {
@@ -71,37 +73,55 @@ function buildPatternInsights(
     }
   }
 
-  if (categories.length > 0) {
-    const sorted = [...categories].sort((a, b) => b.completionPct - a.completionPct);
-    const strongest = sorted[0];
-    const weakest = sorted[sorted.length - 1];
+  const latest7 = nonZeroDays.slice(-7).map((day) => day.completionPct);
+  const latest3 = nonZeroDays.slice(-3).map((day) => day.completionPct);
 
-    if (strongest) {
+  if (latest7.length >= 3 && latest3.length >= 2) {
+    const avg7 = average(latest7);
+    const avg3 = average(latest3);
+    const trendGap = avg3 - avg7;
+
+    if (trendGap >= 8) {
       insights.push(
-        `${strongest.label} quests are consistently strong at ${strongest.completionPct}%. Use that momentum as your daily starting category.`
+        `Your recent pace is improving: ${avg3}% over the last 3 days versus ${avg7}% across 7 days.`
+      );
+    } else if (trendGap <= -8) {
+      insights.push(
+        `Recent follow-through softened: ${avg3}% in the last 3 days versus ${avg7}% across 7 days. Reset with one must-do quest tomorrow morning.`
+      );
+    } else {
+      insights.push(
+        `Recent performance is stable (${avg3}% over 3 days, ${avg7}% over 7 days). A fixed first quest can turn stability into growth.`
       );
     }
+  }
 
-    if (weakest && weakest !== strongest) {
+  if (latest7.length >= 4) {
+    const deviation = standardDeviation(latest7);
+    if (deviation <= 12) {
       insights.push(
-        `${weakest.label} quests trail at ${weakest.completionPct}%. Reduce friction by scheduling one smaller ${weakest.label.toLowerCase()} action earlier in the day.`
+        "Consistency is strengthening week to week. Keep the same completion window to preserve this reliability."
+      );
+    } else {
+      insights.push(
+        "Your completion swings are wide across recent days. Narrow the plan to fewer high-priority quests for steadier execution."
       );
     }
   }
 
   if (insights.length === 0) {
     return [
-      "Your tracking is getting started. Keep logging daily completions to unlock stronger pattern coaching.",
-      "A simple rule for now: finish one priority quest early to build a reliable win streak.",
+      "Your history is still building. Complete a few Midnight Evaluations to unlock stronger pattern coaching.",
+      "Start simple: finish one priority quest early each day to establish a stable baseline.",
     ];
   }
 
   return insights.slice(0, 3);
 }
 
-export function DisciplinePatterns({ days, categories, colors }: DisciplinePatternsProps) {
+export function DisciplinePatterns({ days, colors }: DisciplinePatternsProps) {
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const insights = useMemo(() => buildPatternInsights(days, categories), [days, categories]);
+  const insights = useMemo(() => buildPatternInsights(days), [days]);
 
   return (
     <View style={styles.wrap}>

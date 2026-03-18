@@ -11,13 +11,24 @@ import { getMainCategoryDisplayEntries } from "./_utils/categoryLabels";
 import {
     defaultCategories,
     defaultDisciplineRating,
-    defaultDrHistory,
     defaultQuests,
 } from "./_utils/defaultData";
 import { createCardSurface, ui, withAlpha } from "./_utils/designSystem";
+import {
+    buildCalendarFromHistory,
+    buildInsightOfTheDay,
+    getAverageCompletionRate,
+    getCurrentRankFromHistory,
+    getLatestCategoriesFromHistory,
+    getLatestHistoryEntries,
+    getSevenDayDrChange,
+    getTrendPointsFromHistory,
+    sortEvaluationHistory,
+} from "./_utils/evaluationAnalytics";
+import { readEvaluationHistory, type DailyEvaluationHistoryItem } from "./_utils/evaluationHistory";
 import { getRankFromDR } from "./_utils/rank";
 import { useTheme } from "./_utils/themeContext";
-import type { Category, DrHistoryEntry, Quest, StoredState } from "./_utils/types";
+import type { Category, Quest, StoredState } from "./_utils/types";
 import { STORAGE_KEY } from "./_utils/types";
 
 const MAIN_CATEGORIES = getMainCategoryDisplayEntries();
@@ -29,127 +40,11 @@ type CategoryInsight = {
   completed: number;
   total: number;
 };
-
-function isDrHistoryEntry(value: unknown): value is DrHistoryEntry {
-  if (typeof value !== "object" || value === null) return false;
-  const candidate = value as Partial<DrHistoryEntry>;
-  return (
-    typeof candidate.date === "string" &&
-    typeof candidate.dr === "number" &&
-    typeof candidate.delta === "number" &&
-    typeof candidate.pct === "number"
-  );
-}
-
-function buildFallbackTrend(currentDr: number): number[] {
-  const start = Math.max(0, currentDr - 6);
-  return [
-    start,
-    Math.max(0, start + 1),
-    Math.max(0, start + 2),
-    Math.max(0, start + 2),
-    Math.max(0, start + 3),
-    Math.max(0, start + 4),
-    Math.max(0, currentDr),
-  ];
-}
-
-function getInsightMessage(rows: CategoryInsight[], weekDelta: number): string {
-  if (!rows.length) {
-    return "Keep logging quests daily to unlock your first trend insight.";
-  }
-
-  const strongest = rows[0];
-  const weakest = rows[rows.length - 1];
-
-  if (weakest.completionPct < 40) {
-    return `${weakest.label} is your weakest lane at ${weakest.completionPct}%. Add one easy ${weakest.label.toLowerCase()} quest tomorrow to lift consistency.`;
-  }
-
-  if (weekDelta > 0) {
-    return `Your DR is climbing this week. Protect momentum by repeating your ${strongest.label.toLowerCase()} routine where you're already strongest.`;
-  }
-
-  return `You're steady overall. Converting one ${weakest.label.toLowerCase()} quest into a non-negotiable daily habit should improve balance next week.`;
-}
-
-function formatWeekChange(delta: number): string {
+function formatWeekChange(delta: number, hasSufficientHistory: boolean): string {
+  if (!hasSufficientHistory) return "Need 2+ evaluations";
   if (delta > 0) return `+${delta} vs 7d ago`;
   if (delta < 0) return `${delta} vs 7d ago`;
   return "No change in 7d";
-}
-
-function toDateKey(date: Date): string {
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, "0");
-  const dd = String(date.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function normalizeEntryDateKey(raw: string): string | null {
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-    return raw;
-  }
-
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-
-  return toDateKey(parsed);
-}
-
-function buildMockCalendarData(totalDays: number): DisciplineCalendarDay[] {
-  const today = new Date();
-  today.setHours(12, 0, 0, 0);
-
-  return Array.from({ length: totalDays }, (_, idx) => {
-    const offset = totalDays - idx - 1;
-    const date = new Date(today);
-    date.setDate(today.getDate() - offset);
-
-    const raw = Math.round(50 + Math.sin(idx / 2.2) * 26 + ((idx * 17) % 21 - 10));
-    const completionPct = Math.max(0, Math.min(100, raw));
-
-    return {
-      date: toDateKey(date),
-      completionPct,
-    };
-  });
-}
-
-function buildDisciplineCalendarDays(
-  drHistory: DrHistoryEntry[],
-  totalDays = 30
-): DisciplineCalendarDay[] {
-  const pctByDate = new Map<string, number>();
-
-  for (const entry of drHistory) {
-    const key = normalizeEntryDateKey(entry.date);
-    if (!key) continue;
-    const pct = Math.max(0, Math.min(100, Math.round(entry.pct)));
-    pctByDate.set(key, pct);
-  }
-
-  if (pctByDate.size === 0) {
-    return buildMockCalendarData(totalDays);
-  }
-
-  const today = new Date();
-  today.setHours(12, 0, 0, 0);
-  const days: DisciplineCalendarDay[] = [];
-
-  for (let idx = totalDays - 1; idx >= 0; idx -= 1) {
-    const date = new Date(today);
-    date.setDate(today.getDate() - idx);
-    const dateKey = toDateKey(date);
-    days.push({
-      date: dateKey,
-      completionPct: pctByDate.get(dateKey) ?? 0,
-    });
-  }
-
-  return days;
 }
 
 function MiniTrendChart({
@@ -180,7 +75,7 @@ export default function InsightsScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => createInsightsStyles(colors), [colors]);
   const [disciplineRating, setDisciplineRating] = useState<number>(defaultDisciplineRating);
-  const [drHistory, setDrHistory] = useState<DrHistoryEntry[]>(defaultDrHistory);
+  const [evaluationHistory, setEvaluationHistory] = useState<DailyEvaluationHistoryItem[]>([]);
   const [categories, setCategories] = useState<Category[]>(defaultCategories);
   const [quests, setQuests] = useState<Quest[]>(defaultQuests);
   const [hydrated, setHydrated] = useState(false);
@@ -207,13 +102,8 @@ export default function InsightsScreen() {
       setQuests(
         Array.isArray(parsed.quests) && parsed.quests.length ? parsed.quests : defaultQuests
       );
-      setDrHistory(
-        Array.isArray(parsed.drHistory)
-          ? parsed.drHistory
-              .filter((entry): entry is DrHistoryEntry => isDrHistoryEntry(entry))
-              .slice(-30)
-          : defaultDrHistory
-      );
+      const loadedHistory = await readEvaluationHistory();
+      setEvaluationHistory(sortEvaluationHistory(loadedHistory));
     } catch (e) {
       console.log("Failed to load storage:", e);
     } finally {
@@ -250,22 +140,28 @@ export default function InsightsScreen() {
     } as CategoryInsight;
   }).sort((a, b) => b.completionPct - a.completionPct);
 
-  const latest7 = drHistory.slice(-7).map((entry) => entry.dr);
-  const trendPoints = latest7.length >= 2 ? latest7 : buildFallbackTrend(disciplineRating);
-  const disciplineCalendarDays = buildDisciplineCalendarDays(drHistory, 30);
-  const weekDelta = trendPoints[trendPoints.length - 1] - trendPoints[0];
+  const latest7History = getLatestHistoryEntries(evaluationHistory, 7);
+  const trendPointsRaw = getTrendPointsFromHistory(evaluationHistory, 7);
+  const trendPoints =
+    trendPointsRaw.length === 1 ? [trendPointsRaw[0], trendPointsRaw[0]] : trendPointsRaw;
+  const disciplineCalendarDays: DisciplineCalendarDay[] = buildCalendarFromHistory(
+    evaluationHistory,
+    30
+  );
+  const hasHistory = evaluationHistory.length > 0;
+  const hasSufficientTrend = latest7History.length >= 2;
+  const weekDelta = getSevenDayDrChange(evaluationHistory);
   const trendLabelTone = weekDelta > 0 ? colors.positive : weekDelta < 0 ? colors.negative : colors.textSecondary;
-  const insightMessage = getInsightMessage(categoryBreakdown, weekDelta);
-  const averageCompletionRate =
-    categoryBreakdown.length > 0
-      ? Math.round(
-          categoryBreakdown.reduce((sum, category) => sum + category.completionPct, 0) /
-            categoryBreakdown.length
-        )
-      : 0;
-  const strongestCategory = categoryBreakdown[0]?.label ?? "N/A";
-  const weakestCategory = categoryBreakdown[categoryBreakdown.length - 1]?.label ?? "N/A";
-  const currentRank = getRankFromDR(disciplineRating);
+  const insightMessage = buildInsightOfTheDay(evaluationHistory);
+  const averageCompletionRate = getAverageCompletionRate(evaluationHistory);
+  const categoryFromHistory = getLatestCategoriesFromHistory(evaluationHistory);
+  const strongestCategory = categoryFromHistory.strongestCategory ?? categoryBreakdown[0]?.label ?? "N/A";
+  const weakestCategory =
+    categoryFromHistory.weakestCategory ??
+    categoryBreakdown[categoryBreakdown.length - 1]?.label ??
+    "N/A";
+  const currentRank = getCurrentRankFromHistory(evaluationHistory) ?? getRankFromDR(disciplineRating);
+  const currentDrValue = latest7History[latest7History.length - 1]?.drAfter ?? disciplineRating;
 
   return (
     <SafeAreaView edges={["top"]} style={styles.safe}>
@@ -287,18 +183,24 @@ export default function InsightsScreen() {
         <View style={styles.card}>
           <View style={styles.cardHeaderRow}>
             <Text style={styles.cardTitle}>DR Trend</Text>
-            <Text style={[styles.trendLabel, { color: trendLabelTone }]}>{formatWeekChange(weekDelta)}</Text>
+            <Text style={[styles.trendLabel, { color: trendLabelTone }]}>
+              {formatWeekChange(weekDelta, hasSufficientTrend)}
+            </Text>
           </View>
           <View style={styles.drValueRow}>
-            <Text style={styles.drValue}>{disciplineRating}</Text>
+            <Text style={styles.drValue}>{currentDrValue}</Text>
             <Text style={styles.drLabel}>Current DR</Text>
           </View>
-          <MiniTrendChart
-            points={trendPoints}
-            chartWrapStyle={styles.chartWrap}
-            chartBarStyle={styles.chartBar}
-          />
-          <Text style={styles.mutedMeta}>Last 7 evaluations</Text>
+          {hasHistory ? (
+            <MiniTrendChart
+              points={trendPoints}
+              chartWrapStyle={styles.chartWrap}
+              chartBarStyle={styles.chartBar}
+            />
+          ) : (
+            <Text style={styles.mutedMeta}>No evaluation history yet.</Text>
+          )}
+          <Text style={styles.mutedMeta}>Last {Math.min(7, latest7History.length)} evaluations</Text>
         </View>
 
         <View style={styles.card}>
@@ -308,14 +210,7 @@ export default function InsightsScreen() {
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Discipline Patterns</Text>
-          <DisciplinePatterns
-            days={disciplineCalendarDays}
-            categories={categoryBreakdown.map((item) => ({
-              label: item.label,
-              completionPct: item.completionPct,
-            }))}
-            colors={colors}
-          />
+          <DisciplinePatterns days={disciplineCalendarDays} colors={colors} />
         </View>
 
         <View style={styles.card}>

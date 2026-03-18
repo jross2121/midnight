@@ -153,12 +153,12 @@ export default function StatsScreen() {
             <Text style={[styles.tableHeaderText, { flex: 1, textAlign: "right" }]}>DR</Text>
           </View>
           {latestHistory.length ? (
-            latestHistory.map((entry) => {
+            latestHistory.map((entry, idx) => {
               const deltaColor =
                 entry.delta > 0 ? colors.positive : entry.delta < 0 ? colors.negative : colors.textSecondary;
 
               return (
-                <View key={entry.date} style={styles.tableRow}>
+                <View key={`${entry.date}-${idx}`} style={styles.tableRow}>
                   <Text style={[styles.tableCell, { flex: 1.5 }]}>{entry.date.slice(5)}</Text>
                   <Text style={[styles.tableCell, { flex: 1, textAlign: "right" }]}>{entry.pct}%</Text>
                   <Text style={[styles.tableCell, { flex: 1, textAlign: "right", color: deltaColor }]}>

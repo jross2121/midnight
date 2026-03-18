@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, Pressable, ScrollView, Text, View } from "react-native";
@@ -8,28 +9,41 @@ import { AddQuestForm } from "./_components/AddQuestForm";
 import { DayScoreRing } from "./_components/DayScoreRing";
 import { EditQuestForm } from "./_components/EditQuestForm";
 import { Footer } from "./_components/Footer";
+import { MidnightEvaluationModal } from "./_components/MidnightEvaluationModal";
 import { QuestCard } from "./_components/QuestCard";
 import { createStyles } from "./_styles";
 import { getCategoryDisplayName } from "./_utils/categoryLabels";
 import { diffDays, localDateKey, parseDateKey } from "./_utils/dateHelpers";
 import {
-  defaultAchievements,
-  defaultCategories,
-  defaultDisciplineRating,
-  defaultDrHistory,
-  defaultLastCompletionPct,
-  defaultLastDrDelta,
-  defaultLastDrUpdateDate,
-  defaultQuests,
+    defaultAchievements,
+    defaultCategories,
+    defaultDisciplineRating,
+    defaultDrHistory,
+    defaultLastCompletionPct,
+    defaultLastDrDelta,
+    defaultLastDrUpdateDate,
+    defaultQuests,
 } from "./_utils/defaultData";
 import {
-  DAILY_STANDARD,
-  formatDelta,
-  getCompletionPercent,
-  getCountdownToMidnight,
-  getDRChangeFromPercent,
+    DAILY_STANDARD,
+    formatDelta,
+    getCompletionPercent,
+    getCountdownToMidnight,
+    getDRChangeFromPercent,
 } from "./_utils/discipline";
+import {
+    appendEvaluationHistoryItem,
+    buildCategoryStatsFromQuests,
+    DAILY_EVALUATION_HISTORY_STORAGE_KEY,
+    getStrongestAndWeakestCategories,
+} from "./_utils/evaluationHistory";
 import { levelUp } from "./_utils/gameHelpers";
+import {
+    buildMidnightEvaluation,
+    MIDNIGHT_EVALUATION_STORAGE_KEY,
+    shouldShowMidnightEvaluation,
+    type MidnightEvaluationData,
+} from "./_utils/midnightEvaluation";
 import { getNextRank, getRankFromDR, getRankMeta } from "./_utils/rank";
 import { useTheme } from "./_utils/themeContext";
 import type { Achievement, Category, DrHistoryEntry, Quest, StoredState } from "./_utils/types";
@@ -88,6 +102,8 @@ export default function HomeScreen() {
   const [lastCompletionPct, setLastCompletionPct] = useState<number>(defaultLastCompletionPct);
   const [lastDrUpdateDate, setLastDrUpdateDate] = useState<string>(defaultLastDrUpdateDate);
   const [drHistory, setDrHistory] = useState<DrHistoryEntry[]>(defaultDrHistory);
+  const [pendingEvaluation, setPendingEvaluation] = useState<MidnightEvaluationData | null>(null);
+  const [isSavingEvaluation, setIsSavingEvaluation] = useState(false);
 
   const [achievements, setAchievements] = useState<Achievement[]>(defaultAchievements);
 
@@ -206,6 +222,7 @@ export default function HomeScreen() {
         }
 
         const parsed = JSON.parse(raw) as Partial<StoredState>;
+        const lastEvaluatedDate = await AsyncStorage.getItem(MIDNIGHT_EVALUATION_STORAGE_KEY);
 
         const loadedCategories =
           Array.isArray(parsed.categories) && parsed.categories.length
@@ -237,6 +254,11 @@ export default function HomeScreen() {
         const loadedHistory = loadDrHistory(parsed.drHistory);
 
         const gap = diffDays(savedResetDate, today);
+        const shouldGateForEvaluation = shouldShowMidnightEvaluation(
+          savedResetDate,
+          today,
+          lastEvaluatedDate
+        );
 
         let nextDR = loadedDR;
         let nextLastDrDelta = loadedLastDrDelta;
@@ -244,7 +266,7 @@ export default function HomeScreen() {
         let nextLastDrUpdateDate = loadedLastDrUpdateDate;
         let nextHistory = loadedHistory;
 
-        if (gap >= 1) {
+        if (gap >= 1 && !shouldGateForEvaluation) {
           // Day 1 (the "previous day" based on saved quests)
           const donePrev = loadedQuests.filter((q) => q.done).length;
           const pctPrev = getCompletionPercent(donePrev, DAILY_STANDARD);
@@ -287,7 +309,7 @@ export default function HomeScreen() {
 
         // Daily reset + normalize difficulty
         const finalQuests =
-          savedResetDate !== today
+          savedResetDate !== today && !shouldGateForEvaluation
             ? loadedQuests.map((q) => ({ ...q, done: false }))
             : loadedQuests;
 
@@ -298,6 +320,10 @@ export default function HomeScreen() {
           target: typeof q.target === "string" ? q.target : "",
         }));
 
+        if (shouldGateForEvaluation) {
+          setPendingEvaluation(buildMidnightEvaluation(savedResetDate, normalizedFinalQuests));
+        }
+
         setCategories(loadedCategories);
         setQuests(normalizedFinalQuests);
         setAchievements(loadedAchievements);
@@ -306,7 +332,7 @@ export default function HomeScreen() {
         setLastCompletionPct(nextLastCompletionPct);
         setLastDrUpdateDate(nextLastDrUpdateDate);
         setDrHistory(nextHistory);
-        setLastResetDate(today);
+        setLastResetDate(shouldGateForEvaluation ? savedResetDate : today);
       } catch (e) {
         console.log("Failed to load storage:", e);
         setLastResetDate(today);
@@ -350,6 +376,129 @@ export default function HomeScreen() {
     drHistory,
     hydrated,
   ]);
+
+  const commitMidnightEvaluation = async () => {
+    if (!pendingEvaluation || isSavingEvaluation) return;
+
+    setIsSavingEvaluation(true);
+
+    try {
+      const drBeforeEvaluation = disciplineRating;
+      const today = localDateKey();
+      const gap = diffDays(pendingEvaluation.date, today);
+      const drAfterEvaluation = applyDrChange(drBeforeEvaluation, pendingEvaluation.drDelta);
+      const rankAfterEvaluation = getRankFromDR(drAfterEvaluation);
+      const { strongestCategory, weakestCategory } = getStrongestAndWeakestCategories(quests);
+      const categoryStats = buildCategoryStatsFromQuests(quests);
+      const completionRate =
+        pendingEvaluation.totalCount > 0
+          ? Math.round((pendingEvaluation.completedCount / pendingEvaluation.totalCount) * 100)
+          : 0;
+
+      let nextDR = drAfterEvaluation;
+      let nextHistory: DrHistoryEntry[] = [
+        ...drHistory,
+        {
+          date: pendingEvaluation.date,
+          dr: nextDR,
+          delta: pendingEvaluation.drDelta,
+          pct: pendingEvaluation.completionPercent,
+        },
+      ];
+
+      for (let i = 1; i < gap; i += 1) {
+        const missedDate = addDaysToDateKey(pendingEvaluation.date, i);
+        nextDR = applyDrChange(nextDR, -8);
+        nextHistory.push({
+          date: missedDate,
+          dr: nextDR,
+          delta: -8,
+          pct: 0,
+        });
+      }
+
+      if (nextHistory.length > 30) {
+        nextHistory = nextHistory.slice(-30);
+      }
+
+      const latestEntry = nextHistory[nextHistory.length - 1];
+      setDisciplineRating(nextDR);
+      setDrHistory(nextHistory);
+      setLastDrDelta(latestEntry?.delta ?? pendingEvaluation.drDelta);
+      setLastCompletionPct(latestEntry?.pct ?? pendingEvaluation.completionPercent);
+      setLastDrUpdateDate(today);
+      setQuests((prev) => prev.map((q) => ({ ...q, done: false })));
+      setLastResetDate(today);
+      setPendingEvaluation(null);
+
+      await appendEvaluationHistoryItem({
+        date: pendingEvaluation.date,
+        completedQuestCount: pendingEvaluation.completedCount,
+        totalQuestCount: pendingEvaluation.totalCount,
+        completionRate,
+        drBefore: drBeforeEvaluation,
+        drChange: pendingEvaluation.drDelta,
+        drAfter: drAfterEvaluation,
+        currentRank: rankAfterEvaluation,
+        strongestCategory,
+        weakestCategory,
+        categoryStats,
+      });
+
+      await AsyncStorage.setItem(MIDNIGHT_EVALUATION_STORAGE_KEY, pendingEvaluation.date);
+    } catch (error) {
+      console.log("Failed to commit midnight evaluation:", error);
+    } finally {
+      setIsSavingEvaluation(false);
+    }
+  };
+
+  useFocusEffect(
+    React.useCallback(() => {
+      let active = true;
+
+      if (!hydrated || pendingEvaluation || isSavingEvaluation) {
+        return () => {
+          active = false;
+        };
+      }
+
+      (async () => {
+        try {
+          const today = localDateKey();
+          const raw = await AsyncStorage.getItem(STORAGE_KEY);
+          if (!raw) return;
+
+          const parsed = JSON.parse(raw) as Partial<StoredState>;
+          const savedResetDate =
+            typeof parsed.lastResetDate === "string" ? parsed.lastResetDate : lastResetDate;
+          const savedQuests =
+            Array.isArray(parsed.quests) && parsed.quests.length ? parsed.quests : quests;
+          const normalizedSavedQuests = savedQuests.map((q) => ({
+            ...q,
+            difficulty: normalizeDifficulty(q.difficulty),
+            pinned: Boolean(q.pinned),
+            target: typeof q.target === "string" ? q.target : "",
+          }));
+
+          const lastEvaluatedDate = await AsyncStorage.getItem(MIDNIGHT_EVALUATION_STORAGE_KEY);
+          const shouldGate = shouldShowMidnightEvaluation(savedResetDate, today, lastEvaluatedDate);
+
+          if (active && shouldGate) {
+            setQuests(normalizedSavedQuests);
+            setLastResetDate(savedResetDate);
+            setPendingEvaluation(buildMidnightEvaluation(savedResetDate, normalizedSavedQuests));
+          }
+        } catch (error) {
+          console.log("Failed to re-check midnight evaluation:", error);
+        }
+      })();
+
+      return () => {
+        active = false;
+      };
+    }, [hydrated, isSavingEvaluation, lastResetDate, pendingEvaluation, quests])
+  );
 
   useEffect(() => {
     Animated.timing(drHeroAnim, {
@@ -532,6 +681,8 @@ export default function HomeScreen() {
     setLastCompletionPct(defaultLastCompletionPct);
     setLastDrUpdateDate(defaultLastDrUpdateDate);
     setDrHistory(defaultDrHistory);
+    setPendingEvaluation(null);
+    setIsSavingEvaluation(false);
 
     setShowAdd(false);
     setEditingQuestId(null);
@@ -544,6 +695,8 @@ export default function HomeScreen() {
 
     // Save reset state to AsyncStorage
     try {
+      await AsyncStorage.removeItem(MIDNIGHT_EVALUATION_STORAGE_KEY);
+      await AsyncStorage.removeItem(DAILY_EVALUATION_HISTORY_STORAGE_KEY);
       await AsyncStorage.setItem(
         STORAGE_KEY,
         JSON.stringify({
@@ -590,6 +743,17 @@ export default function HomeScreen() {
     setNewDifficulty("easy");
     setShowAdd(false);
   };
+
+  if (pendingEvaluation) {
+    return (
+      <MidnightEvaluationModal
+        evaluation={pendingEvaluation}
+        currentRank={rankName}
+        isSaving={isSavingEvaluation}
+        onStartNewDay={commitMidnightEvaluation}
+      />
+    );
+  }
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
