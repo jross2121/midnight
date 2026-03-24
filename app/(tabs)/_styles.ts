@@ -3,7 +3,6 @@ import { createCardSurface, ui, withAlpha } from "./_utils/designSystem";
 import type { ThemeColors } from "./_utils/themeContext";
 
 export const createStyles = (colors: ThemeColors) => {
-  const headerDividerColor = colors.divider;
   const cardSurface = createCardSurface(colors, {
     padding: ui.spacing.card,
     radius: ui.radius.card,
@@ -12,7 +11,7 @@ export const createStyles = (colors: ThemeColors) => {
   const secondaryCardSurface = createCardSurface(colors, {
     padding: ui.spacing.card,
     radius: ui.radius.card,
-    glowOpacity: 0.06,
+    glowOpacity: 0.04,
     borderOpacity: ui.border.opacitySecondary,
     backgroundColor: colors.surface2,
   });
@@ -51,11 +50,11 @@ export const createStyles = (colors: ThemeColors) => {
     },
     homeSubtitle: {
       color: colors.textTertiary,
-      fontSize: 11,
+      fontSize: 12,
       fontWeight: "600",
       marginTop: 4,
       marginBottom: 0,
-      lineHeight: 14,
+      lineHeight: 15,
       letterSpacing: 0.55,
       textTransform: "uppercase",
     },
@@ -71,43 +70,62 @@ export const createStyles = (colors: ThemeColors) => {
     homeTitleWrap: {
       gap: 3,
     },
+    brandTitleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
     homeMetaText: {
       ...ui.typography.caption,
       color: colors.textSecondary,
-      fontSize: 10,
+      fontSize: 11,
       fontWeight: "700",
       letterSpacing: 0.6,
       textTransform: "uppercase",
     },
     dayScoreCard: {
       ...secondaryCardSurface,
+      position: "relative",
+      overflow: "hidden",
       alignItems: "center",
       justifyContent: "center",
-      marginBottom: ui.spacing.lg,
+      marginBottom: ui.spacing.lg + ui.spacing.xs,
       paddingVertical: ui.spacing.md + ui.spacing.xs,
-      borderColor: withAlpha(colors.accentPrimary, 0.34),
+      borderColor: withAlpha(colors.accentPrimary, 0.16),
+      borderWidth: 0.6,
       backgroundColor: withAlpha(colors.surface2, 0.96),
       shadowColor: colors.accentPrimary,
       shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.1,
-      shadowRadius: 16,
-      elevation: 4,
+      shadowOpacity: 0.04,
+      shadowRadius: 8,
+      elevation: 1,
+    },
+    dayScoreWatermarkWrap: {
+      position: "absolute",
+      right: -46,
+      top: -44,
+      opacity: 0.22,
+    },
+    dayScoreWatermarkSoftWrap: {
+      position: "absolute",
+      right: -58,
+      top: -56,
+      opacity: 0.15,
     },
     statusHeader: {
-      backgroundColor: withAlpha(colors.surface2, 0.46),
-      borderWidth: 1,
-      borderColor: withAlpha(colors.cardBorder, 0.92),
+      backgroundColor: withAlpha(colors.surface2, 0.36),
+      borderWidth: 0,
       borderRadius: ui.radius.xl,
       paddingHorizontal: ui.spacing.lg,
       paddingTop: ui.spacing.sm,
-      paddingBottom: ui.spacing.sm,
-      gap: ui.spacing.sm,
+      paddingBottom: ui.spacing.sm + ui.spacing.xxs,
+      gap: ui.spacing.xs,
     },
     statusHeaderTop: {
       flexDirection: "column",
       alignItems: "center",
       gap: ui.spacing.xs,
-      paddingBottom: ui.spacing.sm,
+      paddingBottom: ui.spacing.xs,
     },
     statusHeaderMain: {
       width: "100%",
@@ -118,7 +136,7 @@ export const createStyles = (colors: ThemeColors) => {
     statusLabel: {
       ...ui.typography.caption,
       color: "#8B98A5",
-      fontSize: 11,
+      fontSize: 12,
       letterSpacing: 0.8,
     },
     statusDrValue: {
@@ -156,7 +174,7 @@ export const createStyles = (colors: ThemeColors) => {
       marginTop: 4,
       ...ui.typography.caption,
       color: "#8B98A5",
-      fontSize: 10,
+      fontSize: 11,
       letterSpacing: 0.45,
       textTransform: "uppercase",
     },
@@ -168,7 +186,7 @@ export const createStyles = (colors: ThemeColors) => {
     rankProgressCurrent: {
       ...ui.typography.caption,
       color: "#E6EDF3",
-      fontSize: 11,
+      fontSize: 12,
       fontWeight: "800",
       letterSpacing: 0.45,
       textTransform: "uppercase",
@@ -177,7 +195,7 @@ export const createStyles = (colors: ThemeColors) => {
     rankProgressTarget: {
       ...ui.typography.caption,
       color: "#8B98A5",
-      fontSize: 10,
+      fontSize: 11,
       fontWeight: "700",
       letterSpacing: 0.3,
       textAlign: "left",
@@ -199,13 +217,13 @@ export const createStyles = (colors: ThemeColors) => {
     rankProgressMeta: {
       ...ui.typography.caption,
       color: "#E6EDF3",
-      fontSize: 10,
+      fontSize: 11,
       fontWeight: "600",
       letterSpacing: 0.2,
       textAlign: "left",
     },
     statusProgressBlock: {
-      paddingTop: ui.spacing.xxs,
+      paddingTop: ui.spacing.xs,
       gap: 6,
     },
     statusProgressRow: {
@@ -296,7 +314,7 @@ export const createStyles = (colors: ThemeColors) => {
     devActionText: {
       ...ui.typography.caption,
       color: colors.negative,
-      fontSize: 10,
+      fontSize: 11,
       letterSpacing: 0.6,
     },
 
@@ -324,7 +342,7 @@ export const createStyles = (colors: ThemeColors) => {
       shadowOpacity: 0.35,
       shadowRadius: 10,
     },
-    pillLabel: { color: colors.textSecondary, fontSize: 10, fontWeight: "600", letterSpacing: 0.3, textTransform: "uppercase" },
+    pillLabel: { color: colors.textSecondary, fontSize: 11, fontWeight: "600", letterSpacing: 0.3, textTransform: "uppercase" },
     pillValue: { color: colors.accentPrimary, fontSize: 15, fontWeight: "900", marginTop: 3, letterSpacing: 0.3 },
     drPrimaryPill: {
       width: "100%",
@@ -431,7 +449,7 @@ export const createStyles = (colors: ThemeColors) => {
       justifyContent: "space-between",
     },
     todaySummaryLabel: {
-      fontSize: 11,
+      fontSize: 12,
       fontWeight: "700",
       textTransform: "uppercase",
       letterSpacing: 0.3,
@@ -467,7 +485,7 @@ export const createStyles = (colors: ThemeColors) => {
       shadowOpacity: 1,
       shadowRadius: 3,
     },
-    btnText: { color: colors.textPrimary, fontWeight: "800", fontSize: 12 },
+    btnText: { color: colors.textPrimary, fontWeight: "800", fontSize: 13 },
     homeActionBtn: {
       flex: 1,
       backgroundColor: colors.surface,
@@ -511,30 +529,31 @@ export const createStyles = (colors: ThemeColors) => {
     sectionSecondary: {
       ...ui.typography.caption,
       color: withAlpha(colors.textSecondary, 0.78),
+      fontSize: 12,
+      lineHeight: 15,
       textTransform: "uppercase",
       letterSpacing: 0.6,
       marginBottom: ui.spacing.sm,
     },
     sectionSubtext: {
       color: withAlpha(colors.textSecondary, 0.8),
-      fontSize: ui.typography.body.fontSize,
-      lineHeight: ui.typography.body.lineHeight,
+      fontSize: 14,
+      lineHeight: 20,
       marginBottom: 0,
       marginTop: 0,
     },
-    link: { color: colors.accentPrimary, fontWeight: "900", fontSize: 12, letterSpacing: 0.3 },
+    link: { color: colors.accentPrimary, fontWeight: "900", fontSize: 13, letterSpacing: 0.3 },
     dailySection: {
-      marginTop: ui.spacing.md + ui.spacing.xs,
+      marginTop: ui.spacing.lg,
     },
     dailyHeaderCard: {
-      borderWidth: 1,
-      borderColor: withAlpha(colors.cardBorder, 0.6),
-      backgroundColor: withAlpha(colors.surface2, 0.28),
-      borderRadius: ui.radius.lg,
-      paddingHorizontal: ui.spacing.md,
-      paddingTop: ui.spacing.md,
-      paddingBottom: ui.spacing.sm,
-      marginBottom: ui.spacing.md,
+      borderWidth: 0,
+      backgroundColor: withAlpha(colors.surface2, 0.1),
+      borderRadius: ui.radius.md,
+      paddingHorizontal: ui.spacing.sm + ui.spacing.xs,
+      paddingTop: ui.spacing.xs,
+      paddingBottom: ui.spacing.xxs,
+      marginBottom: ui.spacing.xs,
     },
 
     addBox: {
@@ -560,7 +579,7 @@ export const createStyles = (colors: ThemeColors) => {
       shadowOpacity: 0.2,
       shadowRadius: 4,
     },
-    smallLabel: { color: colors.textSecondary, fontWeight: "700", fontSize: 11, letterSpacing: 0.2 },
+    smallLabel: { color: colors.textSecondary, fontWeight: "700", fontSize: 12, letterSpacing: 0.2 },
 
     pickerRow: { flexDirection: "row", flexWrap: "wrap", gap: 9 },
     pillPick: {
@@ -572,7 +591,7 @@ export const createStyles = (colors: ThemeColors) => {
       backgroundColor: colors.bg,
     },
     pillPickActive: { backgroundColor: colors.accentPrimary, borderColor: colors.accentPrimary },
-    pillPickText: { color: colors.textSecondary, fontWeight: "800", fontSize: 11 },
+    pillPickText: { color: colors.textSecondary, fontWeight: "800", fontSize: 12 },
     pillPickTextActive: { color: colors.textPrimary, fontWeight: "900" },
 
     addBtn: {
@@ -585,7 +604,7 @@ export const createStyles = (colors: ThemeColors) => {
       shadowOpacity: 0.3,
       shadowRadius: 8,
     },
-    addBtnText: { color: colors.textPrimary, fontWeight: "900", fontSize: 13 },
+    addBtnText: { color: colors.textPrimary, fontWeight: "900", fontSize: 14 },
 
     editSheetModalRoot: {
       flex: 1,
@@ -648,7 +667,7 @@ export const createStyles = (colors: ThemeColors) => {
       gap: 8,
     },
     editSheetLabel: {
-      fontSize: 12,
+      fontSize: 13,
       lineHeight: 16,
       fontWeight: "700",
       letterSpacing: 0.2,

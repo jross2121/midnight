@@ -4,45 +4,44 @@ import * as Haptics from "expo-haptics";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Circle, Svg } from "react-native-svg";
 
 import { AddQuestForm } from "./_components/AddQuestForm";
 import { DayScoreRing } from "./_components/DayScoreRing";
 import { EditQuestForm } from "./_components/EditQuestForm";
-import { Footer } from "./_components/Footer";
 import { MidnightEvaluationModal } from "./_components/MidnightEvaluationModal";
 import { QuestCard } from "./_components/QuestCard";
 import { createStyles } from "./_styles";
 import { getCategoryDisplayName } from "./_utils/categoryLabels";
 import { diffDays, localDateKey, parseDateKey } from "./_utils/dateHelpers";
 import {
-    defaultAchievements,
-    defaultCategories,
-    defaultDisciplineRating,
-    defaultDrHistory,
-    defaultLastCompletionPct,
-    defaultLastDrDelta,
-    defaultLastDrUpdateDate,
-    defaultQuests,
+  defaultAchievements,
+  defaultCategories,
+  defaultDisciplineRating,
+  defaultDrHistory,
+  defaultLastCompletionPct,
+  defaultLastDrDelta,
+  defaultLastDrUpdateDate,
+  defaultQuests,
 } from "./_utils/defaultData";
+import { withAlpha } from "./_utils/designSystem";
 import {
-    DAILY_STANDARD,
-    formatDelta,
-    getCompletionPercent,
-    getCountdownToMidnight,
-    getDRChangeFromPercent,
+  DAILY_STANDARD,
+  getCompletionPercent,
+  getDRChangeFromPercent,
 } from "./_utils/discipline";
 import {
-    appendEvaluationHistoryItem,
-    buildCategoryStatsFromQuests,
-    DAILY_EVALUATION_HISTORY_STORAGE_KEY,
-    getStrongestAndWeakestCategories,
+  appendEvaluationHistoryItem,
+  buildCategoryStatsFromQuests,
+  DAILY_EVALUATION_HISTORY_STORAGE_KEY,
+  getStrongestAndWeakestCategories,
 } from "./_utils/evaluationHistory";
 import { levelUp } from "./_utils/gameHelpers";
 import {
-    buildMidnightEvaluation,
-    MIDNIGHT_EVALUATION_STORAGE_KEY,
-    shouldShowMidnightEvaluation,
-    type MidnightEvaluationData,
+  buildMidnightEvaluation,
+  MIDNIGHT_EVALUATION_STORAGE_KEY,
+  shouldShowMidnightEvaluation,
+  type MidnightEvaluationData,
 } from "./_utils/midnightEvaluation";
 import { getNextRank, getRankFromDR, getRankMeta } from "./_utils/rank";
 import { useTheme } from "./_utils/themeContext";
@@ -80,6 +79,26 @@ function loadDrHistory(value: unknown): DrHistoryEntry[] {
     .slice(-30);
 }
 
+type MoonMarkProps = {
+  size: number;
+  color: string;
+  cutoutColor: string;
+};
+
+function MoonMark({ size, color, cutoutColor }: MoonMarkProps) {
+  const outerR = size * 0.43;
+  const innerR = size * 0.36;
+  const cx = size * 0.5;
+  const cy = size * 0.5;
+
+  return (
+    <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <Circle cx={cx} cy={cy} r={outerR} fill={color} />
+      <Circle cx={cx + size * 0.15} cy={cy - size * 0.06} r={innerR} fill={cutoutColor} />
+    </Svg>
+  );
+}
+
 /* =======================
    SCREEN
 ======================= */
@@ -87,9 +106,7 @@ export default function HomeScreen() {
   const { colors } = useTheme();
   const styles = createStyles(colors);
   const drHeroAnim = useRef(new Animated.Value(0)).current;
-  const dailyProgressAnim = useRef(new Animated.Value(0)).current;
   const rankProgressAnim = useRef(new Animated.Value(0)).current;
-  const [judgmentCountdown, setJudgmentCountdown] = useState(getCountdownToMidnight());
   const [showDevActions, setShowDevActions] = useState(false);
 
   const [categories, setCategories] = useState<Category[]>(defaultCategories);
@@ -508,27 +525,11 @@ export default function HomeScreen() {
     }).start();
   }, [drHeroAnim]);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setJudgmentCountdown(getCountdownToMidnight());
-    }, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
   const doneCount = useMemo(() => quests.filter((q) => q.done).length, [quests]);
-  const doneForStandard = useMemo(() => Math.min(doneCount, DAILY_STANDARD), [doneCount]);
   const totalQuestCount = quests.length;
   const dayScorePercent = useMemo(
     () => (totalQuestCount > 0 ? Math.round((doneCount / totalQuestCount) * 100) : 0),
     [doneCount, totalQuestCount]
-  );
-  const todayCompletionPercent = useMemo(
-    () => getCompletionPercent(doneCount, DAILY_STANDARD),
-    [doneCount]
-  );
-  const projectedDelta = useMemo(
-    () => getDRChangeFromPercent(todayCompletionPercent, quests.length, DAILY_STANDARD),
-    [todayCompletionPercent, quests.length]
   );
   const rankName = useMemo(() => getRankFromDR(disciplineRating), [disciplineRating]);
   const rankLabel = rankName.toUpperCase();
@@ -552,9 +553,6 @@ export default function HomeScreen() {
     if (!nextRankMeta) return Math.max(1, disciplineRating);
     return Math.max(1, nextRankMeta.minDr - currentRankMeta.minDr);
   }, [currentRankMeta.minDr, disciplineRating, nextRankMeta]);
-  const projectionColor =
-    projectedDelta > 0 ? colors.positive : projectedDelta < 0 ? colors.negative : colors.textSecondary;
-
   useEffect(() => {
     Animated.timing(rankProgressAnim, {
       toValue: Math.max(0, Math.min(1, rankProgress)),
@@ -571,24 +569,6 @@ export default function HomeScreen() {
         outputRange: ["0%", "100%"],
       }),
     [rankProgressAnim]
-  );
-
-  useEffect(() => {
-    Animated.timing(dailyProgressAnim, {
-      toValue: Math.max(0, Math.min(1, doneForStandard / DAILY_STANDARD)),
-      duration: 340,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-  }, [dailyProgressAnim, doneForStandard]);
-
-  const animatedDailyProgressWidth = useMemo(
-    () =>
-      dailyProgressAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: ["0%", "100%"],
-      }),
-    [dailyProgressAnim]
   );
 
   const categoryName = (id: string) =>
@@ -765,7 +745,10 @@ export default function HomeScreen() {
                 style={styles.homeTitleWrap}
                 onLongPress={() => __DEV__ && setShowDevActions((prev) => !prev)}
               >
-                <Text style={[styles.title, { color: colors.textPrimary }]}>MIDNIGHT</Text>
+                <View style={styles.brandTitleRow}>
+                  <MoonMark size={16} color={colors.accentPrimary} cutoutColor={colors.bg} />
+                  <Text style={[styles.title, { color: colors.textPrimary }]}>MIDNIGHT</Text>
+                </View>
                 <Text style={styles.homeSubtitle}>Performance Log</Text>
               </Pressable>
               <Pressable onPress={() => undefined} hitSlop={8}>
@@ -774,6 +757,20 @@ export default function HomeScreen() {
             </View>
 
             <View style={styles.dayScoreCard}>
+              <View pointerEvents="none" style={styles.dayScoreWatermarkWrap}>
+                <MoonMark
+                  size={172}
+                  color={withAlpha(colors.accentPrimary, 0.06)}
+                  cutoutColor={withAlpha(colors.surface2, 0.96)}
+                />
+              </View>
+              <View pointerEvents="none" style={styles.dayScoreWatermarkSoftWrap}>
+                <MoonMark
+                  size={190}
+                  color={withAlpha(colors.accentPrimary, 0.03)}
+                  cutoutColor={withAlpha(colors.surface2, 0.96)}
+                />
+              </View>
               <DayScoreRing
                 completionPercent={dayScorePercent}
                 completedCount={doneCount}
@@ -834,41 +831,6 @@ export default function HomeScreen() {
                 </View>
               </View>
 
-              <View style={styles.statusProgressBlock}>
-                <View style={styles.statusProgressRow}>
-                  <Text style={styles.statusProgressLabel}>Daily Progress</Text>
-                  <Text style={styles.statusProgressValue}>{doneForStandard} / {DAILY_STANDARD}</Text>
-                </View>
-                <View style={styles.statusProgressTrack}>
-                  <Animated.View
-                    style={[
-                      styles.statusProgressFill,
-                      { width: animatedDailyProgressWidth, backgroundColor: colors.accentPrimary },
-                    ]}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.statusStatsGrid}>
-                <View style={styles.statusStatCell}>
-                  <Text style={styles.statusStatValue}>{judgmentCountdown}</Text>
-                  <Text style={styles.statusStatLabel}>JUDGMENT IN</Text>
-                </View>
-                <View style={styles.statusStatCell}>
-                  <Text style={[styles.statusStatValue, styles.statusStatValueStrong]}>
-                    {formatDelta(projectedDelta)}
-                  </Text>
-                  <Text style={styles.statusStatLabel}>NEXT UPDATE</Text>
-                </View>
-                <View style={styles.statusStatCell}>
-                  <Text style={styles.statusStatValue}>{todayCompletionPercent}%</Text>
-                  <Text style={styles.statusStatLabel}>COMPLETION</Text>
-                </View>
-                <View style={styles.statusStatCell}>
-                  <Text style={styles.statusStatValue}>{doneForStandard}/{DAILY_STANDARD}</Text>
-                  <Text style={styles.statusStatLabel}>DONE</Text>
-                </View>
-              </View>
             </View>
 
             {__DEV__ && showDevActions ? (
@@ -952,7 +914,6 @@ export default function HomeScreen() {
                 DR updates only at midnight judgment.
               </Text>
             </View>
-            <Footer />
           </View>
         </ScrollView>
       </SafeAreaView>
