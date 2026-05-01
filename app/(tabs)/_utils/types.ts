@@ -15,6 +15,17 @@ export type Quest = {
   difficulty: "easy" | "medium" | "hard";
   done: boolean;
   pinned: boolean;
+  contract?: boolean;
+};
+
+export type QuestTemplate = {
+  id: string;
+  title: string;
+  categoryId: string;
+  xp: number;
+  target: string;
+  difficulty: Quest["difficulty"];
+  contract?: boolean;
 };
 
 export type Achievement = {
@@ -30,6 +41,10 @@ export type DrHistoryEntry = {
   dr: number;
   delta: number;
   pct: number;
+  title?: string;
+  contractCompletedCount?: number;
+  contractTotalCount?: number;
+  comebackBonus?: number;
 };
 
 export type StoredState = {

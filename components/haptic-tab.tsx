@@ -13,7 +13,7 @@ export function HapticTab(props: BottomTabBarButtonProps) {
   return (
     <PlatformPressable
       {...props}
-      style={({ pressed }) => [
+      style={[
         props.style,
         styles.button,
         {
@@ -26,7 +26,6 @@ export function HapticTab(props: BottomTabBarButtonProps) {
           elevation: isActive ? 1 : 0,
           transform: [{ scale: isActive ? 1.03 : 1 }],
         },
-        pressed && styles.pressed,
       ]}
       onPressIn={(ev) => {
         if (process.env.EXPO_OS === 'ios') {
@@ -61,8 +60,5 @@ const styles = StyleSheet.create({
     height: 2,
     borderRadius: 999,
     opacity: 0.95,
-  },
-  pressed: {
-    opacity: 0.9,
   },
 });

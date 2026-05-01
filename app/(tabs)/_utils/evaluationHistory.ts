@@ -25,6 +25,10 @@ export type DailyEvaluationHistoryItem = {
   completedQuestCount: number;
   totalQuestCount: number;
   completionRate: number;
+  runTitle?: string;
+  contractCompletedCount?: number;
+  contractTotalCount?: number;
+  comebackBonus?: number;
   drBefore: number;
   drChange: number;
   drAfter: number;
@@ -71,6 +75,10 @@ function isDailyEvaluationHistoryItem(value: unknown): value is DailyEvaluationH
     typeof candidate.completedQuestCount === "number" &&
     typeof candidate.totalQuestCount === "number" &&
     typeof candidate.completionRate === "number" &&
+    (typeof candidate.runTitle === "undefined" || typeof candidate.runTitle === "string") &&
+    (typeof candidate.contractCompletedCount === "undefined" || typeof candidate.contractCompletedCount === "number") &&
+    (typeof candidate.contractTotalCount === "undefined" || typeof candidate.contractTotalCount === "number") &&
+    (typeof candidate.comebackBonus === "undefined" || typeof candidate.comebackBonus === "number") &&
     typeof candidate.drBefore === "number" &&
     typeof candidate.drChange === "number" &&
     typeof candidate.drAfter === "number" &&

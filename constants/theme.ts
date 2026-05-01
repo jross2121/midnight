@@ -10,16 +10,16 @@ export const AppThemeTokens = {
     lg: midnightTokens.spacing.s3,
     xl: midnightTokens.spacing.s4,
     screen: midnightTokens.spacing.s2,
-    card: midnightTokens.spacing.s2,
+    card: midnightTokens.spacing.s2 + midnightTokens.spacing.s0,
     section: midnightTokens.spacing.s3,
   },
   radius: {
     sm: midnightTokens.radius.r1,
-    md: midnightTokens.radius.r2,
-    button: midnightTokens.radius.r2,
-    card: midnightTokens.radius.r3,
-    lg: midnightTokens.radius.r3,
-    xl: midnightTokens.radius.r3,
+    md: midnightTokens.radius.r3,
+    button: midnightTokens.radius.r2 + 2,
+    card: midnightTokens.radius.r3 + 6,
+    lg: midnightTokens.radius.r3 + 6,
+    xl: midnightTokens.radius.r3 + 10,
   },
   typography: {
     title: {
@@ -43,8 +43,8 @@ export const AppThemeTokens = {
   border: {
     width: 1,
     widthStrong: 1,
-    opacityCard: 0.42,
-    opacitySecondary: 0.3,
+    opacityCard: 0.28,
+    opacitySecondary: 0.22,
   },
   motion: {
     subtle: 160,

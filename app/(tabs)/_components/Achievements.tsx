@@ -1,6 +1,7 @@
 import React from "react";
 import { Text, View } from "react-native";
 import { createStyles } from "../_styles";
+import { withAlpha } from "../_utils/designSystem";
 import { useTheme } from "../_utils/themeContext";
 import type { Achievement } from "../_utils/types";
 
@@ -23,7 +24,7 @@ export function Achievements({ achievements }: AchievementsProps) {
     <View style={styles.achievementSection}>
       <View style={styles.achievementHeader}>
         <Text style={[styles.section, { color: colors.textPrimary }]}>Achievements</Text>
-        <View style={[styles.achievementProgress, { backgroundColor: colors.bg, borderColor: colors.border }]}>
+        <View style={[styles.achievementProgress, { backgroundColor: withAlpha(colors.bg, 0.35), borderColor: withAlpha(colors.border, 0.24) }]}>
           <Text style={[styles.achievementProgressText, { color: colors.textPrimary }]}>{unlockedCount}/{totalCount}</Text>
         </View>
       </View>
@@ -34,9 +35,9 @@ export function Achievements({ achievements }: AchievementsProps) {
             key={achievement.id}
             style={[
               styles.achievementBadge,
-              { backgroundColor: colors.surface, borderColor: colors.border },
+              { backgroundColor: withAlpha(colors.surface2, 0.82), borderColor: withAlpha(colors.border, 0.24) },
               achievement.unlockedAt
-                ? { borderColor: colors.accentPrimary, backgroundColor: `${colors.accentPrimary}1A` }
+                ? { borderColor: withAlpha(colors.accentPrimary, 0.35), backgroundColor: withAlpha(colors.accentPrimary, 0.1) }
                 : { opacity: 0.5 },
             ]}
           >

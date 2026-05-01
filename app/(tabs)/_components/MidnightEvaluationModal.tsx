@@ -1,8 +1,8 @@
 import { withAlpha } from "@/app/(tabs)/_utils/designSystem";
 import { formatSignedDelta } from "@/app/(tabs)/_utils/discipline";
-import { useTheme } from "@/app/(tabs)/_utils/themeContext";
+import { useTheme, type ThemeColors } from "@/app/(tabs)/_utils/themeContext";
 import React from "react";
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { MidnightEvaluationData } from "../_utils/midnightEvaluation";
@@ -18,11 +18,16 @@ type EvaluationSummaryCardProps = {
   completedCount: number;
   totalCount: number;
   completionPercent: number;
+  contractCompletedCount: number;
+  contractTotalCount: number;
+  comebackBonus: number;
   styles: ReturnType<typeof makeStyles>;
 };
 
 type JudgmentHeroProps = {
   delta: number;
+  baseDelta: number;
+  comebackBonus: number;
   message: string;
   isPositiveDelta: boolean;
   styles: ReturnType<typeof makeStyles>;
@@ -38,32 +43,74 @@ function EvaluationSummaryCard({
   completedCount,
   totalCount,
   completionPercent,
+  contractCompletedCount,
+  contractTotalCount,
+  comebackBonus,
   styles,
 }: EvaluationSummaryCardProps) {
+  const contractPercent =
+    contractTotalCount > 0 ? Math.round((contractCompletedCount / contractTotalCount) * 100) : 0;
+
   return (
-    <View style={styles.summaryCard}>
-      <Text style={styles.summaryLabel}>Yesterday&apos;s Result</Text>
-      <View style={styles.summaryRow}>
-        <Text style={styles.summaryCount}>
-          {completedCount} / {totalCount}
-        </Text>
-        <View style={styles.summaryPercentWrap}>
-          <Text style={styles.summaryPercent}>{completionPercent}%</Text>
-          <Text style={styles.summaryMeta}>completion</Text>
+    <View style={styles.resultBlock}>
+      <View style={styles.resultTiles}>
+        <View style={styles.resultTile}>
+          <Text style={styles.resultTileLabel}>Quests</Text>
+          <Text style={styles.resultTileValue}>{completedCount}/{totalCount}</Text>
+        </View>
+        <View style={styles.resultTile}>
+          <Text style={styles.resultTileLabel}>Completion</Text>
+          <Text style={styles.resultTileValue}>{completionPercent}%</Text>
+        </View>
+        <View style={styles.resultTile}>
+          <Text style={styles.resultTileLabel}>Recovery</Text>
+          <Text style={styles.resultTileValue}>{comebackBonus > 0 ? `+${comebackBonus}` : "0"}</Text>
+        </View>
+      </View>
+
+      <View style={styles.contractCard}>
+        <View style={styles.contractTopRow}>
+          <View>
+            <Text style={styles.contractLabel}>Midnight Contract</Text>
+            <Text style={styles.contractValue}>
+              {contractTotalCount > 0
+                ? `${contractCompletedCount} / ${contractTotalCount} protected`
+                : "No contract set"}
+            </Text>
+          </View>
+          <Text style={styles.contractPercent}>{contractPercent}%</Text>
+        </View>
+        <View style={styles.contractTrack}>
+          <View style={[styles.contractFill, { width: `${contractPercent}%` }]} />
         </View>
       </View>
     </View>
   );
 }
 
-function JudgmentHero({ delta, message, isPositiveDelta, styles }: JudgmentHeroProps) {
+function JudgmentHero({
+  delta,
+  baseDelta,
+  comebackBonus,
+  message,
+  isPositiveDelta,
+  styles,
+}: JudgmentHeroProps) {
   return (
     <View style={[styles.judgmentHero, isPositiveDelta ? styles.judgmentHeroPositive : styles.judgmentHeroNegative]}>
-      <Text style={styles.judgmentLabel}>Judgment</Text>
-      <Text style={[styles.deltaValue, isPositiveDelta ? styles.deltaPositive : styles.deltaNegative]}>
-        {formatSignedDelta(delta)}
-      </Text>
+      <Text style={styles.judgmentLabel}>Discipline Rating</Text>
+      <View style={styles.deltaRow}>
+        <Text style={[styles.deltaValue, isPositiveDelta ? styles.deltaPositive : styles.deltaNegative]}>
+          {formatSignedDelta(delta)}
+        </Text>
+        <Text style={styles.deltaUnit}>DR</Text>
+      </View>
       <Text style={styles.judgmentSupport}>{message}</Text>
+      {comebackBonus > 0 ? (
+        <Text style={styles.deltaBreakdown}>
+          Base {formatSignedDelta(baseDelta)} + comeback {formatSignedDelta(comebackBonus)}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -77,7 +124,7 @@ function StatusInsightPanel({ rank, insight, styles }: StatusInsightPanelProps) 
           {rank}
         </Text>
       </View>
-      <Text style={styles.insightLabel}>Insight</Text>
+      <Text style={styles.insightLabel}>Next Signal</Text>
       <Text style={styles.insightText} numberOfLines={2}>
         {insight}
       </Text>
@@ -95,38 +142,84 @@ function getJudgmentMessage(delta: number): string {
 function makeStyles(
   isCompact: boolean,
   bottomClearance: number,
-  accentPrimary: string,
+  colors: ThemeColors,
   isPositiveDelta: boolean
 ) {
-  const sectionGap = isCompact ? 22 : 26;
+  const accentPrimary = colors.accentPrimary;
+  const judgmentColor = isPositiveDelta ? colors.accentPrimary : colors.negative;
+  const sectionGap = isCompact ? 14 : 16;
 
   return StyleSheet.create({
     screen: {
       flex: 1,
-      backgroundColor: "#050B11",
+      backgroundColor: colors.bg,
+    },
+    backdrop: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: colors.bg,
+    },
+    backdropTopBand: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      height: isCompact ? 260 : 320,
+      backgroundColor: withAlpha(accentPrimary, isPositiveDelta ? 0.1 : 0.04),
+      borderBottomWidth: 1,
+      borderBottomColor: withAlpha(accentPrimary, 0.08),
+    },
+    moonGlow: {
+      position: "absolute",
+      top: -74,
+      right: -58,
+      width: 210,
+      height: 210,
+      borderRadius: 105,
+      borderWidth: 1,
+      borderColor: withAlpha(accentPrimary, 0.13),
+      backgroundColor: withAlpha(accentPrimary, 0.035),
     },
     content: {
       flex: 1,
-      paddingHorizontal: 20,
-      paddingTop: isCompact ? 12 : 16,
+      paddingHorizontal: 18,
+      paddingTop: isCompact ? 8 : 14,
       paddingBottom: 0,
+    },
+    scrollContent: {
+      paddingBottom: isCompact ? 18 : 24,
     },
     main: {
       gap: sectionGap,
     },
     header: {
-      gap: 3,
-      marginBottom: isCompact ? 4 : 6,
+      gap: 5,
+      marginBottom: isCompact ? 0 : 2,
+    },
+    runTitle: {
+      alignSelf: "flex-start",
+      color: judgmentColor,
+      fontSize: 12,
+      lineHeight: 15,
+      fontWeight: "900",
+      letterSpacing: 0.7,
+      textTransform: "uppercase",
+      borderWidth: 1,
+      borderColor: withAlpha(judgmentColor, 0.34),
+      backgroundColor: withAlpha(judgmentColor, 0.1),
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      overflow: "hidden",
     },
     title: {
-      color: "#EAF7FF",
-      fontSize: isCompact ? 30 : 34,
-      lineHeight: isCompact ? 34 : 38,
+      color: colors.textPrimary,
+      fontSize: isCompact ? 30 : 36,
+      lineHeight: isCompact ? 34 : 40,
       fontWeight: "900",
-      letterSpacing: 0.35,
+      letterSpacing: 0.1,
     },
     subtitle: {
-      color: withAlpha("#D4E9F5", 0.62),
+      color: withAlpha(colors.textSecondary, 0.72),
       fontSize: isCompact ? 12 : 13,
       lineHeight: isCompact ? 16 : 18,
       fontWeight: "600",
@@ -134,129 +227,178 @@ function makeStyles(
       textTransform: "uppercase",
     },
 
-    summaryCard: {
-      backgroundColor: withAlpha("#0C1922", 0.9),
-      borderWidth: 0,
-      borderRadius: 14,
-      paddingHorizontal: 14,
-      paddingVertical: isCompact ? 10 : 11,
-      gap: 4,
-      shadowColor: accentPrimary,
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.04,
-      shadowRadius: 7,
-      elevation: 1,
-    },
-    summaryLabel: {
-      color: withAlpha("#CDE2EE", 0.58),
-      fontSize: 10,
-      lineHeight: 13,
-      fontWeight: "700",
-      letterSpacing: 0.72,
-      textTransform: "uppercase",
-    },
-    summaryRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-    },
-    summaryCount: {
-      color: "#E8FAFF",
-      fontSize: isCompact ? 30 : 34,
-      lineHeight: isCompact ? 34 : 38,
-      fontWeight: "900",
-      letterSpacing: -0.35,
-    },
-    summaryPercentWrap: {
-      alignItems: "flex-end",
-      justifyContent: "center",
-    },
-    summaryPercent: {
-      color: withAlpha("#E1F3FC", 0.9),
-      fontSize: isCompact ? 18 : 20,
-      lineHeight: isCompact ? 20 : 22,
-      fontWeight: "800",
-      letterSpacing: -0.2,
-    },
-    summaryMeta: {
-      color: withAlpha("#BCD1DE", 0.62),
-      fontSize: 10,
-      lineHeight: 12,
-      fontWeight: "700",
-      letterSpacing: 0.6,
-      marginTop: 1,
-    },
-
     judgmentHero: {
-      borderRadius: 18,
-      borderWidth: 0,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: withAlpha(judgmentColor, 0.22),
       paddingHorizontal: 18,
-      paddingVertical: isCompact ? 22 : 26,
-      minHeight: isCompact ? 174 : 190,
+      paddingVertical: isCompact ? 20 : 24,
+      minHeight: isCompact ? 168 : 184,
       justifyContent: "center",
       alignItems: "center",
-      gap: 6,
-      marginVertical: isCompact ? 12 : 18,
+      gap: 7,
+      marginTop: isCompact ? 2 : 4,
+      shadowColor: judgmentColor,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.1,
+      shadowRadius: 18,
+      elevation: 3,
     },
     judgmentHeroPositive: {
-      backgroundColor: withAlpha("#10212B", 0.78),
-      shadowColor: accentPrimary,
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.03,
-      shadowRadius: 8,
-      elevation: 1,
+      backgroundColor: withAlpha(colors.surface2, 0.84),
     },
     judgmentHeroNegative: {
-      backgroundColor: withAlpha("#15131A", 0.78),
-      shadowColor: "#9C616C",
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.025,
-      shadowRadius: 6,
-      elevation: 1,
+      backgroundColor: withAlpha("#15131A", 0.86),
     },
     judgmentLabel: {
-      color: withAlpha("#D8ECF7", 0.64),
+      color: withAlpha(colors.textSecondary, 0.78),
       fontSize: 11,
       lineHeight: 14,
       fontWeight: "700",
       letterSpacing: 0.68,
       textTransform: "uppercase",
     },
+    deltaRow: {
+      flexDirection: "row",
+      alignItems: "flex-end",
+      justifyContent: "center",
+      gap: 7,
+    },
     deltaValue: {
-      fontSize: isCompact ? 68 : 76,
-      lineHeight: isCompact ? 72 : 80,
+      fontSize: isCompact ? 82 : 96,
+      lineHeight: isCompact ? 86 : 100,
       fontWeight: "900",
-      letterSpacing: -1.1,
+      letterSpacing: -0.8,
       textAlign: "center",
     },
+    deltaUnit: {
+      color: withAlpha(colors.textSecondary, 0.76),
+      fontSize: 14,
+      lineHeight: 25,
+      fontWeight: "900",
+      letterSpacing: 0.8,
+    },
     deltaPositive: {
-      color: withAlpha("#44E4D0", 0.98),
+      color: withAlpha(accentPrimary, 0.98),
       textShadowColor: withAlpha(accentPrimary, 0.2),
+      textShadowOffset: { width: 0, height: 0 },
+      textShadowRadius: 12,
+    },
+    deltaNegative: {
+      color: colors.negative,
+      textShadowColor: withAlpha(colors.negative, 0.16),
       textShadowOffset: { width: 0, height: 0 },
       textShadowRadius: 10,
     },
-    deltaNegative: {
-      color: "#C97A84",
-      textShadowColor: withAlpha("#9C616C", 0.12),
-      textShadowOffset: { width: 0, height: 0 },
-      textShadowRadius: 7,
-    },
     judgmentSupport: {
-      color: withAlpha("#D3E6F2", 0.72),
+      color: withAlpha(colors.textPrimary, 0.78),
       fontSize: isCompact ? 12 : 13,
       lineHeight: isCompact ? 17 : 18,
-      fontWeight: "500",
+      fontWeight: "600",
       textAlign: "center",
-      maxWidth: 290,
+      maxWidth: 300,
+    },
+    deltaBreakdown: {
+      color: withAlpha(judgmentColor, 0.8),
+      fontSize: 11,
+      lineHeight: 15,
+      fontWeight: "800",
+      textAlign: "center",
+      textTransform: "uppercase",
+      letterSpacing: 0.45,
+      marginTop: 2,
+    },
+
+    resultBlock: {
+      gap: 10,
+    },
+    resultTiles: {
+      flexDirection: "row",
+      gap: 8,
+    },
+    resultTile: {
+      flex: 1,
+      borderWidth: 1,
+      borderColor: withAlpha(colors.border, 0.36),
+      borderRadius: 10,
+      backgroundColor: withAlpha(colors.surface2, 0.5),
+      paddingHorizontal: 9,
+      paddingVertical: 9,
+      minHeight: 62,
+      justifyContent: "space-between",
+    },
+    resultTileLabel: {
+      color: withAlpha(colors.textSecondary, 0.78),
+      fontSize: 9,
+      lineHeight: 12,
+      fontWeight: "800",
+      letterSpacing: 0.55,
+      textTransform: "uppercase",
+    },
+    resultTileValue: {
+      color: colors.textPrimary,
+      fontSize: 18,
+      lineHeight: 22,
+      fontWeight: "900",
+      marginTop: 6,
+    },
+    contractCard: {
+      borderWidth: 1,
+      borderColor: withAlpha(accentPrimary, 0.2),
+      borderRadius: 12,
+      backgroundColor: withAlpha(colors.surface2, 0.48),
+      padding: 12,
+      gap: 10,
+    },
+    contractTopRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+    },
+    contractLabel: {
+      color: withAlpha(colors.textSecondary, 0.78),
+      fontSize: 10,
+      lineHeight: 13,
+      fontWeight: "800",
+      letterSpacing: 0.7,
+      textTransform: "uppercase",
+    },
+    contractValue: {
+      color: colors.textPrimary,
+      fontSize: 16,
+      lineHeight: 20,
+      fontWeight: "900",
+      marginTop: 3,
+    },
+    contractPercent: {
+      color: accentPrimary,
+      fontSize: 20,
+      lineHeight: 24,
+      fontWeight: "900",
+    },
+    contractTrack: {
+      height: 9,
+      borderRadius: 999,
+      backgroundColor: withAlpha(colors.bg, 0.78),
+      overflow: "hidden",
+      borderWidth: 1,
+      borderColor: withAlpha(colors.border, 0.36),
+    },
+    contractFill: {
+      height: "100%",
+      borderRadius: 999,
+      backgroundColor: accentPrimary,
     },
 
     statusPanel: {
-      backgroundColor: "transparent",
-      borderWidth: 0,
-      borderRadius: 0,
-      paddingHorizontal: 2,
-      paddingVertical: 0,
-      gap: 3,
+      backgroundColor: withAlpha(colors.surface2, 0.28),
+      borderWidth: 1,
+      borderColor: withAlpha(colors.border, 0.26),
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 11,
+      gap: 6,
     },
     statusTopRow: {
       flexDirection: "row",
@@ -265,7 +407,7 @@ function makeStyles(
       gap: 10,
     },
     statusLabel: {
-      color: withAlpha("#CDE2EE", 0.44),
+      color: withAlpha(colors.textSecondary, 0.66),
       fontSize: 10,
       lineHeight: 13,
       fontWeight: "700",
@@ -273,16 +415,16 @@ function makeStyles(
       textTransform: "uppercase",
     },
     rankValue: {
-      color: withAlpha("#DDF4FF", 0.8),
-      fontSize: isCompact ? 18 : 20,
-      lineHeight: isCompact ? 22 : 24,
-      fontWeight: "800",
+      color: colors.textPrimary,
+      fontSize: isCompact ? 16 : 18,
+      lineHeight: isCompact ? 20 : 22,
+      fontWeight: "900",
       letterSpacing: 0.08,
       flexShrink: 1,
       textAlign: "right",
     },
     insightLabel: {
-      color: withAlpha("#CDE2EE", 0.44),
+      color: withAlpha(colors.textSecondary, 0.66),
       fontSize: 10,
       lineHeight: 13,
       fontWeight: "700",
@@ -290,19 +432,17 @@ function makeStyles(
       textTransform: "uppercase",
     },
     insightText: {
-      color: withAlpha("#E3F2FB", 0.72),
+      color: withAlpha(colors.textPrimary, 0.75),
       fontSize: isCompact ? 12 : 13,
       lineHeight: isCompact ? 17 : 18,
-      fontWeight: "500",
+      fontWeight: "600",
     },
 
     footer: {
-      marginTop: "auto",
-      paddingTop: isCompact ? 26 : 32,
+      paddingTop: isCompact ? 10 : 12,
       paddingBottom: bottomClearance,
     },
     ctaShell: {
-      marginHorizontal: 10,
       borderRadius: 12,
       overflow: "hidden",
     },
@@ -310,7 +450,7 @@ function makeStyles(
       alignItems: "center",
       justifyContent: "center",
       minHeight: 58,
-      backgroundColor: "#176D77",
+      backgroundColor: accentPrimary,
       borderColor: withAlpha(accentPrimary, 0.26),
       borderWidth: 1,
       borderRadius: 12,
@@ -328,7 +468,7 @@ function makeStyles(
       opacity: 0.56,
     },
     ctaLabel: {
-      color: "#EAF7FF",
+      color: colors.textPrimary,
       fontSize: 16,
       lineHeight: 20,
       fontWeight: "900",
@@ -352,35 +492,47 @@ export function MidnightEvaluationModal({
   const judgmentMessage = React.useMemo(() => getJudgmentMessage(evaluation.drDelta), [evaluation.drDelta]);
 
   const styles = React.useMemo(
-    () => makeStyles(isCompact, bottomClearance, colors.accentPrimary, isPositiveDelta),
-    [bottomClearance, colors.accentPrimary, isCompact, isPositiveDelta]
+    () => makeStyles(isCompact, bottomClearance, colors, isPositiveDelta),
+    [bottomClearance, colors, isCompact, isPositiveDelta]
   );
 
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
+      <View pointerEvents="none" style={styles.backdrop}>
+        <View style={styles.backdropTopBand} />
+        <View style={styles.moonGlow} />
+      </View>
       <View style={styles.content}>
-        <View style={styles.main}>
-          <View style={styles.header}>
-            <Text style={styles.title}>Midnight Evaluation</Text>
-            <Text style={styles.subtitle}>Yesterday&apos;s Performance</Text>
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <View style={styles.main}>
+            <View style={styles.header}>
+              <Text style={styles.runTitle}>{evaluation.runTitle}</Text>
+              <Text style={styles.title}>Midnight Judgment</Text>
+              <Text style={styles.subtitle}>Yesterday&apos;s run has been scored</Text>
+            </View>
+
+            <JudgmentHero
+              delta={evaluation.drDelta}
+              baseDelta={evaluation.baseDrDelta}
+              comebackBonus={evaluation.comebackBonus}
+              message={judgmentMessage}
+              isPositiveDelta={isPositiveDelta}
+              styles={styles}
+            />
+
+            <EvaluationSummaryCard
+              completedCount={evaluation.completedCount}
+              totalCount={evaluation.totalCount}
+              completionPercent={evaluation.completionPercent}
+              contractCompletedCount={evaluation.contractCompletedCount}
+              contractTotalCount={evaluation.contractTotalCount}
+              comebackBonus={evaluation.comebackBonus}
+              styles={styles}
+            />
+
+            <StatusInsightPanel rank={currentRank} insight={evaluation.insight} styles={styles} />
           </View>
-
-          <EvaluationSummaryCard
-            completedCount={evaluation.completedCount}
-            totalCount={evaluation.totalCount}
-            completionPercent={evaluation.completionPercent}
-            styles={styles}
-          />
-
-          <JudgmentHero
-            delta={evaluation.drDelta}
-            message={judgmentMessage}
-            isPositiveDelta={isPositiveDelta}
-            styles={styles}
-          />
-
-          <StatusInsightPanel rank={currentRank} insight={evaluation.insight} styles={styles} />
-        </View>
+        </ScrollView>
 
         <View style={styles.footer}>
           <View style={styles.ctaShell}>

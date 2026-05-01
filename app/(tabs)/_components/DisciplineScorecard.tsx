@@ -1,6 +1,6 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { createCardSurface, ui, withAlpha } from "../_utils/designSystem";
+import { createCardSurface, createTileSurface, ui, withAlpha } from "../_utils/designSystem";
 import { useTheme } from "../_utils/themeContext";
 
 interface DisciplineScorecardProps {
@@ -70,14 +70,21 @@ export function DisciplineScorecard({
 }
 
 function createStyles(colors: ReturnType<typeof useTheme>["colors"]) {
+  const metricSurface = createTileSurface(colors, {
+    padding: ui.spacing.sm,
+    radius: ui.radius.md,
+    borderOpacity: 0.22,
+    backgroundOpacity: 0.22,
+  });
+
   return StyleSheet.create({
     card: {
       ...createCardSurface(colors, {
-        padding: ui.spacing.md,
-        radius: ui.radius.lg,
-        borderOpacity: 0.62,
-        glowOpacity: 0.07,
-        backgroundColor: withAlpha(colors.surface2, 0.9),
+        padding: ui.spacing.card,
+        radius: ui.radius.card,
+        borderOpacity: 0.24,
+        glowOpacity: 0.025,
+        backgroundColor: withAlpha(colors.surface2, 0.82),
       }),
       gap: ui.spacing.sm,
     },
@@ -108,11 +115,8 @@ function createStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       columnGap: ui.spacing.xs,
     },
     metricCell: {
+      ...metricSurface,
       width: "48.5%",
-      borderWidth: 1,
-      borderColor: withAlpha(colors.border, 0.5),
-      borderRadius: ui.radius.md,
-      backgroundColor: withAlpha(colors.surface, 0.58),
       paddingVertical: ui.spacing.xs,
       paddingHorizontal: ui.spacing.sm,
       gap: 2,
@@ -120,8 +124,8 @@ function createStyles(colors: ReturnType<typeof useTheme>["colors"]) {
     metricCellWide: {
       width: "100%",
       alignItems: "center",
-      backgroundColor: withAlpha(colors.accentPrimary, 0.1),
-      borderColor: withAlpha(colors.accentPrimary, 0.35),
+      backgroundColor: withAlpha(colors.accentPrimary, 0.08),
+      borderColor: withAlpha(colors.accentPrimary, 0.28),
     },
     metricLabel: {
       ...ui.typography.caption,

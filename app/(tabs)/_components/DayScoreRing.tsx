@@ -82,7 +82,7 @@ export function DayScoreRing({
         <View style={styles.centerContent}>
           <Text style={styles.label}>Day Score</Text>
           <Text style={styles.percent}>{percentRounded}%</Text>
-          <Text style={styles.subtitle}>Today's discipline performance</Text>
+          <Text style={styles.subtitle}>Today&apos;s discipline performance</Text>
         </View>
       </View>
 

@@ -212,7 +212,7 @@ export function EditQuestSheet({ quest, categories, onSave, onCancel }: EditQues
                 accessibilityRole="button"
                 accessibilityLabel="Close edit quest"
               >
-                <Text style={[styles.editSheetCloseText, { color: colors.textSecondary }]}>×</Text>
+                <Text style={[styles.editSheetCloseText, { color: colors.textSecondary }]}>x</Text>
               </Pressable>
             </View>
 

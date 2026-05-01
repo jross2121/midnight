@@ -20,7 +20,7 @@ function clampPercent(value: number): number {
 
 function getHeatColor(completionPct: number, colors: ThemeColors): string {
   const pct = clampPercent(completionPct);
-  if (pct === 0) return withAlpha(colors.bg, 0.85);
+  if (pct === 0) return withAlpha(colors.bg, 0.5);
   if (pct <= 30) return withAlpha(colors.accentPrimary, 0.28);
   if (pct <= 60) return withAlpha(colors.accentPrimary, 0.45);
   if (pct <= 90) return withAlpha(colors.accentPrimary, 0.64);
@@ -61,51 +61,62 @@ export function DisciplineCalendar({ days, colors }: DisciplineCalendarProps) {
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     wrap: {
-      marginTop: ui.spacing.xs,
-      gap: ui.spacing.xs,
+      marginTop: 2,
+      gap: ui.spacing.sm,
     },
     grid: {
       flexDirection: "row",
       flexWrap: "wrap",
-      gap: 6,
+      gap: 7,
+      paddingTop: ui.spacing.xs,
+      borderTopWidth: 1,
+      borderTopColor: withAlpha(colors.border, 0.18),
     },
     cell: {
-      width: 14,
-      height: 14,
-      borderRadius: 4,
+      width: 15,
+      height: 15,
+      borderRadius: 5,
       borderWidth: 1,
-      borderColor: withAlpha(colors.border, 0.42),
+      borderColor: withAlpha(colors.border, 0.2),
     },
     footerRow: {
       flexDirection: "row",
       justifyContent: "space-between",
       alignItems: "center",
-      marginTop: 2,
       gap: ui.spacing.xs,
+      paddingTop: ui.spacing.xs,
+      borderTopWidth: 1,
+      borderTopColor: withAlpha(colors.border, 0.14),
     },
     metaLabel: {
       ...ui.typography.caption,
       color: withAlpha(colors.textSecondary, 0.8),
       fontSize: 10,
-      letterSpacing: 0.25,
+      lineHeight: 13,
+      fontWeight: "900",
+      letterSpacing: 0.45,
+      textTransform: "uppercase",
     },
     legendRow: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 5,
+      gap: 6,
     },
     legendText: {
       ...ui.typography.caption,
       color: withAlpha(colors.textSecondary, 0.74),
       fontSize: 9,
-      letterSpacing: 0.2,
+      lineHeight: 12,
+      fontWeight: "800",
+      letterSpacing: 0.25,
+      textTransform: "uppercase",
     },
     legendCell: {
-      width: 10,
-      height: 10,
+      width: 11,
+      height: 11,
       borderRadius: 3,
       borderWidth: 1,
-      borderColor: withAlpha(colors.border, 0.4),
+      borderColor: withAlpha(colors.border, 0.2),
     },
   });
 }

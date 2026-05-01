@@ -17,15 +17,15 @@ type Slide = {
 const slides: Slide[] = [
   {
     title: "Build Real Discipline",
-    text: "Discipline isn’t motivation.\nIt’s what you do when you don’t feel like it.",
+    text: "Discipline isn't motivation.\nIt's what you do when you don't feel like it.",
   },
   {
     title: "Discipline Has Consequences",
-    text: "Show up → It rises.\nSkip → It drops.\nNo gimmicks. Just results.",
+    text: "Show up -> It rises.\nSkip -> It drops.\nNo gimmicks. Just results.",
   },
   {
     title: "Every Day Is A Test",
-    text: "At midnight, your discipline is judged.\nYou either built it… or you didn’t.",
+    text: "At midnight, your discipline is judged.\nYou either built it... or you didn't.",
   },
   {
     title: "Ready To Begin?",

@@ -17,7 +17,7 @@ export function Footer() {
       }}
     >
       <Text style={{ fontSize: 24, fontWeight: "900", color: colors.accentPrimary, marginBottom: 4 }}>
-        🌙 Midnight
+        Midnight
       </Text>
       <Text style={{ fontSize: 11, color: colors.textSecondary, fontWeight: "600" }}>
         Daily Discipline Tracker

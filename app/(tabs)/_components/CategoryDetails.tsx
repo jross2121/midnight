@@ -2,6 +2,7 @@ import React from "react";
 import { Text, View } from "react-native";
 import { createStyles } from "../_styles";
 import { getCategoryDisplayName } from "../_utils/categoryLabels";
+import { ui, withAlpha } from "../_utils/designSystem";
 import type { ThemeColors } from "../_utils/themeContext";
 import { useTheme } from "../_utils/themeContext";
 import type { Category } from "../_utils/types";
@@ -50,7 +51,7 @@ export function CategoryDetails({ category }: CategoryDetailsProps) {
   const estimatedDaysToNextLevel = Math.ceil(xpNeeded / 50);
 
   return (
-    <View style={[styles.card, { borderColor: color, borderWidth: 2 }]}>
+    <View style={[styles.card, { borderColor: withAlpha(color, 0.35), borderWidth: 1 }]}>
       {/* Header */}
       <View
         style={{
@@ -94,19 +95,18 @@ export function CategoryDetails({ category }: CategoryDetailsProps) {
       <View
         style={{
           flexDirection: "row",
-          gap: 12,
+          gap: ui.spacing.xs,
           justifyContent: "space-between",
         }}
       >
         <View
           style={{
             flex: 1,
-            backgroundColor: colors.bg,
-            borderRadius: 10,
+            backgroundColor: withAlpha(colors.bg, 0.22),
+            borderRadius: ui.radius.md,
             padding: 12,
-            borderWidth: 1.5,
-            borderColor: color,
-            opacity: 0.7,
+            borderWidth: 1,
+            borderColor: withAlpha(colors.border, 0.22),
           }}
         >
           <Text style={[styles.questMeta, { fontSize: 11, color: colors.textSecondary }]}>XP Needed</Text>
@@ -118,12 +118,11 @@ export function CategoryDetails({ category }: CategoryDetailsProps) {
         <View
           style={{
             flex: 1,
-            backgroundColor: colors.bg,
-            borderRadius: 10,
+            backgroundColor: withAlpha(colors.bg, 0.22),
+            borderRadius: ui.radius.md,
             padding: 12,
-            borderWidth: 1.5,
-            borderColor: color,
-            opacity: 0.7,
+            borderWidth: 1,
+            borderColor: withAlpha(colors.border, 0.22),
           }}
         >
           <Text style={[styles.questMeta, { fontSize: 11, color: colors.textSecondary }]}>Est. Days</Text>
@@ -135,12 +134,11 @@ export function CategoryDetails({ category }: CategoryDetailsProps) {
         <View
           style={{
             flex: 1,
-            backgroundColor: colors.bg,
-            borderRadius: 10,
+            backgroundColor: withAlpha(colors.bg, 0.22),
+            borderRadius: ui.radius.md,
             padding: 12,
-            borderWidth: 1.5,
-            borderColor: color,
-            opacity: 0.7,
+            borderWidth: 1,
+            borderColor: withAlpha(colors.border, 0.22),
           }}
         >
           <Text style={[styles.questMeta, { fontSize: 11, color: colors.textSecondary }]}>Mastery</Text>
@@ -151,7 +149,7 @@ export function CategoryDetails({ category }: CategoryDetailsProps) {
       </View>
 
       {/* Achievement milestones */}
-      <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: colors.border }}>
+      <View style={{ marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: withAlpha(colors.border, 0.22) }}>
         <Text style={[styles.smallLabel, { color, marginBottom: 8 }]}>Next Milestones</Text>
         <View style={{ gap: 8 }}>
           {[category.level + 1, category.level + 2, category.level + 3].map((lvl) => {
@@ -165,10 +163,10 @@ export function CategoryDetails({ category }: CategoryDetailsProps) {
                   alignItems: "center",
                   paddingVertical: 8,
                   paddingHorizontal: 8,
-                  backgroundColor: isCurrent ? colors.surface : "transparent",
-                  borderRadius: 8,
-                  borderWidth: isCurrent ? 1.5 : 0,
-                  borderColor: color,
+                  backgroundColor: isCurrent ? withAlpha(colors.bg, 0.22) : "transparent",
+                  borderRadius: ui.radius.sm,
+                  borderWidth: isCurrent ? 1 : 0,
+                  borderColor: withAlpha(color, 0.3),
                 }}
               >
                 <Text style={[styles.questMeta, { color: isCurrent ? color : colors.textSecondary }]}>
@@ -179,7 +177,7 @@ export function CategoryDetails({ category }: CategoryDetailsProps) {
                     paddingVertical: 4,
                     paddingHorizontal: 8,
                     backgroundColor: color,
-                    borderRadius: 6,
+                    borderRadius: 999,
                     opacity: isCurrent ? 1 : 0.5,
                   }}
                 >

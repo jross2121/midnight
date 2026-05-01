@@ -2,7 +2,17 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Animated, Easing, Pressable, ScrollView, Text, View } from "react-native";
+import {
+  Animated,
+  Easing,
+  LayoutAnimation,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  UIManager,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Circle, Svg } from "react-native-svg";
 
@@ -23,11 +33,12 @@ import {
   defaultLastDrDelta,
   defaultLastDrUpdateDate,
   defaultQuests,
+  questTemplates,
 } from "./_utils/defaultData";
-import { withAlpha } from "./_utils/designSystem";
 import {
   DAILY_STANDARD,
   getCompletionPercent,
+  getCountdownToMidnight,
   getDRChangeFromPercent,
 } from "./_utils/discipline";
 import {
@@ -43,10 +54,13 @@ import {
   shouldShowMidnightEvaluation,
   type MidnightEvaluationData,
 } from "./_utils/midnightEvaluation";
+import { buildPlanSummary, buildStreakSummary } from "./_utils/planning";
 import { getNextRank, getRankFromDR, getRankMeta } from "./_utils/rank";
 import { useTheme } from "./_utils/themeContext";
 import type { Achievement, Category, DrHistoryEntry, Quest, StoredState } from "./_utils/types";
 import { STORAGE_KEY } from "./_utils/types";
+
+const FAST_TEMPLATE_VISIBLE_COUNT = 3;
 
 function applyDrChange(current: number, delta: number): number {
   return Math.max(0, current + delta);
@@ -79,6 +93,31 @@ function loadDrHistory(value: unknown): DrHistoryEntry[] {
     .slice(-30);
 }
 
+function mergeAchievements(saved: unknown): Achievement[] {
+  if (!Array.isArray(saved)) return defaultAchievements;
+
+  const savedById = new Map(
+    saved
+      .filter((item): item is Achievement => {
+        if (typeof item !== "object" || item === null) return false;
+        const candidate = item as Partial<Achievement>;
+        return (
+          typeof candidate.id === "string" &&
+          typeof candidate.name === "string" &&
+          typeof candidate.description === "string" &&
+          typeof candidate.icon === "string" &&
+          (typeof candidate.unlockedAt === "string" || candidate.unlockedAt === null)
+        );
+      })
+      .map((item) => [item.id, item])
+  );
+
+  return defaultAchievements.map((achievement) => ({
+    ...achievement,
+    unlockedAt: savedById.get(achievement.id)?.unlockedAt ?? achievement.unlockedAt,
+  }));
+}
+
 type MoonMarkProps = {
   size: number;
   color: string;
@@ -108,6 +147,7 @@ export default function HomeScreen() {
   const drHeroAnim = useRef(new Animated.Value(0)).current;
   const rankProgressAnim = useRef(new Animated.Value(0)).current;
   const [showDevActions, setShowDevActions] = useState(false);
+  const [countdownToMidnight, setCountdownToMidnight] = useState(() => getCountdownToMidnight());
 
   const [categories, setCategories] = useState<Category[]>(defaultCategories);
   const [quests, setQuests] = useState<Quest[]>(defaultQuests);
@@ -135,10 +175,18 @@ export default function HomeScreen() {
   const [editingQuestId, setEditingQuestId] = useState<string | null>(null);
   const [openQuestId, setOpenQuestId] = useState<string | null>(null);
 
-  const normalizeDifficulty = (d: unknown): "easy" | "medium" | "hard" => {
+  const normalizeDifficulty = React.useCallback((d: unknown): "easy" | "medium" | "hard" => {
     if (d === "medium" || d === "hard") return d;
     return "easy";
-  };
+  }, []);
+
+  const normalizeQuest = React.useCallback((quest: Quest): Quest => ({
+    ...quest,
+    difficulty: normalizeDifficulty(quest.difficulty),
+    pinned: Boolean(quest.pinned),
+    contract: Boolean(quest.contract),
+    target: typeof quest.target === "string" ? quest.target : "",
+  }), [normalizeDifficulty]);
 
   function getDifficultyMultiplier(difficulty: "easy" | "medium" | "hard") {
     switch (difficulty) {
@@ -215,6 +263,14 @@ export default function HomeScreen() {
       unlockAchievement("30_quests");
     }
 
+    const contractQuestsForDay = updatedQuests.filter((q) => q.contract);
+    if (
+      contractQuestsForDay.length > 0 &&
+      contractQuestsForDay.every((q) => q.done) &&
+      !achievements.find((a) => a.id === "first_contract")?.unlockedAt
+    ) {
+      unlockAchievement("first_contract");
+    }
   };
 
   /*
@@ -254,9 +310,7 @@ export default function HomeScreen() {
         const savedResetDate =
           typeof parsed.lastResetDate === "string" ? parsed.lastResetDate : today;
 
-        const loadedAchievements = Array.isArray(parsed.achievements)
-          ? parsed.achievements
-          : defaultAchievements;
+        const loadedAchievements = mergeAchievements(parsed.achievements);
 
         const loadedDR =
           typeof parsed.disciplineRating === "number" ? parsed.disciplineRating : defaultDisciplineRating;
@@ -269,6 +323,7 @@ export default function HomeScreen() {
         const loadedLastDrUpdateDate =
           typeof parsed.lastDrUpdateDate === "string" ? parsed.lastDrUpdateDate : defaultLastDrUpdateDate;
         const loadedHistory = loadDrHistory(parsed.drHistory);
+        const previousCompletionForBonus = loadedHistory.length > 0 ? loadedLastCompletionPct : null;
 
         const gap = diffDays(savedResetDate, today);
         const shouldGateForEvaluation = shouldShowMidnightEvaluation(
@@ -296,6 +351,7 @@ export default function HomeScreen() {
               dr: nextDR,
               delta: deltaPrev,
               pct: pctPrev,
+              title: "Auto Judgment",
             },
           ];
 
@@ -309,6 +365,7 @@ export default function HomeScreen() {
               dr: nextDR,
               delta: -8,
               pct: 0,
+              title: "Midnight Claimed",
             });
           }
 
@@ -330,15 +387,10 @@ export default function HomeScreen() {
             ? loadedQuests.map((q) => ({ ...q, done: false }))
             : loadedQuests;
 
-        const normalizedFinalQuests = finalQuests.map((q) => ({
-          ...q,
-          difficulty: normalizeDifficulty(q.difficulty),
-          pinned: Boolean(q.pinned),
-          target: typeof q.target === "string" ? q.target : "",
-        }));
+        const normalizedFinalQuests = finalQuests.map(normalizeQuest);
 
         if (shouldGateForEvaluation) {
-          setPendingEvaluation(buildMidnightEvaluation(savedResetDate, normalizedFinalQuests));
+          setPendingEvaluation(buildMidnightEvaluation(savedResetDate, normalizedFinalQuests, previousCompletionForBonus));
         }
 
         setCategories(loadedCategories);
@@ -357,7 +409,7 @@ export default function HomeScreen() {
         setHydrated(true);
       }
     })();
-  }, []);
+  }, [normalizeQuest]);
 
   // SAVE on changes
   useEffect(() => {
@@ -420,6 +472,10 @@ export default function HomeScreen() {
           dr: nextDR,
           delta: pendingEvaluation.drDelta,
           pct: pendingEvaluation.completionPercent,
+          title: pendingEvaluation.runTitle,
+          contractCompletedCount: pendingEvaluation.contractCompletedCount,
+          contractTotalCount: pendingEvaluation.contractTotalCount,
+          comebackBonus: pendingEvaluation.comebackBonus,
         },
       ];
 
@@ -431,6 +487,10 @@ export default function HomeScreen() {
           dr: nextDR,
           delta: -8,
           pct: 0,
+          title: "Midnight Claimed",
+          contractCompletedCount: 0,
+          contractTotalCount: 0,
+          comebackBonus: 0,
         });
       }
 
@@ -439,6 +499,7 @@ export default function HomeScreen() {
       }
 
       const latestEntry = nextHistory[nextHistory.length - 1];
+      const nextStreakSummary = buildStreakSummary(nextHistory);
       setDisciplineRating(nextDR);
       setDrHistory(nextHistory);
       setLastDrDelta(latestEntry?.delta ?? pendingEvaluation.drDelta);
@@ -453,6 +514,10 @@ export default function HomeScreen() {
         completedQuestCount: pendingEvaluation.completedCount,
         totalQuestCount: pendingEvaluation.totalCount,
         completionRate,
+        runTitle: pendingEvaluation.runTitle,
+        contractCompletedCount: pendingEvaluation.contractCompletedCount,
+        contractTotalCount: pendingEvaluation.contractTotalCount,
+        comebackBonus: pendingEvaluation.comebackBonus,
         drBefore: drBeforeEvaluation,
         drChange: pendingEvaluation.drDelta,
         drAfter: drAfterEvaluation,
@@ -463,6 +528,16 @@ export default function HomeScreen() {
       });
 
       await AsyncStorage.setItem(MIDNIGHT_EVALUATION_STORAGE_KEY, pendingEvaluation.date);
+
+      if (nextStreakSummary.solidDayStreak >= 3) {
+        unlockAchievement("three_solid_days");
+      }
+      if (pendingEvaluation.comebackBonus > 0) {
+        unlockAchievement("comeback_day");
+      }
+      if (getRankMeta(rankAfterEvaluation).tier >= 2) {
+        unlockAchievement("rank_climber");
+      }
     } catch (error) {
       console.log("Failed to commit midnight evaluation:", error);
     } finally {
@@ -491,12 +566,11 @@ export default function HomeScreen() {
             typeof parsed.lastResetDate === "string" ? parsed.lastResetDate : lastResetDate;
           const savedQuests =
             Array.isArray(parsed.quests) && parsed.quests.length ? parsed.quests : quests;
-          const normalizedSavedQuests = savedQuests.map((q) => ({
-            ...q,
-            difficulty: normalizeDifficulty(q.difficulty),
-            pinned: Boolean(q.pinned),
-            target: typeof q.target === "string" ? q.target : "",
-          }));
+          const normalizedSavedQuests = savedQuests.map(normalizeQuest);
+          const savedLastCompletionPct =
+            typeof parsed.lastCompletionPct === "number" ? parsed.lastCompletionPct : lastCompletionPct;
+          const savedHistory = loadDrHistory(parsed.drHistory);
+          const previousCompletionForBonus = savedHistory.length > 0 ? savedLastCompletionPct : null;
 
           const lastEvaluatedDate = await AsyncStorage.getItem(MIDNIGHT_EVALUATION_STORAGE_KEY);
           const shouldGate = shouldShowMidnightEvaluation(savedResetDate, today, lastEvaluatedDate);
@@ -504,7 +578,7 @@ export default function HomeScreen() {
           if (active && shouldGate) {
             setQuests(normalizedSavedQuests);
             setLastResetDate(savedResetDate);
-            setPendingEvaluation(buildMidnightEvaluation(savedResetDate, normalizedSavedQuests));
+            setPendingEvaluation(buildMidnightEvaluation(savedResetDate, normalizedSavedQuests, previousCompletionForBonus));
           }
         } catch (error) {
           console.log("Failed to re-check midnight evaluation:", error);
@@ -514,7 +588,7 @@ export default function HomeScreen() {
       return () => {
         active = false;
       };
-    }, [hydrated, isSavingEvaluation, lastResetDate, pendingEvaluation, quests])
+    }, [hydrated, isSavingEvaluation, lastCompletionPct, lastResetDate, normalizeQuest, pendingEvaluation, quests])
   );
 
   useEffect(() => {
@@ -525,12 +599,38 @@ export default function HomeScreen() {
     }).start();
   }, [drHeroAnim]);
 
+  useEffect(() => {
+    if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+      UIManager.setLayoutAnimationEnabledExperimental(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCountdownToMidnight(getCountdownToMidnight());
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   const doneCount = useMemo(() => quests.filter((q) => q.done).length, [quests]);
   const totalQuestCount = quests.length;
+  const contractQuests = useMemo(() => quests.filter((q) => q.contract), [quests]);
+  const contractDoneCount = useMemo(
+    () => contractQuests.filter((q) => q.done).length,
+    [contractQuests]
+  );
+  const contractStatusText = useMemo(() => {
+    if (contractQuests.length === 0) return "Choose up to 3 promises before midnight.";
+    if (contractDoneCount === contractQuests.length) return "Contract protected. Midnight has less to take.";
+    return `${contractQuests.length - contractDoneCount} promise${contractQuests.length - contractDoneCount === 1 ? "" : "s"} still exposed.`;
+  }, [contractDoneCount, contractQuests.length]);
   const dayScorePercent = useMemo(
     () => (totalQuestCount > 0 ? Math.round((doneCount / totalQuestCount) * 100) : 0),
     [doneCount, totalQuestCount]
   );
+  const planSummary = useMemo(() => buildPlanSummary(quests), [quests]);
+  const streakSummary = useMemo(() => buildStreakSummary(drHistory), [drHistory]);
   const rankName = useMemo(() => getRankFromDR(disciplineRating), [disciplineRating]);
   const rankLabel = rankName.toUpperCase();
   const nextRank = useMemo(() => getNextRank(disciplineRating), [disciplineRating]);
@@ -544,14 +644,6 @@ export default function HomeScreen() {
     const tierSpan = Math.max(1, nextRankMeta.minDr - currentRankMeta.minDr);
     const intoTier = Math.max(0, Math.min(tierSpan, disciplineRating - currentRankMeta.minDr));
     return intoTier / tierSpan;
-  }, [currentRankMeta.minDr, disciplineRating, nextRankMeta]);
-  const rankProgressDrValue = useMemo(() => {
-    if (!nextRankMeta) return Math.max(0, disciplineRating);
-    return Math.max(0, disciplineRating - currentRankMeta.minDr);
-  }, [currentRankMeta.minDr, disciplineRating, nextRankMeta]);
-  const rankProgressDrGoal = useMemo(() => {
-    if (!nextRankMeta) return Math.max(1, disciplineRating);
-    return Math.max(1, nextRankMeta.minDr - currentRankMeta.minDr);
   }, [currentRankMeta.minDr, disciplineRating, nextRankMeta]);
   useEffect(() => {
     Animated.timing(rankProgressAnim, {
@@ -573,6 +665,42 @@ export default function HomeScreen() {
 
   const categoryName = (id: string) =>
     getCategoryDisplayName(categories.find((c) => c.id === id) ?? { id, name: "Category" });
+
+  const sortedQuests = useMemo(
+    () =>
+      [...quests].sort((a, b) => {
+        if (a.done !== b.done) return Number(a.done) - Number(b.done);
+        if (a.contract !== b.contract) return a.contract ? -1 : 1;
+        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+        if (a.difficulty !== b.difficulty) {
+          const weight = { hard: 3, medium: 2, easy: 1 };
+          return weight[b.difficulty] - weight[a.difficulty];
+        }
+        return 0;
+      }),
+    [quests]
+  );
+
+  const nextMove = useMemo(() => sortedQuests.find((quest) => !quest.done) ?? null, [sortedQuests]);
+  const nextMoveReason = useMemo(() => {
+    if (!nextMove) return "All quests cleared. Hold the line until midnight.";
+    if (nextMove.contract) return "Contract quest. Protect this before anything else.";
+    if (nextMove.pinned) return "Pinned priority. Clear it while momentum is available.";
+    if (nextMove.difficulty === "hard") return "Hard quest. Taking it now lowers tonight's pressure.";
+    return "Fastest useful move for the current run.";
+  }, [nextMove]);
+
+  const availableQuestTemplates = useMemo(
+    () =>
+      questTemplates.filter(
+        (template) => !quests.some((quest) => quest.id.endsWith(`-${template.id}`))
+      ),
+    [quests]
+  );
+  const displayedFastTemplates = useMemo(
+    () => availableQuestTemplates.slice(0, FAST_TEMPLATE_VISIBLE_COUNT),
+    [availableQuestTemplates]
+  );
 
   const completeQuest = (questId: string) => {
     const quest = quests.find((q) => q.id === questId);
@@ -632,6 +760,18 @@ export default function HomeScreen() {
     setQuests((prev) =>
       prev.map((q) => (q.id === questId ? { ...q, pinned: !q.pinned } : q))
     );
+  };
+
+  const toggleContract = (questId: string) => {
+    setQuests((prev) => {
+      const selectedCount = prev.filter((q) => q.contract).length;
+      return prev.map((q) => {
+        if (q.id !== questId) return q;
+        if (q.contract) return { ...q, contract: false };
+        if (selectedCount >= 3) return q;
+        return { ...q, contract: true, pinned: true };
+      });
+    });
   };
 
   const toggleQuestOpen = (questId: string) => {
@@ -715,6 +855,7 @@ export default function HomeScreen() {
         difficulty: safeDifficulty,
         done: false,
         pinned: false,
+        contract: false,
       },
     ]);
 
@@ -722,6 +863,38 @@ export default function HomeScreen() {
     setNewXP("10");
     setNewDifficulty("easy");
     setShowAdd(false);
+  };
+
+  const addQuestFromTemplate = (templateId: string) => {
+    const template = questTemplates.find((item) => item.id === templateId);
+    if (!template) return;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+
+    setQuests((prev) => {
+      if (prev.some((quest) => quest.id.endsWith(`-${template.id}`))) {
+        return prev;
+      }
+
+      const activeContracts = prev.filter((quest) => quest.contract).length;
+      const shouldContract = Boolean(template.contract) && activeContracts < 3;
+
+      return [
+        ...prev,
+        {
+          id: `q${Date.now()}-${template.id}`,
+          title: template.title,
+          categoryId: template.categoryId,
+          xp: template.xp,
+          target: template.target,
+          difficulty: template.difficulty,
+          done: false,
+          pinned: shouldContract,
+          contract: shouldContract,
+        },
+      ];
+    });
   };
 
   if (pendingEvaluation) {
@@ -751,71 +924,74 @@ export default function HomeScreen() {
                 </View>
                 <Text style={styles.homeSubtitle}>Performance Log</Text>
               </Pressable>
-              <Pressable onPress={() => undefined} hitSlop={8}>
-                <Text style={styles.homeMetaText}>Daily View</Text>
+              <Pressable style={styles.homeMetaPill} onPress={() => undefined} hitSlop={8}>
+                <Text style={styles.homeMetaText}>Daily Run</Text>
               </Pressable>
             </View>
 
-            <View style={styles.dayScoreCard}>
-              <View pointerEvents="none" style={styles.dayScoreWatermarkWrap}>
-                <MoonMark
-                  size={172}
-                  color={withAlpha(colors.accentPrimary, 0.06)}
-                  cutoutColor={withAlpha(colors.surface2, 0.96)}
-                />
+            <View style={styles.missionHero}>
+              <View style={styles.missionHeroHeader}>
+                <View>
+                  <Text style={styles.missionEyebrow}>Today&apos;s Run</Text>
+                  <Text style={styles.missionTitle}>
+                    {contractDoneCount === contractQuests.length && contractQuests.length > 0
+                      ? "Contract secure"
+                      : "Mission active"}
+                  </Text>
+                </View>
+                <View style={styles.missionCountdownPill}>
+                  <Text style={styles.missionCountdownLabel}>Midnight</Text>
+                  <Text style={styles.missionCountdownValue}>{countdownToMidnight}</Text>
+                </View>
               </View>
-              <View pointerEvents="none" style={styles.dayScoreWatermarkSoftWrap}>
-                <MoonMark
-                  size={190}
-                  color={withAlpha(colors.accentPrimary, 0.03)}
-                  cutoutColor={withAlpha(colors.surface2, 0.96)}
-                />
-              </View>
-              <DayScoreRing
-                completionPercent={dayScorePercent}
-                completedCount={doneCount}
-                totalCount={totalQuestCount}
-                colors={colors}
-              />
-            </View>
 
-            <View style={styles.statusHeader}>
-              <View style={styles.statusHeaderTop}>
-                <View style={styles.statusHeaderMain}>
-                  <Text style={styles.statusLabel}>DISCIPLINE RATING</Text>
-                  <Animated.Text
-                    style={[
-                      styles.statusDrValue,
-                      {
-                        color: "#E6EDF3",
-                        opacity: drHeroAnim,
-                        transform: [
-                          {
-                            scale: drHeroAnim.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [0.985, 1],
-                            }),
-                          },
-                        ],
-                      },
-                    ]}
-                  >
-                    {disciplineRating}
-                  </Animated.Text>
-                  <View style={styles.statusRankBadge}>
-                    <Text style={styles.statusRankBadgeText}>{rankLabel}</Text>
+              <View style={styles.missionHeroBody}>
+                <View style={styles.missionRingSlot}>
+                  <DayScoreRing
+                    completionPercent={dayScorePercent}
+                    completedCount={doneCount}
+                    totalCount={totalQuestCount}
+                    colors={colors}
+                  />
+                </View>
+
+                <View style={styles.missionStatsPanel}>
+                  <View style={styles.missionStatRow}>
+                    <Text style={styles.missionStatLabel}>DR</Text>
+                    <Animated.Text
+                      style={[
+                        styles.missionDrValue,
+                        {
+                          opacity: drHeroAnim,
+                          transform: [
+                            {
+                              scale: drHeroAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [0.985, 1],
+                              }),
+                            },
+                          ],
+                        },
+                      ]}
+                    >
+                      {disciplineRating}
+                    </Animated.Text>
                   </View>
-                  {nextRank ? (
-                    <Text style={styles.statusRankNext}>+{nextRank.remainingDr} to {nextRank.name.toUpperCase()}</Text>
-                  ) : (
-                    <Text style={styles.statusRankNext}>TOP RANK</Text>
-                  )}
+                  <View style={styles.statusRankBadge}>
+                    <Text
+                      style={styles.statusRankBadgeText}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.72}
+                    >
+                      {rankLabel}
+                    </Text>
+                  </View>
+                  <Text style={styles.statusRankNext}>
+                    {nextRank ? `+${nextRank.remainingDr} to ${nextRank.name.toUpperCase()}` : "TOP RANK"}
+                  </Text>
 
                   <View style={styles.rankProgressBlock}>
-                    <Text style={styles.rankProgressCurrent}>{rankName}</Text>
-                    <Text style={styles.rankProgressTarget}>
-                      {nextRank ? `Progress to ${nextRank.name}` : "Maximum rank reached"}
-                    </Text>
                     <View style={styles.rankProgressTrack}>
                       <Animated.View
                         style={[
@@ -824,13 +1000,67 @@ export default function HomeScreen() {
                         ]}
                       />
                     </View>
-                    <Text style={styles.rankProgressMeta}>
-                      {nextRank ? `${rankProgressDrValue} / ${rankProgressDrGoal} DR` : `${disciplineRating} DR`}
-                    </Text>
                   </View>
                 </View>
               </View>
 
+            <View style={styles.contractPanel}>
+                <View style={styles.contractHeaderRow}>
+                  <View>
+                    <Text style={styles.contractEyebrow}>Midnight Contract</Text>
+                    <Text style={styles.contractTitle}>
+                      {contractDoneCount} / {contractQuests.length || 3} protected
+                    </Text>
+                  </View>
+                  <View style={styles.contractCounterPill}>
+                    <Text style={styles.contractCounterText}>{contractQuests.length}/3</Text>
+                  </View>
+                </View>
+                <View style={styles.contractProgressTrack}>
+                  <View
+                    style={[
+                      styles.contractProgressFill,
+                      {
+                        width: `${contractQuests.length > 0 ? Math.round((contractDoneCount / contractQuests.length) * 100) : 0}%`,
+                        backgroundColor: colors.accentPrimary,
+                      },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.contractStatusText}>{contractStatusText}</Text>
+              </View>
+
+              <View style={styles.morningPlanPanel}>
+                <View style={styles.morningPlanHeader}>
+                  <View>
+                    <Text style={styles.contractEyebrow}>Morning Plan</Text>
+                    <Text style={styles.morningPlanTitle}>{planSummary.title}</Text>
+                  </View>
+                  <View style={styles.morningPlanDeltaPill}>
+                    <Text style={styles.morningPlanDeltaLabel}>Now</Text>
+                    <Text style={styles.morningPlanDeltaValue}>
+                      {planSummary.projectedDelta >= 0 ? `+${planSummary.projectedDelta}` : planSummary.projectedDelta}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.morningPlanBody}>{planSummary.body}</Text>
+                <View style={styles.morningPlanMetricRow}>
+                  <View style={styles.morningPlanMetric}>
+                    <Text style={styles.morningPlanMetricValue}>
+                      {planSummary.completedCount}/{planSummary.targetQuestCount}
+                    </Text>
+                    <Text style={styles.morningPlanMetricLabel}>standard</Text>
+                  </View>
+                  <View style={styles.morningPlanMetric}>
+                    <Text style={styles.morningPlanMetricValue}>{streakSummary.solidDayStreak}</Text>
+                    <Text style={styles.morningPlanMetricLabel}>solid streak</Text>
+                  </View>
+                  <View style={styles.morningPlanMetric}>
+                    <Text style={styles.morningPlanMetricValue}>{streakSummary.contractStreak}</Text>
+                    <Text style={styles.morningPlanMetricLabel}>contract streak</Text>
+                  </View>
+                </View>
+              </View>
             </View>
 
             {__DEV__ && showDevActions ? (
@@ -846,18 +1076,77 @@ export default function HomeScreen() {
           </View>
 
           <View style={[styles.sectionBand, styles.dailySection]}>
-            {/* TODAY'S QUESTS HEADER */}
             <View style={styles.dailyHeaderCard}>
               <View style={styles.sectionRow}>
-                <Text style={[styles.sectionSecondary, { marginBottom: 0 }]}>Daily Inputs</Text>
+                <Text style={[styles.sectionSecondary, { marginBottom: 0 }]}>Quest Queue</Text>
                 <Pressable onPress={() => setShowAdd((s) => !s)}>
                   <Text style={[styles.link, { color: colors.accentPrimary }]}>{showAdd ? "Cancel" : "+ Add"}</Text>
                 </Pressable>
               </View>
               <Text style={styles.sectionSubtext}>
-                Priority list for today.
+                Contracts first. Then pinned priorities. Then everything else.
               </Text>
             </View>
+
+            <View style={styles.nextMoveCard}>
+              <View style={styles.nextMoveTopRow}>
+                <View>
+                  <Text style={styles.nextMoveEyebrow}>Next Move</Text>
+                  <Text style={styles.nextMoveTitle} numberOfLines={2}>
+                    {nextMove ? nextMove.title : "Run complete"}
+                  </Text>
+                </View>
+                {nextMove ? (
+                  <Pressable style={styles.nextMoveButton} onPress={() => completeQuest(nextMove.id)}>
+                    <Text style={styles.nextMoveButtonText}>Complete</Text>
+                  </Pressable>
+                ) : (
+                  <View style={styles.nextMoveCompletePill}>
+                    <Text style={styles.nextMoveCompleteText}>Clear</Text>
+                  </View>
+                )}
+              </View>
+              {nextMove?.contract ? (
+                <View style={styles.nextMoveBadge}>
+                  <Text style={styles.nextMoveBadgeText}>Contract Target</Text>
+                </View>
+              ) : null}
+              <Text style={styles.nextMoveMeta}>
+                {nextMove
+                  ? `${categoryName(nextMove.categoryId)} - ${nextMove.difficulty.toUpperCase()} - ${nextMove.xp} XP`
+                  : "No exposed quests remain."}
+              </Text>
+              <Text style={styles.nextMoveReason}>{nextMoveReason}</Text>
+            </View>
+
+            {displayedFastTemplates.length > 0 ? (
+              <View style={styles.templatePanel}>
+                <View style={styles.sectionRow}>
+                  <Text style={[styles.sectionSecondary, { marginBottom: 0 }]}>Fast Templates</Text>
+                  <Text style={styles.templateHint}>Tap to add</Text>
+                </View>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.templateRail}
+                >
+                  {displayedFastTemplates.map((template) => (
+                    <Pressable
+                      key={template.id}
+                      style={styles.templateChip}
+                      onPress={() => addQuestFromTemplate(template.id)}
+                    >
+                      <Text style={styles.templateTitle} numberOfLines={2}>
+                        {template.title}
+                      </Text>
+                      <Text style={styles.templateMeta} numberOfLines={1}>
+                        {categoryName(template.categoryId)} - {template.xp} XP
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            ) : null}
 
             {/* ADD/EDIT QUEST FORM */}
             {showAdd && (
@@ -886,13 +1175,7 @@ export default function HomeScreen() {
 
             {/* QUEST LIST */}
             <View style={styles.list}>
-              {[...quests]
-                .sort((a, b) => {
-                  if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-                  if (a.done !== b.done) return Number(a.done) - Number(b.done);
-                  return 0;
-                })
-                .map((q) => (
+              {sortedQuests.map((q) => (
                   <QuestCard
                     key={q.id}
                     quest={q}
@@ -905,6 +1188,7 @@ export default function HomeScreen() {
                       setOpenQuestId(null);
                     }}
                     onPin={togglePin}
+                    onContract={toggleContract}
                     onDelete={deleteQuest}
                   />
                 ))}

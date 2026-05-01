@@ -3,6 +3,7 @@ import * as Haptics from "expo-haptics";
 import React, { useRef, useState } from "react";
 import { Animated, Easing, Pressable, Text, View } from "react-native";
 import { createStyles } from "../_styles";
+import { withAlpha } from "../_utils/designSystem";
 import { useTheme } from "../_utils/themeContext";
 import type { Quest } from "../_utils/types";
 
@@ -14,6 +15,7 @@ interface QuestCardProps {
   onComplete: (questId: string) => void;
   onEdit: (questId: string) => void;
   onPin: (questId: string) => void;
+  onContract: (questId: string) => void;
   onDelete: (questId: string) => void;
 }
 
@@ -25,12 +27,14 @@ export const QuestCard = React.memo(function QuestCard({
   onComplete,
   onEdit,
   onPin,
+  onContract,
   onDelete,
 }: QuestCardProps) {
   const { colors } = useTheme();
   const styles = createStyles(colors);
   const [editPressed, setEditPressed] = useState(false);
   const [pinPressed, setPinPressed] = useState(false);
+  const [contractPressed, setContractPressed] = useState(false);
   const [deletePressed, setDeletePressed] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
 
@@ -132,6 +136,11 @@ export const QuestCard = React.memo(function QuestCard({
     onPin(quest.id);
   };
 
+  const handleContract = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onContract(quest.id);
+  };
+
   const handleToggleExpanded = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onToggle(quest.id);
@@ -141,7 +150,8 @@ export const QuestCard = React.memo(function QuestCard({
     <Animated.View
       style={[
         styles.questCard,
-        { borderColor: colors.border },
+        { borderColor: withAlpha(colors.border, 0.28) },
+        quest.contract && styles.questContract,
         quest.done && styles.questDone,
         {
           opacity: cardOpacity,
@@ -156,6 +166,7 @@ export const QuestCard = React.memo(function QuestCard({
           { backgroundColor: colors.accentPrimary, opacity: flashOpacity },
         ]}
       />
+      {quest.contract ? <View pointerEvents="none" style={styles.questContractRail} /> : null}
 
       <View style={styles.questHeader}>
         <Pressable
@@ -196,18 +207,35 @@ export const QuestCard = React.memo(function QuestCard({
               {quest.title}
             </Text>
             <Text style={[styles.questMetaSingleLine, { color: colors.textSecondary }]}>
-              {categoryName} • {`${quest.difficulty.charAt(0).toUpperCase()}${quest.difficulty.slice(1)}`}
+              {categoryName} - {`${quest.difficulty.charAt(0).toUpperCase()}${quest.difficulty.slice(1)}`} - {quest.xp} XP
             </Text>
           </View>
 
           <View style={styles.questStatusStack}>
             {quest.pinned && (
-              <View style={[styles.statusPillIcon, { backgroundColor: `${colors.accentPrimary}1A` }]}>
+              <View style={[styles.statusPillIcon, { backgroundColor: withAlpha(colors.accentPrimary, 0.1) }]}>
                 <IconSymbol name="pin.fill" size={12} color={colors.accentPrimary} />
               </View>
             )}
+            {quest.contract && (
+              <Text
+                style={[
+                  styles.statusPill,
+                  { color: colors.accentPrimary, backgroundColor: withAlpha(colors.accentPrimary, 0.1) },
+                ]}
+              >
+                CONTRACT
+              </Text>
+            )}
             {quest.done && (
-              <Text style={[styles.statusPill, { color: colors.accentPrimary }]}>DONE</Text>
+              <Text
+                style={[
+                  styles.statusPill,
+                  { color: colors.accentPrimary, backgroundColor: withAlpha(colors.accentPrimary, 0.1) },
+                ]}
+              >
+                DONE
+              </Text>
             )}
           </View>
         </Pressable>
@@ -221,7 +249,7 @@ export const QuestCard = React.memo(function QuestCard({
               <Pressable
                 style={[
                   styles.questActionBtnPrimary,
-                  { backgroundColor: `${colors.accentPrimary}20`, borderColor: colors.accentPrimary },
+                  { backgroundColor: withAlpha(colors.accentPrimary, 0.12), borderColor: withAlpha(colors.accentPrimary, 0.38) },
                 ]}
                 onPress={handleComplete}
               >
@@ -230,7 +258,7 @@ export const QuestCard = React.memo(function QuestCard({
             )}
 
             <Pressable
-              style={[styles.questActionBtnSubtle, { backgroundColor: colors.bg, borderColor: colors.border }, editPressed && styles.btnPressed]}
+              style={[styles.questActionBtnSubtle, { backgroundColor: withAlpha(colors.bg, 0.35), borderColor: withAlpha(colors.border, 0.28) }, editPressed && styles.btnPressed]}
               onPress={handleEdit}
               onPressIn={() => setEditPressed(true)}
               onPressOut={() => setEditPressed(false)}
@@ -242,8 +270,8 @@ export const QuestCard = React.memo(function QuestCard({
               style={[
                 styles.questActionBtnSubtle,
                 quest.pinned
-                  ? { backgroundColor: `${colors.accentPrimary}1A`, borderColor: colors.accentPrimary }
-                  : { backgroundColor: colors.bg, borderColor: colors.border },
+                  ? { backgroundColor: withAlpha(colors.accentPrimary, 0.1), borderColor: withAlpha(colors.accentPrimary, 0.38) }
+                  : { backgroundColor: withAlpha(colors.bg, 0.35), borderColor: withAlpha(colors.border, 0.28) },
                 pinPressed && styles.btnPressed,
               ]}
               onPress={handlePin}
@@ -256,7 +284,24 @@ export const QuestCard = React.memo(function QuestCard({
             </Pressable>
 
             <Pressable
-              style={[styles.questActionBtnSubtle, { backgroundColor: colors.bg, borderColor: colors.accentPrimary }, deletePressed && styles.btnPressed]}
+              style={[
+                styles.questActionBtnSubtle,
+                quest.contract
+                  ? { backgroundColor: withAlpha(colors.accentPrimary, 0.1), borderColor: withAlpha(colors.accentPrimary, 0.38) }
+                  : { backgroundColor: withAlpha(colors.bg, 0.35), borderColor: withAlpha(colors.border, 0.28) },
+                contractPressed && styles.btnPressed,
+              ]}
+              onPress={handleContract}
+              onPressIn={() => setContractPressed(true)}
+              onPressOut={() => setContractPressed(false)}
+            >
+              <Text style={[styles.questActionTextSubtle, { color: quest.contract ? colors.accentPrimary : colors.textSecondary }]}>
+                {quest.contract ? "Contract" : "Pledge"}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={[styles.questActionBtnSubtle, { backgroundColor: withAlpha(colors.bg, 0.35), borderColor: withAlpha(colors.accentPrimary, 0.35) }, deletePressed && styles.btnPressed]}
               onPress={handleDelete}
               onPressIn={() => setDeletePressed(true)}
               onPressOut={() => setDeletePressed(false)}

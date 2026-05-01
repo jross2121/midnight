@@ -71,7 +71,7 @@ export default function SettingsScreen() {
         {/* Header */}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 24 }}>
           <IconSymbol name="gearshape.fill" size={36} color={colors.accentPrimary} />
-          <Text style={styles.title}>⚙️ Settings</Text>
+          <Text style={styles.title}>Settings</Text>
         </View>
 
         {/* Theme Section */}
@@ -101,7 +101,7 @@ export default function SettingsScreen() {
               ]}
             >
               <Text style={{ color: colors.textPrimary, fontWeight: "900", fontSize: 12 }}>
-                {theme === "dark" ? "☀️ Light" : "🌙 Dark"}
+                {theme === "dark" ? "Light" : "Dark"}
               </Text>
             </Pressable>
           </View>
