@@ -16,20 +16,24 @@ type Slide = {
 
 const slides: Slide[] = [
   {
-    title: "Build Real Discipline",
-    text: "Discipline isn't motivation.\nIt's what you do when you don't feel like it.",
+    title: "Start A Daily Run",
+    text: "Pick a few quests that make today real.\nSmall actions count when they are finished.",
   },
   {
-    title: "Discipline Has Consequences",
-    text: "Show up -> It rises.\nSkip -> It drops.\nNo gimmicks. Just results.",
+    title: "Protect Your Contracts",
+    text: "Mark up to three promises as contracts.\nThey become the quests you do not casually drop.",
   },
   {
-    title: "Every Day Is A Test",
-    text: "At midnight, your discipline is judged.\nYou either built it... or you didn't.",
+    title: "Midnight Scores The Day",
+    text: "At midnight, completed quests turn into a Discipline Rating change.\nClear the standard. Protect the floor.",
+  },
+  {
+    title: "Read The Signal",
+    text: "Ranks, awards, and insights show what is working.\nUse them to choose tomorrow's pressure.",
   },
   {
     title: "Ready To Begin?",
-    text: "Discipline starts at 0.\nWhat it becomes is up to you.",
+    text: "Discipline starts at 0.\nWhat it becomes is built one run at a time.",
   },
 ];
 

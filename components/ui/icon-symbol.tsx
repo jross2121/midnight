@@ -20,9 +20,15 @@ const MAPPING = {
   'chevron.right': 'chevron-right',
   'chart.bar.fill': 'insert-chart',
   'star.fill': 'star',
+  'trophy.fill': 'emoji-events',
+  'archivebox.fill': 'archive',
   'gearshape.fill': 'settings',
   'pin.fill': 'push-pin',
   'pin': 'push-pin',
+  'xmark': 'close',
+  'checkmark': 'check',
+  'checkmark.circle.fill': 'check-circle',
+  'circle': 'radio-button-unchecked',
 } as IconMapping;
 
 /**

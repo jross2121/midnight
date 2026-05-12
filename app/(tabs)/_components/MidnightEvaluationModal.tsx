@@ -6,10 +6,12 @@ import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } fr
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import type { MidnightEvaluationData } from "../_utils/midnightEvaluation";
+import type { NextDayPlan } from "../_utils/planning";
 
 type MidnightEvaluationModalProps = {
   evaluation: MidnightEvaluationData;
   currentRank: string;
+  nextDayPlan: NextDayPlan;
   onStartNewDay: () => void;
   isSaving: boolean;
 };
@@ -36,6 +38,11 @@ type JudgmentHeroProps = {
 type StatusInsightPanelProps = {
   rank: string;
   insight: string;
+  styles: ReturnType<typeof makeStyles>;
+};
+
+type NextDayPlanPanelProps = {
+  plan: NextDayPlan;
   styles: ReturnType<typeof makeStyles>;
 };
 
@@ -128,6 +135,30 @@ function StatusInsightPanel({ rank, insight, styles }: StatusInsightPanelProps) 
       <Text style={styles.insightText} numberOfLines={2}>
         {insight}
       </Text>
+    </View>
+  );
+}
+
+function NextDayPlanPanel({ plan, styles }: NextDayPlanPanelProps) {
+  return (
+    <View style={styles.planPanel}>
+      <View style={styles.planHeaderRow}>
+        <Text style={styles.planLabel}>Tomorrow</Text>
+        <Text style={styles.planTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+          {plan.title}
+        </Text>
+      </View>
+      <Text style={styles.planBody}>{plan.body}</Text>
+      <View style={styles.planSteps}>
+        {plan.steps.map((step, index) => (
+          <View key={`${step}-${index}`} style={styles.planStep}>
+            <Text style={styles.planStepNumber}>{index + 1}</Text>
+            <Text style={styles.planStepText} numberOfLines={2}>
+              {step}
+            </Text>
+          </View>
+        ))}
+      </View>
     </View>
   );
 }
@@ -437,6 +468,71 @@ function makeStyles(
       lineHeight: isCompact ? 17 : 18,
       fontWeight: "600",
     },
+    planPanel: {
+      backgroundColor: withAlpha(accentPrimary, 0.08),
+      borderWidth: 1,
+      borderColor: withAlpha(accentPrimary, 0.18),
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+      gap: 10,
+    },
+    planHeaderRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+    },
+    planLabel: {
+      color: withAlpha(colors.textSecondary, 0.72),
+      fontSize: 10,
+      lineHeight: 13,
+      fontWeight: "800",
+      letterSpacing: 0.72,
+      textTransform: "uppercase",
+    },
+    planTitle: {
+      color: colors.textPrimary,
+      fontSize: isCompact ? 16 : 17,
+      lineHeight: isCompact ? 20 : 21,
+      fontWeight: "900",
+      flexShrink: 1,
+      textAlign: "right",
+    },
+    planBody: {
+      color: withAlpha(colors.textPrimary, 0.75),
+      fontSize: isCompact ? 12 : 13,
+      lineHeight: isCompact ? 17 : 18,
+      fontWeight: "600",
+    },
+    planSteps: {
+      gap: 7,
+    },
+    planStep: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 9,
+    },
+    planStepNumber: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      overflow: "hidden",
+      textAlign: "center",
+      textAlignVertical: "center",
+      backgroundColor: withAlpha(accentPrimary, 0.18),
+      color: accentPrimary,
+      fontSize: 11,
+      lineHeight: 22,
+      fontWeight: "900",
+    },
+    planStepText: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: isCompact ? 12 : 13,
+      lineHeight: isCompact ? 17 : 18,
+      fontWeight: "800",
+    },
 
     footer: {
       paddingTop: isCompact ? 10 : 12,
@@ -480,6 +576,7 @@ function makeStyles(
 export function MidnightEvaluationModal({
   evaluation,
   currentRank,
+  nextDayPlan,
   onStartNewDay,
   isSaving,
 }: MidnightEvaluationModalProps) {
@@ -531,6 +628,7 @@ export function MidnightEvaluationModal({
             />
 
             <StatusInsightPanel rank={currentRank} insight={evaluation.insight} styles={styles} />
+            <NextDayPlanPanel plan={nextDayPlan} styles={styles} />
           </View>
         </ScrollView>
 

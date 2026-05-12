@@ -51,6 +51,7 @@ export function DayScoreRing({
 
   const percentRounded = Math.round(clampPercent(animatedPercent));
   const strokeDashoffset = circumference * (1 - clampPercent(animatedPercent) / 100);
+  const displayedCompletedCount = Math.min(completedCount, totalCount);
 
   return (
     <View style={styles.wrap}>
@@ -87,7 +88,9 @@ export function DayScoreRing({
       </View>
 
       <Text style={styles.meta}>
-        {completedCount} / {totalCount} quests completed
+        {totalCount > 0
+          ? `${displayedCompletedCount} / ${totalCount} toward daily standard`
+          : "Add a quest to start the standard"}
       </Text>
     </View>
   );

@@ -1,6 +1,12 @@
 import { getCategoryDisplayNameById } from "./categoryLabels";
 import { diffDays } from "./dateHelpers";
-import { DAILY_STANDARD, getCompletionPercent, getDRChangeFromPercent } from "./discipline";
+import {
+  DAILY_STANDARD,
+  getCompletionPercent,
+  getDailyScoringTarget,
+  getDRChangeFromPercent,
+} from "./discipline";
+import { getScheduledQuestsForDate } from "./recurrence";
 import type { Quest } from "./types";
 
 export const MIDNIGHT_EVALUATION_STORAGE_KEY = "lifeRpg:midnight-evaluation:v1";
@@ -34,11 +40,13 @@ export function buildMidnightEvaluation(
   quests: Quest[],
   previousCompletionPercent: number | null = null
 ): MidnightEvaluationData {
-  const completedCount = quests.filter((quest) => quest.done).length;
-  const totalCount = quests.length;
-  const completionPercent = getCompletionPercent(completedCount, DAILY_STANDARD);
+  const scoredQuests = getScheduledQuestsForDate(quests, date);
+  const completedCount = scoredQuests.filter((quest) => quest.done).length;
+  const totalCount = scoredQuests.length;
+  const scoringTarget = getDailyScoringTarget(totalCount, DAILY_STANDARD);
+  const completionPercent = getCompletionPercent(completedCount, scoringTarget);
   const baseDrDelta = getDRChangeFromPercent(completionPercent, totalCount, DAILY_STANDARD);
-  const contractQuests = quests.filter((quest) => quest.contract);
+  const contractQuests = scoredQuests.filter((quest) => quest.contract);
   const contractCompletedCount = contractQuests.filter((quest) => quest.done).length;
   const contractTotalCount = contractQuests.length;
   const comebackBonus = getComebackBonus(previousCompletionPercent, completionPercent);
@@ -62,7 +70,7 @@ export function buildMidnightEvaluation(
       comebackBonus,
     }),
     drDelta,
-    insight: getEvaluationInsight(quests, completionPercent, contractCompletedCount, contractTotalCount, comebackBonus),
+    insight: getEvaluationInsight(scoredQuests, completionPercent, contractCompletedCount, contractTotalCount, comebackBonus),
   };
 }
 

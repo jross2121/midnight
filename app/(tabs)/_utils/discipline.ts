@@ -1,9 +1,18 @@
 export const DAILY_STANDARD = 7;
 
-export function getCompletionPercent(completed: number, dailyStandard: number = DAILY_STANDARD): number {
-  if (dailyStandard <= 0 || completed <= 0) return 0;
-  const boundedCompleted = Math.min(dailyStandard, Math.max(0, completed));
-  const rawPercent = Math.round((boundedCompleted / dailyStandard) * 100);
+export function getDailyScoringTarget(
+  totalQuests: number,
+  dailyStandard: number = DAILY_STANDARD
+): number {
+  if (!Number.isFinite(totalQuests) || !Number.isFinite(dailyStandard)) return 0;
+  if (totalQuests <= 0 || dailyStandard <= 0) return 0;
+  return Math.min(Math.floor(totalQuests), Math.floor(dailyStandard));
+}
+
+export function getCompletionPercent(completed: number, scoringTarget: number = DAILY_STANDARD): number {
+  if (scoringTarget <= 0 || completed <= 0) return 0;
+  const boundedCompleted = Math.min(scoringTarget, Math.max(0, completed));
+  const rawPercent = Math.round((boundedCompleted / scoringTarget) * 100);
   return Math.max(0, Math.min(100, rawPercent));
 }
 
@@ -12,7 +21,7 @@ export function getDRChangeFromPercent(
   totalQuests: number,
   dailyStandard: number = DAILY_STANDARD
 ): number {
-  if (totalQuests <= 0 || dailyStandard <= 0) return -8;
+  if (getDailyScoringTarget(totalQuests, dailyStandard) <= 0) return -8;
 
   const safePercent = Math.max(0, Math.min(100, Math.round(percent)));
   if (safePercent === 0) return -8;

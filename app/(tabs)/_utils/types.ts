@@ -6,6 +6,8 @@ export type Category = {
   xpToNext: number;
 };
 
+export type QuestRepeat = "once" | "daily" | "weekdays" | "weekly";
+
 export type Quest = {
   id: string;
   title: string;
@@ -13,9 +15,15 @@ export type Quest = {
   xp: number;
   target?: string;
   difficulty: "easy" | "medium" | "hard";
+  repeat?: QuestRepeat;
+  scheduledWeekday?: number;
   done: boolean;
   pinned: boolean;
   contract?: boolean;
+};
+
+export type ArchivedQuest = Quest & {
+  archivedAt: string;
 };
 
 export type QuestTemplate = {
@@ -25,6 +33,8 @@ export type QuestTemplate = {
   xp: number;
   target: string;
   difficulty: Quest["difficulty"];
+  repeat?: QuestRepeat;
+  scheduledWeekday?: number;
   contract?: boolean;
 };
 
@@ -57,6 +67,8 @@ export type StoredState = {
   drHistory: DrHistoryEntry[];
   lastResetDate: string;
   achievements: Achievement[];
+  lifetimeCompletedQuestCount: number;
+  archivedQuests: ArchivedQuest[];
 };
 
 export const STORAGE_KEY = "lifeRpg:v1";

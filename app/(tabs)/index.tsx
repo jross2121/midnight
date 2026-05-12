@@ -4,6 +4,7 @@ import * as Haptics from "expo-haptics";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
+  Alert,
   Easing,
   LayoutAnimation,
   Platform,
@@ -22,8 +23,10 @@ import { EditQuestForm } from "./_components/EditQuestForm";
 import { MidnightEvaluationModal } from "./_components/MidnightEvaluationModal";
 import { QuestCard } from "./_components/QuestCard";
 import { createStyles } from "./_styles";
+import { getCategoryArtById } from "./_utils/categoryArt";
 import { getCategoryDisplayName } from "./_utils/categoryLabels";
 import { diffDays, localDateKey, parseDateKey } from "./_utils/dateHelpers";
+import { withAlpha } from "./_utils/designSystem";
 import {
   defaultAchievements,
   defaultCategories,
@@ -39,6 +42,7 @@ import {
   DAILY_STANDARD,
   getCompletionPercent,
   getCountdownToMidnight,
+  getDailyScoringTarget,
   getDRChangeFromPercent,
 } from "./_utils/discipline";
 import {
@@ -54,10 +58,30 @@ import {
   shouldShowMidnightEvaluation,
   type MidnightEvaluationData,
 } from "./_utils/midnightEvaluation";
-import { buildPlanSummary, buildStreakSummary } from "./_utils/planning";
+import { buildNextDayPlan, buildPlanSummary, buildStreakSummary } from "./_utils/planning";
+import { getQuestXpForDifficulty } from "./_utils/questXp";
+import {
+  getCompletedOneTimeArchives,
+  getQuestRepeatLabel,
+  getScheduledQuestsForDate,
+  getTodayWeekday,
+  isQuestScheduledForDate,
+  normalizeQuestRepeat,
+  normalizeQuestSchedule,
+  normalizeScheduledWeekday,
+  rollQuestsForNewDay,
+} from "./_utils/recurrence";
 import { getNextRank, getRankFromDR, getRankMeta } from "./_utils/rank";
 import { useTheme } from "./_utils/themeContext";
-import type { Achievement, Category, DrHistoryEntry, Quest, StoredState } from "./_utils/types";
+import type {
+  Achievement,
+  ArchivedQuest,
+  Category,
+  DrHistoryEntry,
+  Quest,
+  QuestRepeat,
+  StoredState,
+} from "./_utils/types";
 import { STORAGE_KEY } from "./_utils/types";
 
 const FAST_TEMPLATE_VISIBLE_COUNT = 3;
@@ -118,6 +142,24 @@ function mergeAchievements(saved: unknown): Achievement[] {
   }));
 }
 
+function isArchivedQuest(value: unknown): value is ArchivedQuest {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Partial<ArchivedQuest>;
+  return (
+    typeof candidate.id === "string" &&
+    typeof candidate.title === "string" &&
+    typeof candidate.categoryId === "string" &&
+    typeof candidate.xp === "number" &&
+    typeof candidate.done === "boolean" &&
+    typeof candidate.archivedAt === "string"
+  );
+}
+
+function loadArchivedQuests(value: unknown): ArchivedQuest[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isArchivedQuest).slice(0, 100);
+}
+
 type MoonMarkProps = {
   size: number;
   color: string;
@@ -161,6 +203,8 @@ export default function HomeScreen() {
   const [drHistory, setDrHistory] = useState<DrHistoryEntry[]>(defaultDrHistory);
   const [pendingEvaluation, setPendingEvaluation] = useState<MidnightEvaluationData | null>(null);
   const [isSavingEvaluation, setIsSavingEvaluation] = useState(false);
+  const [lifetimeCompletedQuestCount, setLifetimeCompletedQuestCount] = useState(0);
+  const [archivedQuests, setArchivedQuests] = useState<ArchivedQuest[]>([]);
 
   const [achievements, setAchievements] = useState<Achievement[]>(defaultAchievements);
 
@@ -168,8 +212,9 @@ export default function HomeScreen() {
   const [showAdd, setShowAdd] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newCategory, setNewCategory] = useState<string>("health");
-  const [newXP, setNewXP] = useState("10");
   const [newDifficulty, setNewDifficulty] = useState<"easy" | "medium" | "hard">("easy");
+  const [newRepeat, setNewRepeat] = useState<QuestRepeat>("daily");
+  const [newScheduledWeekday, setNewScheduledWeekday] = useState(() => getTodayWeekday());
 
   // Edit quest state
   const [editingQuestId, setEditingQuestId] = useState<string | null>(null);
@@ -181,23 +226,18 @@ export default function HomeScreen() {
   }, []);
 
   const normalizeQuest = React.useCallback((quest: Quest): Quest => ({
-    ...quest,
-    difficulty: normalizeDifficulty(quest.difficulty),
-    pinned: Boolean(quest.pinned),
-    contract: Boolean(quest.contract),
-    target: typeof quest.target === "string" ? quest.target : "",
+    ...normalizeQuestSchedule(
+      {
+        ...quest,
+        difficulty: normalizeDifficulty(quest.difficulty),
+        xp: getQuestXpForDifficulty(normalizeDifficulty(quest.difficulty)),
+        pinned: Boolean(quest.pinned),
+        contract: Boolean(quest.contract),
+        target: typeof quest.target === "string" ? quest.target : "",
+      },
+      localDateKey()
+    ),
   }), [normalizeDifficulty]);
-
-  function getDifficultyMultiplier(difficulty: "easy" | "medium" | "hard") {
-    switch (difficulty) {
-      case "easy":
-        return 1;
-      case "medium":
-        return 1.5;
-      case "hard":
-        return 2;
-    }
-  }
 
   const unlockAchievement = (achievementId: string) => {
     setAchievements((prev) =>
@@ -209,13 +249,22 @@ export default function HomeScreen() {
     );
   };
 
-  const checkAchievements = (updatedQuests: typeof quests, updatedCategories: typeof categories) => {
-    const completedTotal = updatedQuests.filter((q) => q.done).length;
-    const todayXPTotal = updatedQuests.filter((q) => q.done).reduce((sum, q) => sum + q.xp, 0);
-    const questsDone = updatedQuests.filter((q) => q.done);
+  const checkAchievements = (
+    updatedQuests: typeof quests,
+    updatedCategories: typeof categories,
+    nextLifetimeCompletedCount: number
+  ) => {
+    const todaysUpdatedQuests = getScheduledQuestsForDate(updatedQuests, localDateKey());
+    const todayXPTotal = todaysUpdatedQuests
+      .filter((q) => q.done)
+      .reduce((sum, q) => sum + q.xp, 0);
+    const questsDone = todaysUpdatedQuests.filter((q) => q.done);
 
     // first_quest: Complete first quest
-    if (completedTotal === 1 && !achievements.find((a) => a.id === "first_quest")?.unlockedAt) {
+    if (
+      nextLifetimeCompletedCount >= 1 &&
+      !achievements.find((a) => a.id === "first_quest")?.unlockedAt
+    ) {
       unlockAchievement("first_quest");
     }
 
@@ -235,7 +284,8 @@ export default function HomeScreen() {
     // perfect_day: Complete all quests in one day
     if (
       updatedQuests.length > 0 &&
-      updatedQuests.every((q) => q.done) &&
+      todaysUpdatedQuests.length > 0 &&
+      todaysUpdatedQuests.every((q) => q.done) &&
       !achievements.find((a) => a.id === "perfect_day")?.unlockedAt
     ) {
       unlockAchievement("perfect_day");
@@ -243,7 +293,10 @@ export default function HomeScreen() {
 
     // level_5: Reach level 5 in any category
     if (
-      updatedCategories.some((c) => c.level >= 5) &&
+      updatedCategories.some((c) => {
+        const previousLevel = categories.find((previous) => previous.id === c.id)?.level ?? c.level;
+        return previousLevel < 5 && c.level >= 5;
+      }) &&
       !achievements.find((a) => a.id === "level_5")?.unlockedAt
     ) {
       unlockAchievement("level_5");
@@ -259,11 +312,14 @@ export default function HomeScreen() {
     }
 
     // 30_quests: Complete 30 quests total
-    if (completedTotal >= 30 && !achievements.find((a) => a.id === "30_quests")?.unlockedAt) {
+    if (
+      nextLifetimeCompletedCount >= 30 &&
+      !achievements.find((a) => a.id === "30_quests")?.unlockedAt
+    ) {
       unlockAchievement("30_quests");
     }
 
-    const contractQuestsForDay = updatedQuests.filter((q) => q.contract);
+    const contractQuestsForDay = todaysUpdatedQuests.filter((q) => q.contract);
     if (
       contractQuestsForDay.length > 0 &&
       contractQuestsForDay.every((q) => q.done) &&
@@ -309,6 +365,18 @@ export default function HomeScreen() {
 
         const savedResetDate =
           typeof parsed.lastResetDate === "string" ? parsed.lastResetDate : today;
+        const normalizedLoadedQuests = loadedQuests.map((quest) =>
+          normalizeQuestSchedule(
+            {
+              ...quest,
+              difficulty: normalizeDifficulty(quest.difficulty),
+              pinned: Boolean(quest.pinned),
+              contract: Boolean(quest.contract),
+              target: typeof quest.target === "string" ? quest.target : "",
+            },
+            savedResetDate
+          )
+        );
 
         const loadedAchievements = mergeAchievements(parsed.achievements);
 
@@ -323,6 +391,11 @@ export default function HomeScreen() {
         const loadedLastDrUpdateDate =
           typeof parsed.lastDrUpdateDate === "string" ? parsed.lastDrUpdateDate : defaultLastDrUpdateDate;
         const loadedHistory = loadDrHistory(parsed.drHistory);
+        const loadedLifetimeCompletedQuestCount =
+          typeof parsed.lifetimeCompletedQuestCount === "number"
+            ? Math.max(0, Math.floor(parsed.lifetimeCompletedQuestCount))
+            : 0;
+        let nextArchivedQuests = loadArchivedQuests(parsed.archivedQuests);
         const previousCompletionForBonus = loadedHistory.length > 0 ? loadedLastCompletionPct : null;
 
         const gap = diffDays(savedResetDate, today);
@@ -340,9 +413,13 @@ export default function HomeScreen() {
 
         if (gap >= 1 && !shouldGateForEvaluation) {
           // Day 1 (the "previous day" based on saved quests)
-          const donePrev = loadedQuests.filter((q) => q.done).length;
-          const pctPrev = getCompletionPercent(donePrev, DAILY_STANDARD);
-          const deltaPrev = getDRChangeFromPercent(pctPrev, loadedQuests.length, DAILY_STANDARD);
+          const previousDayQuests = getScheduledQuestsForDate(normalizedLoadedQuests, savedResetDate);
+          const donePrev = previousDayQuests.filter((q) => q.done).length;
+          const pctPrev = getCompletionPercent(
+            donePrev,
+            getDailyScoringTarget(previousDayQuests.length, DAILY_STANDARD)
+          );
+          const deltaPrev = getDRChangeFromPercent(pctPrev, previousDayQuests.length, DAILY_STANDARD);
           nextDR = applyDrChange(nextDR, deltaPrev);
           nextHistory = [
             ...nextHistory,
@@ -384,8 +461,15 @@ export default function HomeScreen() {
         // Daily reset + normalize difficulty
         const finalQuests =
           savedResetDate !== today && !shouldGateForEvaluation
-            ? loadedQuests.map((q) => ({ ...q, done: false }))
-            : loadedQuests;
+            ? rollQuestsForNewDay(normalizedLoadedQuests)
+            : normalizedLoadedQuests;
+
+        if (savedResetDate !== today && !shouldGateForEvaluation) {
+          nextArchivedQuests = [
+            ...getCompletedOneTimeArchives(normalizedLoadedQuests, new Date().toISOString()),
+            ...nextArchivedQuests,
+          ].slice(0, 100);
+        }
 
         const normalizedFinalQuests = finalQuests.map(normalizeQuest);
 
@@ -401,6 +485,8 @@ export default function HomeScreen() {
         setLastCompletionPct(nextLastCompletionPct);
         setLastDrUpdateDate(nextLastDrUpdateDate);
         setDrHistory(nextHistory);
+        setLifetimeCompletedQuestCount(loadedLifetimeCompletedQuestCount);
+        setArchivedQuests(nextArchivedQuests);
         setLastResetDate(shouldGateForEvaluation ? savedResetDate : today);
       } catch (e) {
         console.log("Failed to load storage:", e);
@@ -409,7 +495,7 @@ export default function HomeScreen() {
         setHydrated(true);
       }
     })();
-  }, [normalizeQuest]);
+  }, [normalizeDifficulty, normalizeQuest]);
 
   // SAVE on changes
   useEffect(() => {
@@ -427,6 +513,8 @@ export default function HomeScreen() {
           lastCompletionPct,
           lastDrUpdateDate,
           drHistory,
+          lifetimeCompletedQuestCount,
+          archivedQuests,
         };
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       } catch (e) {
@@ -443,6 +531,8 @@ export default function HomeScreen() {
     lastCompletionPct,
     lastDrUpdateDate,
     drHistory,
+    lifetimeCompletedQuestCount,
+    archivedQuests,
     hydrated,
   ]);
 
@@ -457,8 +547,9 @@ export default function HomeScreen() {
       const gap = diffDays(pendingEvaluation.date, today);
       const drAfterEvaluation = applyDrChange(drBeforeEvaluation, pendingEvaluation.drDelta);
       const rankAfterEvaluation = getRankFromDR(drAfterEvaluation);
-      const { strongestCategory, weakestCategory } = getStrongestAndWeakestCategories(quests);
-      const categoryStats = buildCategoryStatsFromQuests(quests);
+      const evaluatedQuests = getScheduledQuestsForDate(quests, pendingEvaluation.date);
+      const { strongestCategory, weakestCategory } = getStrongestAndWeakestCategories(evaluatedQuests);
+      const categoryStats = buildCategoryStatsFromQuests(evaluatedQuests);
       const completionRate =
         pendingEvaluation.totalCount > 0
           ? Math.round((pendingEvaluation.completedCount / pendingEvaluation.totalCount) * 100)
@@ -505,7 +596,13 @@ export default function HomeScreen() {
       setLastDrDelta(latestEntry?.delta ?? pendingEvaluation.drDelta);
       setLastCompletionPct(latestEntry?.pct ?? pendingEvaluation.completionPercent);
       setLastDrUpdateDate(today);
-      setQuests((prev) => prev.map((q) => ({ ...q, done: false })));
+      setArchivedQuests((prev) =>
+        [
+          ...getCompletedOneTimeArchives(quests, new Date().toISOString()),
+          ...prev,
+        ].slice(0, 100)
+      );
+      setQuests((prev) => rollQuestsForNewDay(prev));
       setLastResetDate(today);
       setPendingEvaluation(null);
 
@@ -566,7 +663,18 @@ export default function HomeScreen() {
             typeof parsed.lastResetDate === "string" ? parsed.lastResetDate : lastResetDate;
           const savedQuests =
             Array.isArray(parsed.quests) && parsed.quests.length ? parsed.quests : quests;
-          const normalizedSavedQuests = savedQuests.map(normalizeQuest);
+          const normalizedSavedQuests = savedQuests.map((quest) =>
+            normalizeQuestSchedule(
+              {
+                ...quest,
+                difficulty: normalizeDifficulty(quest.difficulty),
+                pinned: Boolean(quest.pinned),
+                contract: Boolean(quest.contract),
+                target: typeof quest.target === "string" ? quest.target : "",
+              },
+              savedResetDate
+            )
+          );
           const savedLastCompletionPct =
             typeof parsed.lastCompletionPct === "number" ? parsed.lastCompletionPct : lastCompletionPct;
           const savedHistory = loadDrHistory(parsed.drHistory);
@@ -588,7 +696,7 @@ export default function HomeScreen() {
       return () => {
         active = false;
       };
-    }, [hydrated, isSavingEvaluation, lastCompletionPct, lastResetDate, normalizeQuest, pendingEvaluation, quests])
+    }, [hydrated, isSavingEvaluation, lastCompletionPct, lastResetDate, normalizeDifficulty, pendingEvaluation, quests])
   );
 
   useEffect(() => {
@@ -613,9 +721,19 @@ export default function HomeScreen() {
     return () => clearInterval(interval);
   }, []);
 
-  const doneCount = useMemo(() => quests.filter((q) => q.done).length, [quests]);
-  const totalQuestCount = quests.length;
-  const contractQuests = useMemo(() => quests.filter((q) => q.contract), [quests]);
+  const todayDateKey = localDateKey();
+  const todaysQuests = useMemo(
+    () => getScheduledQuestsForDate(quests, todayDateKey),
+    [quests, todayDateKey]
+  );
+  const hiddenScheduledQuestCount = quests.length - todaysQuests.length;
+  const doneCount = useMemo(() => todaysQuests.filter((q) => q.done).length, [todaysQuests]);
+  const totalQuestCount = todaysQuests.length;
+  const dayScoreTarget = useMemo(
+    () => getDailyScoringTarget(totalQuestCount, DAILY_STANDARD),
+    [totalQuestCount]
+  );
+  const contractQuests = useMemo(() => todaysQuests.filter((q) => q.contract), [todaysQuests]);
   const contractDoneCount = useMemo(
     () => contractQuests.filter((q) => q.done).length,
     [contractQuests]
@@ -626,10 +744,10 @@ export default function HomeScreen() {
     return `${contractQuests.length - contractDoneCount} promise${contractQuests.length - contractDoneCount === 1 ? "" : "s"} still exposed.`;
   }, [contractDoneCount, contractQuests.length]);
   const dayScorePercent = useMemo(
-    () => (totalQuestCount > 0 ? Math.round((doneCount / totalQuestCount) * 100) : 0),
-    [doneCount, totalQuestCount]
+    () => getCompletionPercent(doneCount, dayScoreTarget),
+    [dayScoreTarget, doneCount]
   );
-  const planSummary = useMemo(() => buildPlanSummary(quests), [quests]);
+  const planSummary = useMemo(() => buildPlanSummary(todaysQuests), [todaysQuests]);
   const streakSummary = useMemo(() => buildStreakSummary(drHistory), [drHistory]);
   const rankName = useMemo(() => getRankFromDR(disciplineRating), [disciplineRating]);
   const rankLabel = rankName.toUpperCase();
@@ -668,7 +786,7 @@ export default function HomeScreen() {
 
   const sortedQuests = useMemo(
     () =>
-      [...quests].sort((a, b) => {
+      [...todaysQuests].sort((a, b) => {
         if (a.done !== b.done) return Number(a.done) - Number(b.done);
         if (a.contract !== b.contract) return a.contract ? -1 : 1;
         if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
@@ -678,10 +796,14 @@ export default function HomeScreen() {
         }
         return 0;
       }),
-    [quests]
+    [todaysQuests]
   );
 
   const nextMove = useMemo(() => sortedQuests.find((quest) => !quest.done) ?? null, [sortedQuests]);
+  const nextMoveArt = useMemo(
+    () => (nextMove ? getCategoryArtById(nextMove.categoryId) : null),
+    [nextMove]
+  );
   const nextMoveReason = useMemo(() => {
     if (!nextMove) return "All quests cleared. Hold the line until midnight.";
     if (nextMove.contract) return "Contract quest. Protect this before anything else.";
@@ -701,6 +823,10 @@ export default function HomeScreen() {
     () => availableQuestTemplates.slice(0, FAST_TEMPLATE_VISIBLE_COUNT),
     [availableQuestTemplates]
   );
+  const nextDayPlan = useMemo(
+    () => buildNextDayPlan(getScheduledQuestsForDate(rollQuestsForNewDay(quests), todayDateKey), drHistory),
+    [drHistory, quests, todayDateKey]
+  );
 
   const completeQuest = (questId: string) => {
     const quest = quests.find((q) => q.id === questId);
@@ -709,8 +835,7 @@ export default function HomeScreen() {
     // Add haptic feedback
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    const difficultyMultiplier = getDifficultyMultiplier(quest.difficulty);
-    const xpAwarded = Math.floor(quest.xp * difficultyMultiplier);
+    const xpAwarded = quest.xp;
 
     const updatedQuests = quests.map((q) =>
       q.id === questId ? { ...q, done: true } : q
@@ -719,14 +844,28 @@ export default function HomeScreen() {
     const updatedCategories = categories.map((c) =>
       c.id === quest.categoryId ? levelUp({ ...c, xp: c.xp + xpAwarded }) : c
     );
+    const nextLifetimeCompletedCount = lifetimeCompletedQuestCount + 1;
 
     setQuests(updatedQuests);
     setCategories(updatedCategories);
-    checkAchievements(updatedQuests, updatedCategories);
+    setLifetimeCompletedQuestCount(nextLifetimeCompletedCount);
+    checkAchievements(updatedQuests, updatedCategories, nextLifetimeCompletedCount);
     setOpenQuestId(null);
   };
 
   const deleteQuest = (questId: string) => {
+    const quest = quests.find((q) => q.id === questId);
+    if (quest) {
+      setArchivedQuests((prev) =>
+        [
+          {
+            ...quest,
+            archivedAt: new Date().toISOString(),
+          },
+          ...prev,
+        ].slice(0, 100)
+      );
+    }
     setQuests((prev) => prev.filter((q) => q.id !== questId));
     setOpenQuestId((prev) => (prev === questId ? null : prev));
   };
@@ -735,15 +874,29 @@ export default function HomeScreen() {
     questId: string,
     title: string,
     categoryId: string,
-    xp: number,
     difficulty: "easy" | "medium" | "hard",
-    target: string
+    target: string,
+    repeat: QuestRepeat,
+    scheduledWeekday?: number
   ) => {
     const safeDifficulty = normalizeDifficulty(difficulty);
+    const safeRepeat = normalizeQuestRepeat(repeat);
     setQuests((prev) =>
       prev.map((q) =>
         q.id === questId
-          ? { ...q, title, categoryId, xp, difficulty: safeDifficulty, target }
+          ? {
+              ...q,
+              title,
+              categoryId,
+              xp: getQuestXpForDifficulty(safeDifficulty),
+              difficulty: safeDifficulty,
+              target,
+              repeat: safeRepeat,
+              scheduledWeekday:
+                safeRepeat === "weekly"
+                  ? normalizeScheduledWeekday(scheduledWeekday, getTodayWeekday())
+                  : undefined,
+            }
           : q
       )
     );
@@ -752,8 +905,23 @@ export default function HomeScreen() {
   };
 
   const resetToday = () => {
-    setQuests((prev) => prev.map((q) => ({ ...q, done: false })));
+    setQuests((prev) =>
+      prev.map((q) =>
+        isQuestScheduledForDate(q, localDateKey()) ? { ...q, done: false } : q
+      )
+    );
     setLastResetDate(localDateKey());
+  };
+
+  const confirmResetToday = () => {
+    Alert.alert(
+      "Reset today's completions?",
+      "Completed quests will be marked open again. Your DR history stays intact.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Reset", style: "destructive", onPress: resetToday },
+      ]
+    );
   };
 
   const togglePin = (questId: string) => {
@@ -801,6 +969,8 @@ export default function HomeScreen() {
     setLastCompletionPct(defaultLastCompletionPct);
     setLastDrUpdateDate(defaultLastDrUpdateDate);
     setDrHistory(defaultDrHistory);
+    setLifetimeCompletedQuestCount(0);
+    setArchivedQuests([]);
     setPendingEvaluation(null);
     setIsSavingEvaluation(false);
 
@@ -809,8 +979,9 @@ export default function HomeScreen() {
     setOpenQuestId(null);
     setNewTitle("");
     setNewCategory("health");
-    setNewXP("10");
     setNewDifficulty("easy");
+    setNewRepeat("daily");
+    setNewScheduledWeekday(getTodayWeekday());
     setLastResetDate(localDateKey());
 
     // Save reset state to AsyncStorage
@@ -828,6 +999,8 @@ export default function HomeScreen() {
           lastCompletionPct: defaultLastCompletionPct,
           lastDrUpdateDate: defaultLastDrUpdateDate,
           drHistory: defaultDrHistory,
+          lifetimeCompletedQuestCount: 0,
+          archivedQuests: [],
           lastResetDate: localDateKey(),
         })
       );
@@ -840,19 +1013,22 @@ export default function HomeScreen() {
     const title = newTitle.trim();
     if (!title) return;
 
-    const xpNum = Number(newXP);
-    const safeXP = Number.isFinite(xpNum) && xpNum > 0 ? Math.floor(xpNum) : 10;
-
     const safeDifficulty = normalizeDifficulty(newDifficulty);
+    const safeRepeat = normalizeQuestRepeat(newRepeat);
     setQuests((prev) => [
       ...prev,
       {
         id: "q" + Date.now(),
         title,
         categoryId: newCategory,
-        xp: safeXP,
+        xp: getQuestXpForDifficulty(safeDifficulty),
         target: "",
         difficulty: safeDifficulty,
+        repeat: safeRepeat,
+        scheduledWeekday:
+          safeRepeat === "weekly"
+            ? normalizeScheduledWeekday(newScheduledWeekday, getTodayWeekday())
+            : undefined,
         done: false,
         pinned: false,
         contract: false,
@@ -860,9 +1036,21 @@ export default function HomeScreen() {
     ]);
 
     setNewTitle("");
-    setNewXP("10");
     setNewDifficulty("easy");
+    setNewRepeat("daily");
+    setNewScheduledWeekday(getTodayWeekday());
     setShowAdd(false);
+  };
+
+  const confirmResetDemo = () => {
+    Alert.alert(
+      "Reset all demo data?",
+      "This clears quests, ranks, achievements, and evaluation history on this device.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Reset Demo", style: "destructive", onPress: resetDemo },
+      ]
+    );
   };
 
   const addQuestFromTemplate = (templateId: string) => {
@@ -879,6 +1067,7 @@ export default function HomeScreen() {
 
       const activeContracts = prev.filter((quest) => quest.contract).length;
       const shouldContract = Boolean(template.contract) && activeContracts < 3;
+      const repeat = normalizeQuestRepeat(template.repeat);
 
       return [
         ...prev,
@@ -886,9 +1075,14 @@ export default function HomeScreen() {
           id: `q${Date.now()}-${template.id}`,
           title: template.title,
           categoryId: template.categoryId,
-          xp: template.xp,
+          xp: getQuestXpForDifficulty(template.difficulty),
           target: template.target,
           difficulty: template.difficulty,
+          repeat,
+          scheduledWeekday:
+            repeat === "weekly"
+              ? normalizeScheduledWeekday(template.scheduledWeekday, getTodayWeekday())
+              : undefined,
           done: false,
           pinned: shouldContract,
           contract: shouldContract,
@@ -902,6 +1096,7 @@ export default function HomeScreen() {
       <MidnightEvaluationModal
         evaluation={pendingEvaluation}
         currentRank={rankName}
+        nextDayPlan={nextDayPlan}
         isSaving={isSavingEvaluation}
         onStartNewDay={commitMidnightEvaluation}
       />
@@ -917,6 +1112,8 @@ export default function HomeScreen() {
               <Pressable
                 style={styles.homeTitleWrap}
                 onLongPress={() => __DEV__ && setShowDevActions((prev) => !prev)}
+                accessibilityRole="button"
+                accessibilityLabel="Midnight performance log"
               >
                 <View style={styles.brandTitleRow}>
                   <MoonMark size={16} color={colors.accentPrimary} cutoutColor={colors.bg} />
@@ -924,9 +1121,9 @@ export default function HomeScreen() {
                 </View>
                 <Text style={styles.homeSubtitle}>Performance Log</Text>
               </Pressable>
-              <Pressable style={styles.homeMetaPill} onPress={() => undefined} hitSlop={8}>
+              <View style={styles.homeMetaPill}>
                 <Text style={styles.homeMetaText}>Daily Run</Text>
-              </Pressable>
+              </View>
             </View>
 
             <View style={styles.missionHero}>
@@ -950,7 +1147,7 @@ export default function HomeScreen() {
                   <DayScoreRing
                     completionPercent={dayScorePercent}
                     completedCount={doneCount}
-                    totalCount={totalQuestCount}
+                    totalCount={dayScoreTarget}
                     colors={colors}
                   />
                 </View>
@@ -1006,11 +1203,16 @@ export default function HomeScreen() {
 
             <View style={styles.contractPanel}>
                 <View style={styles.contractHeaderRow}>
-                  <View>
-                    <Text style={styles.contractEyebrow}>Midnight Contract</Text>
-                    <Text style={styles.contractTitle}>
-                      {contractDoneCount} / {contractQuests.length || 3} protected
-                    </Text>
+                  <View style={styles.contractTitleRow}>
+                    <View style={styles.contractArtBadge}>
+                      <Text style={styles.contractArtGlyph}>🛡</Text>
+                    </View>
+                    <View>
+                      <Text style={styles.contractEyebrow}>Midnight Contract</Text>
+                      <Text style={styles.contractTitle}>
+                        {contractDoneCount} / {contractQuests.length || 3} protected
+                      </Text>
+                    </View>
                   </View>
                   <View style={styles.contractCounterPill}>
                     <Text style={styles.contractCounterText}>{contractQuests.length}/3</Text>
@@ -1032,9 +1234,14 @@ export default function HomeScreen() {
 
               <View style={styles.morningPlanPanel}>
                 <View style={styles.morningPlanHeader}>
-                  <View>
-                    <Text style={styles.contractEyebrow}>Morning Plan</Text>
-                    <Text style={styles.morningPlanTitle}>{planSummary.title}</Text>
+                  <View style={styles.morningPlanTitleRow}>
+                    <View style={styles.morningPlanArtBadge}>
+                      <Text style={styles.morningPlanArtGlyph}>📋</Text>
+                    </View>
+                    <View style={styles.morningPlanTitleText}>
+                      <Text style={styles.contractEyebrow}>Morning Plan</Text>
+                      <Text style={styles.morningPlanTitle}>{planSummary.title}</Text>
+                    </View>
                   </View>
                   <View style={styles.morningPlanDeltaPill}>
                     <Text style={styles.morningPlanDeltaLabel}>Now</Text>
@@ -1065,10 +1272,20 @@ export default function HomeScreen() {
 
             {__DEV__ && showDevActions ? (
               <View style={styles.devActionRow}>
-                <Pressable style={styles.devActionChip} onPress={resetToday}>
+                <Pressable
+                  style={styles.devActionChip}
+                  onPress={confirmResetToday}
+                  accessibilityRole="button"
+                  accessibilityLabel="Reset today's quest completions"
+                >
                   <Text style={styles.devActionText}>Reset Today</Text>
                 </Pressable>
-                <Pressable style={styles.devActionChip} onPress={resetDemo}>
+                <Pressable
+                  style={styles.devActionChip}
+                  onPress={confirmResetDemo}
+                  accessibilityRole="button"
+                  accessibilityLabel="Reset all demo data"
+                >
                   <Text style={styles.devActionText}>Reset Demo</Text>
                 </Pressable>
               </View>
@@ -1079,25 +1296,57 @@ export default function HomeScreen() {
             <View style={styles.dailyHeaderCard}>
               <View style={styles.sectionRow}>
                 <Text style={[styles.sectionSecondary, { marginBottom: 0 }]}>Quest Queue</Text>
-                <Pressable onPress={() => setShowAdd((s) => !s)}>
+                <Pressable
+                  onPress={() => setShowAdd((s) => !s)}
+                  accessibilityRole="button"
+                  accessibilityLabel={showAdd ? "Cancel adding quest" : "Add a new quest"}
+                >
                   <Text style={[styles.link, { color: colors.accentPrimary }]}>{showAdd ? "Cancel" : "+ Add"}</Text>
                 </Pressable>
               </View>
               <Text style={styles.sectionSubtext}>
                 Contracts first. Then pinned priorities. Then everything else.
               </Text>
+              {hiddenScheduledQuestCount > 0 ? (
+                <Text style={styles.sectionSubtext}>
+                  {hiddenScheduledQuestCount} quest{hiddenScheduledQuestCount === 1 ? "" : "s"} scheduled for another day.
+                </Text>
+              ) : null}
             </View>
 
             <View style={styles.nextMoveCard}>
               <View style={styles.nextMoveTopRow}>
-                <View>
-                  <Text style={styles.nextMoveEyebrow}>Next Move</Text>
-                  <Text style={styles.nextMoveTitle} numberOfLines={2}>
-                    {nextMove ? nextMove.title : "Run complete"}
-                  </Text>
+                <View style={styles.nextMoveIdentity}>
+                  <View
+                    style={[
+                      styles.nextMoveArtBadge,
+                      nextMoveArt
+                        ? {
+                            backgroundColor: withAlpha(nextMoveArt.color, 0.12),
+                            borderColor: withAlpha(nextMoveArt.color, 0.32),
+                          }
+                        : {
+                            backgroundColor: withAlpha(colors.accentPrimary, 0.12),
+                            borderColor: withAlpha(colors.accentPrimary, 0.32),
+                          },
+                    ]}
+                  >
+                    <Text style={styles.nextMoveArtGlyph}>{nextMoveArt?.glyph ?? "✓"}</Text>
+                  </View>
+                  <View style={styles.nextMoveTextWrap}>
+                    <Text style={styles.nextMoveEyebrow}>Next Move</Text>
+                    <Text style={styles.nextMoveTitle} numberOfLines={2}>
+                      {nextMove ? nextMove.title : "Run complete"}
+                    </Text>
+                  </View>
                 </View>
                 {nextMove ? (
-                  <Pressable style={styles.nextMoveButton} onPress={() => completeQuest(nextMove.id)}>
+                  <Pressable
+                    style={styles.nextMoveButton}
+                    onPress={() => completeQuest(nextMove.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Complete next move: ${nextMove.title}`}
+                  >
                     <Text style={styles.nextMoveButtonText}>Complete</Text>
                   </Pressable>
                 ) : (
@@ -1108,12 +1357,13 @@ export default function HomeScreen() {
               </View>
               {nextMove?.contract ? (
                 <View style={styles.nextMoveBadge}>
+                  <Text style={styles.nextMoveBadgeArt}>🛡</Text>
                   <Text style={styles.nextMoveBadgeText}>Contract Target</Text>
                 </View>
               ) : null}
               <Text style={styles.nextMoveMeta}>
                 {nextMove
-                  ? `${categoryName(nextMove.categoryId)} - ${nextMove.difficulty.toUpperCase()} - ${nextMove.xp} XP`
+                  ? `${categoryName(nextMove.categoryId)} - ${nextMove.difficulty.toUpperCase()} - ${nextMove.xp} XP - ${getQuestRepeatLabel(nextMove)}`
                   : "No exposed quests remain."}
               </Text>
               <Text style={styles.nextMoveReason}>{nextMoveReason}</Text>
@@ -1130,20 +1380,43 @@ export default function HomeScreen() {
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.templateRail}
                 >
-                  {displayedFastTemplates.map((template) => (
-                    <Pressable
-                      key={template.id}
-                      style={styles.templateChip}
-                      onPress={() => addQuestFromTemplate(template.id)}
-                    >
-                      <Text style={styles.templateTitle} numberOfLines={2}>
-                        {template.title}
-                      </Text>
-                      <Text style={styles.templateMeta} numberOfLines={1}>
-                        {categoryName(template.categoryId)} - {template.xp} XP
-                      </Text>
-                    </Pressable>
-                  ))}
+                  {displayedFastTemplates.map((template) => {
+                    const templateArt = getCategoryArtById(template.categoryId);
+                    return (
+                      <Pressable
+                        key={template.id}
+                        style={styles.templateChip}
+                        onPress={() => addQuestFromTemplate(template.id)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Add quest template: ${template.title}`}
+                      >
+                        <View style={styles.templateTopRow}>
+                          <View
+                            style={[
+                              styles.templateArtBadge,
+                              {
+                                backgroundColor: withAlpha(templateArt.color, 0.11),
+                                borderColor: withAlpha(templateArt.color, 0.28),
+                              },
+                            ]}
+                          >
+                            <Text style={styles.templateArtGlyph}>{templateArt.glyph}</Text>
+                          </View>
+                          {template.contract ? (
+                            <View style={styles.templateContractMark}>
+                              <Text style={styles.templateContractGlyph}>🛡</Text>
+                            </View>
+                          ) : null}
+                        </View>
+                        <Text style={styles.templateTitle} numberOfLines={2}>
+                          {template.title}
+                        </Text>
+                        <Text style={styles.templateMeta} numberOfLines={1}>
+                          {categoryName(template.categoryId)} - {template.xp} XP
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
                 </ScrollView>
               </View>
             ) : null}
@@ -1154,12 +1427,14 @@ export default function HomeScreen() {
                 categories={categories}
                 newTitle={newTitle}
                 newCategory={newCategory}
-                newXP={newXP}
                 newDifficulty={newDifficulty}
+                newRepeat={newRepeat}
+                newScheduledWeekday={newScheduledWeekday}
                 onTitleChange={setNewTitle}
                 onCategoryChange={setNewCategory}
-                onXPChange={setNewXP}
                 onDifficultyChange={setNewDifficulty}
+                onRepeatChange={setNewRepeat}
+                onScheduledWeekdayChange={setNewScheduledWeekday}
                 onAdd={addQuest}
               />
             )}
@@ -1175,7 +1450,23 @@ export default function HomeScreen() {
 
             {/* QUEST LIST */}
             <View style={styles.list}>
-              {sortedQuests.map((q) => (
+              {sortedQuests.length === 0 ? (
+                <View style={styles.emptyQuestCard}>
+                  <Text style={styles.emptyQuestTitle}>No quests queued</Text>
+                  <Text style={styles.emptyQuestText}>
+                    Add one small action so the day has something concrete to judge.
+                  </Text>
+                  <Pressable
+                    style={styles.emptyQuestButton}
+                    onPress={() => setShowAdd(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Add your first quest"
+                  >
+                    <Text style={styles.emptyQuestButtonText}>Add Quest</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                sortedQuests.map((q) => (
                   <QuestCard
                     key={q.id}
                     quest={q}
@@ -1191,7 +1482,8 @@ export default function HomeScreen() {
                     onContract={toggleContract}
                     onDelete={deleteQuest}
                   />
-                ))}
+                ))
+              )}
             </View>
             <View style={styles.homeHintCard}>
               <Text style={styles.homeHintText}>

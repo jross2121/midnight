@@ -2,101 +2,138 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { DisciplineCalendar, type DisciplineCalendarDay } from "./_components/DisciplineCalendar";
-import { DisciplinePatterns } from "./_components/DisciplinePatterns";
-import { RankBadge } from "./_components/RankBadge";
-import { getMainCategoryDisplayEntries } from "./_utils/categoryLabels";
+
 import {
-    defaultCategories,
-    defaultDisciplineRating,
-    defaultQuests,
+  defaultAchievements,
+  defaultCategories,
+  defaultDisciplineRating,
+  defaultDrHistory,
+  defaultQuests,
 } from "./_utils/defaultData";
+import { localDateKey } from "./_utils/dateHelpers";
 import { createCardSurface, createTileSurface, ui, withAlpha } from "./_utils/designSystem";
-import {
-    buildCalendarFromHistory,
-    buildInsightOfTheDay,
-    getAverageCompletionRate,
-    getCurrentRankFromHistory,
-    getLatestCategoriesFromHistory,
-    getLatestHistoryEntries,
-    getSevenDayDrChange,
-    getTrendPointsFromHistory,
-    sortEvaluationHistory,
-} from "./_utils/evaluationAnalytics";
-import { readEvaluationHistory, type DailyEvaluationHistoryItem } from "./_utils/evaluationHistory";
-import { getRankFromDR } from "./_utils/rank";
-import { useTheme } from "./_utils/themeContext";
-import type { Category, Quest, StoredState } from "./_utils/types";
+import { buildStreakSummary } from "./_utils/planning";
+import { getScheduledQuestsForDate } from "./_utils/recurrence";
+import { getRankFromDR, getRankMeta } from "./_utils/rank";
+import { useTheme, type ThemeColors } from "./_utils/themeContext";
+import type { Achievement, Category, DrHistoryEntry, Quest, StoredState } from "./_utils/types";
 import { STORAGE_KEY } from "./_utils/types";
 
-const MAIN_CATEGORIES = getMainCategoryDisplayEntries();
-
-type CategoryInsight = {
-  id: string;
+type AchievementProgress = {
+  current: number;
+  target: number;
   label: string;
-  completionPct: number;
-  completed: number;
-  total: number;
 };
-function formatWeekChange(delta: number, hasSufficientHistory: boolean): string {
-  if (!hasSufficientHistory) return "Need 2+ evaluations";
-  if (delta > 0) return `+${delta} vs 7d ago`;
-  if (delta < 0) return `${delta} vs 7d ago`;
-  return "No change in 7d";
-}
 
-function buildCompactInsight({
-  averageCompletionRate,
-  hasHistory,
-  weekDelta,
-}: {
-  averageCompletionRate: number;
-  hasHistory: boolean;
-  weekDelta: number;
-}): string {
-  if (!hasHistory) return "Signal is building. Win one priority quest to set the baseline.";
-  if (weekDelta > 0) return "Momentum is rising. Protect it with one clean win.";
-  if (weekDelta < 0) return "Pressure is up. Shrink the plan and secure one must-do quest.";
-  if (averageCompletionRate >= 80) return "Steady trend. One more quest can push momentum up.";
-  if (averageCompletionRate >= 50) return "Stable base. Pick one anchor quest to lift the trend.";
-  return "Low signal. Start with the smallest quest that still counts.";
-}
-
-function MiniTrendChart({
-  points,
-  chartWrapStyle,
-  chartBarStyle,
-}: {
-  points: number[];
-  chartWrapStyle: object;
-  chartBarStyle: object;
-}) {
-  const min = Math.min(...points);
-  const max = Math.max(...points);
-  const range = Math.max(1, max - min);
-
+function isAchievement(value: unknown): value is Achievement {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Partial<Achievement>;
   return (
-    <View style={chartWrapStyle}>
-      {points.map((value, idx) => {
-        const normalized = (value - min) / range;
-        const height = 10 + normalized * 36;
-        return <View key={`trend-${idx}`} style={[chartBarStyle, { height }]} />;
-      })}
-    </View>
+    typeof candidate.id === "string" &&
+    typeof candidate.name === "string" &&
+    typeof candidate.description === "string" &&
+    typeof candidate.icon === "string" &&
+    (typeof candidate.unlockedAt === "string" || candidate.unlockedAt === null)
   );
 }
 
-export default function InsightsScreen() {
+function mergeAchievements(saved: unknown): Achievement[] {
+  if (!Array.isArray(saved)) return defaultAchievements;
+  const savedById = new Map(saved.filter(isAchievement).map((item) => [item.id, item]));
+
+  return defaultAchievements.map((achievement) => ({
+    ...achievement,
+    unlockedAt: savedById.get(achievement.id)?.unlockedAt ?? achievement.unlockedAt,
+  }));
+}
+
+function formatDate(isoString: string): string {
+  return new Date(isoString).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function clampProgress(current: number, target: number): AchievementProgress {
+  const safeTarget = Math.max(1, Math.floor(target));
+  const safeCurrent = Math.max(0, Math.min(safeTarget, Math.floor(current)));
+  return {
+    current: safeCurrent,
+    target: safeTarget,
+    label: `${safeCurrent}/${safeTarget}`,
+  };
+}
+
+function getTodayXp(todaysQuests: Quest[]): number {
+  return todaysQuests
+    .filter((quest) => quest.done)
+    .reduce((sum, quest) => sum + quest.xp, 0);
+}
+
+function getAchievementProgress({
+  achievement,
+  categories,
+  quests,
+  drHistory,
+  disciplineRating,
+  lifetimeCompletedQuestCount,
+}: {
+  achievement: Achievement;
+  categories: Category[];
+  quests: Quest[];
+  drHistory: DrHistoryEntry[];
+  disciplineRating: number;
+  lifetimeCompletedQuestCount: number;
+}): AchievementProgress {
+  const todaysQuests = getScheduledQuestsForDate(quests, localDateKey());
+  const doneQuests = todaysQuests.filter((quest) => quest.done);
+  const contractQuests = todaysQuests.filter((quest) => quest.contract);
+  const completedContracts = contractQuests.filter((quest) => quest.done).length;
+  const streakSummary = buildStreakSummary(drHistory);
+
+  switch (achievement.id) {
+    case "first_quest":
+      return clampProgress(lifetimeCompletedQuestCount, 1);
+    case "level_5":
+      return clampProgress(Math.max(...categories.map((category) => category.level), 0), 5);
+    case "hard_mode":
+      return clampProgress(doneQuests.some((quest) => quest.difficulty === "hard") ? 1 : 0, 1);
+    case "100_xp":
+      return clampProgress(getTodayXp(todaysQuests), 100);
+    case "all_categories":
+      return clampProgress(
+        categories.filter((category) => category.level >= 3).length,
+        categories.length || 1
+      );
+    case "perfect_day":
+      return clampProgress(doneQuests.length, Math.max(1, todaysQuests.length));
+    case "30_quests":
+      return clampProgress(lifetimeCompletedQuestCount, 30);
+    case "first_contract":
+      return clampProgress(completedContracts, Math.max(1, contractQuests.length));
+    case "three_solid_days":
+      return clampProgress(streakSummary.solidDayStreak, 3);
+    case "comeback_day":
+      return clampProgress(drHistory.some((entry) => (entry.comebackBonus ?? 0) > 0) ? 1 : 0, 1);
+    case "rank_climber":
+      return clampProgress(getRankMeta(getRankFromDR(disciplineRating)).tier, 2);
+    default:
+      return clampProgress(achievement.unlockedAt ? 1 : 0, 1);
+  }
+}
+
+export default function AchievementsScreen() {
   const { colors } = useTheme();
-  const styles = useMemo(() => createInsightsStyles(colors), [colors]);
-  const [disciplineRating, setDisciplineRating] = useState<number>(defaultDisciplineRating);
-  const [evaluationHistory, setEvaluationHistory] = useState<DailyEvaluationHistoryItem[]>([]);
+  const styles = useMemo(() => createAchievementStyles(colors), [colors]);
+  const [achievements, setAchievements] = useState<Achievement[]>(defaultAchievements);
   const [categories, setCategories] = useState<Category[]>(defaultCategories);
   const [quests, setQuests] = useState<Quest[]>(defaultQuests);
+  const [drHistory, setDrHistory] = useState<DrHistoryEntry[]>(defaultDrHistory);
+  const [disciplineRating, setDisciplineRating] = useState(defaultDisciplineRating);
+  const [lifetimeCompletedQuestCount, setLifetimeCompletedQuestCount] = useState(0);
   const [hydrated, setHydrated] = useState(false);
-  const [readoutExpanded, setReadoutExpanded] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -107,23 +144,26 @@ export default function InsightsScreen() {
       }
 
       const parsed = JSON.parse(raw) as Partial<StoredState>;
-      setDisciplineRating(
-        typeof parsed.disciplineRating === "number"
-          ? parsed.disciplineRating
-          : defaultDisciplineRating
-      );
+      setAchievements(mergeAchievements(parsed.achievements));
       setCategories(
         Array.isArray(parsed.categories) && parsed.categories.length
           ? parsed.categories
           : defaultCategories
       );
-      setQuests(
-        Array.isArray(parsed.quests) && parsed.quests.length ? parsed.quests : defaultQuests
+      setQuests(Array.isArray(parsed.quests) ? parsed.quests : defaultQuests);
+      setDrHistory(Array.isArray(parsed.drHistory) ? parsed.drHistory : defaultDrHistory);
+      setDisciplineRating(
+        typeof parsed.disciplineRating === "number"
+          ? parsed.disciplineRating
+          : defaultDisciplineRating
       );
-      const loadedHistory = await readEvaluationHistory();
-      setEvaluationHistory(sortEvaluationHistory(loadedHistory));
-    } catch (e) {
-      console.log("Failed to load storage:", e);
+      setLifetimeCompletedQuestCount(
+        typeof parsed.lifetimeCompletedQuestCount === "number"
+          ? Math.max(0, Math.floor(parsed.lifetimeCompletedQuestCount))
+          : 0
+      );
+    } catch (error) {
+      console.log("Failed to load achievements:", error);
     } finally {
       setHydrated(true);
     }
@@ -135,281 +175,136 @@ export default function InsightsScreen() {
     }, [loadData])
   );
 
-  if (!hydrated) {
-    return null;
-  }
-
-  const categoryBreakdown = MAIN_CATEGORIES.map((entry) => {
-    const relatedQuests = quests.filter((quest) => quest.categoryId === entry.id);
-    const doneCount = relatedQuests.filter((quest) => quest.done).length;
-    const category = categories.find((item) => item.id === entry.id);
-    const fallbackFromLevel = category
-      ? Math.max(0, Math.min(100, Math.round((category.xp / Math.max(1, category.xpToNext)) * 100)))
-      : 0;
-    const completionPct =
-      relatedQuests.length > 0 ? Math.round((doneCount / relatedQuests.length) * 100) : fallbackFromLevel;
-
-    return {
-      id: entry.id,
-      label: entry.label,
-      completionPct,
-      completed: doneCount,
-      total: relatedQuests.length,
-    } as CategoryInsight;
-  }).sort((a, b) => b.completionPct - a.completionPct);
-
-  const latest7History = getLatestHistoryEntries(evaluationHistory, 7);
-  const trendPointsRaw = getTrendPointsFromHistory(evaluationHistory, 7);
-  const trendPoints =
-    trendPointsRaw.length === 1 ? [trendPointsRaw[0], trendPointsRaw[0]] : trendPointsRaw;
-  const disciplineCalendarDays: DisciplineCalendarDay[] = buildCalendarFromHistory(
-    evaluationHistory,
-    30
+  const enrichedAchievements = useMemo(
+    () =>
+      achievements.map((achievement) => {
+        const progress = getAchievementProgress({
+          achievement,
+          categories,
+          quests,
+          drHistory,
+          disciplineRating,
+          lifetimeCompletedQuestCount,
+        });
+        const pct = achievement.unlockedAt
+          ? 100
+          : Math.round((progress.current / progress.target) * 100);
+        return { achievement, progress, pct };
+      }),
+    [achievements, categories, disciplineRating, drHistory, lifetimeCompletedQuestCount, quests]
   );
-  const hasHistory = evaluationHistory.length > 0;
-  const hasSufficientTrend = latest7History.length >= 2;
-  const weekDelta = getSevenDayDrChange(evaluationHistory);
-  const trendLabelTone = weekDelta > 0 ? colors.positive : weekDelta < 0 ? colors.negative : colors.textSecondary;
-  const insightMessage = buildInsightOfTheDay(evaluationHistory);
-  const averageCompletionRate = getAverageCompletionRate(evaluationHistory);
-  const compactInsightMessage = buildCompactInsight({
-    averageCompletionRate,
-    hasHistory,
-    weekDelta,
-  });
-  const categoryFromHistory = getLatestCategoriesFromHistory(evaluationHistory);
-  const strongestCategory = categoryFromHistory.strongestCategory ?? categoryBreakdown[0]?.label ?? "N/A";
-  const weakestCategory =
-    categoryFromHistory.weakestCategory ??
-    categoryBreakdown[categoryBreakdown.length - 1]?.label ??
-    "N/A";
-  const currentRank = getCurrentRankFromHistory(evaluationHistory) ?? getRankFromDR(disciplineRating);
-  const currentDrValue = latest7History[latest7History.length - 1]?.drAfter ?? disciplineRating;
-  const rankForBadge = getRankFromDR(currentDrValue);
-  const completedToday = quests.filter((quest) => quest.done).length;
-  const totalToday = quests.length;
-  const todayRate = totalToday > 0 ? Math.round((completedToday / totalToday) * 100) : 0;
-  const bestCategory = categoryBreakdown[0];
-  const riskCategory = categoryBreakdown[categoryBreakdown.length - 1];
-  const latestEvaluation = latest7History[latest7History.length - 1] ?? null;
-  const latestCompletion = latestEvaluation?.completionRate ?? todayRate;
-  const recoverySignal =
-    latest7History.length >= 3
-      ? latest7History
-          .slice(-3)
-          .filter((entry) => entry.completionRate >= averageCompletionRate).length
-      : 0;
+
+  if (!hydrated) return null;
+
+  const unlockedCount = achievements.filter((achievement) => achievement.unlockedAt).length;
+  const totalCount = achievements.length;
+  const progressPercent = totalCount > 0 ? Math.round((unlockedCount / totalCount) * 100) : 0;
+  const nextUnlocks = enrichedAchievements
+    .filter((item) => !item.achievement.unlockedAt)
+    .sort((a, b) => b.pct - a.pct)
+    .slice(0, 3);
 
   return (
     <SafeAreaView edges={["top"]} style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.headerRow}>
+        <View style={styles.pageHeader}>
           <View style={styles.headerIcon}>
-            <IconSymbol name="chart.bar.fill" size={18} color={colors.accentPrimary} />
+            <IconSymbol name="trophy.fill" size={18} color={colors.accentPrimary} />
           </View>
           <View style={styles.headerCopy}>
-            <Text style={styles.title}>Insight Matrix</Text>
-            <Text style={styles.subtitle}>Patterns, pressure points, and execution signals</Text>
+            <Text style={styles.title}>Awards</Text>
+            <Text style={styles.subtitle}>Milestones, streak marks, and earned proof</Text>
           </View>
         </View>
 
-        <View style={styles.commandPanel}>
-          <View style={styles.commandTopRow}>
-            <View style={styles.rankSlot}>
-              <RankBadge rank={rankForBadge} size={42} active />
-            </View>
-            <View style={styles.commandCopy}>
-              <View style={styles.commandEyebrowRow}>
-                <Text style={styles.eyebrow}>Pattern Readout</Text>
-                <Pressable
-                  onPress={() => setReadoutExpanded((current) => !current)}
-                  style={({ pressed }) => [styles.detailsButton, pressed && styles.detailsButtonPressed]}
-                >
-                  <Text style={styles.detailsButtonText}>{readoutExpanded ? "Hide" : "Details"}</Text>
-                </Pressable>
-              </View>
-              <Text style={styles.commandTitle}>{compactInsightMessage}</Text>
-            </View>
-          </View>
-
-          {readoutExpanded ? (
-            <Text style={styles.commandDetails}>{insightMessage}</Text>
-          ) : null}
-
-          <View style={styles.commandDivider} />
-
-          <View style={styles.commandMetrics}>
-            <View style={styles.commandMetricPrimary}>
-              <Text style={styles.commandMetricValue}>{currentDrValue}</Text>
-              <Text style={styles.commandMetricLabel}>Current DR</Text>
-            </View>
-            <View style={styles.commandMetric}>
-              <Text style={styles.commandMetricValue}>{averageCompletionRate}%</Text>
-              <Text style={styles.commandMetricLabel}>30D Avg</Text>
-            </View>
-            <View style={styles.commandMetric}>
-              <Text style={[styles.commandMetricValue, { color: trendLabelTone }]}>
-                {weekDelta > 0 ? `+${weekDelta}` : weekDelta}
-              </Text>
-              <Text style={styles.commandMetricLabel}>7D DR</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.signalMap}>
-          <View style={styles.signalCard}>
-            <Text style={styles.signalLabel}>Strong Zone</Text>
-            <Text style={styles.signalValue} numberOfLines={1}>{strongestCategory}</Text>
-            <Text style={styles.signalMeta}>
-              {bestCategory ? `${bestCategory.completionPct}% current follow-through` : "Awaiting data"}
-            </Text>
-          </View>
-          <View style={styles.signalCard}>
-            <Text style={styles.signalLabel}>Pressure Zone</Text>
-            <Text style={styles.signalValue} numberOfLines={1}>{weakestCategory}</Text>
-            <Text style={styles.signalMeta}>
-              {riskCategory ? `${riskCategory.completionPct}% current follow-through` : "Awaiting data"}
-            </Text>
-          </View>
-          <View style={styles.signalCard}>
-            <Text style={styles.signalLabel}>Today</Text>
-            <Text style={styles.signalValue}>{todayRate}%</Text>
-            <Text style={styles.signalMeta}>{completedToday}/{totalToday} quests complete</Text>
-          </View>
-          <View style={styles.signalCard}>
-            <Text style={styles.signalLabel}>Recovery</Text>
-            <Text style={styles.signalValue}>{recoverySignal}/3</Text>
-            <Text style={styles.signalMeta}>recent days above baseline</Text>
-          </View>
-        </View>
-
-        <View style={styles.trendPanel}>
-          <View style={styles.cardHeaderRow}>
+        <View style={styles.heroPanel}>
+          <View style={styles.heroTopRow}>
             <View>
-              <Text style={styles.eyebrow}>Trajectory</Text>
-              <Text style={styles.cardTitle}>DR Pulse</Text>
+              <Text style={styles.eyebrow}>Collection</Text>
+              <Text style={styles.heroTitle}>{unlockedCount}/{totalCount} unlocked</Text>
             </View>
-            <Text style={[styles.trendLabel, { color: trendLabelTone }]}>
-              {formatWeekChange(weekDelta, hasSufficientTrend)}
-            </Text>
+            <Text style={styles.heroPercent}>{progressPercent}%</Text>
           </View>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
+          </View>
+          <Text style={styles.heroMeta}>
+            Lifetime completions: {lifetimeCompletedQuestCount}
+          </Text>
+        </View>
 
-          <View style={styles.panelDivider} />
-
-          <View style={styles.pulseReadout}>
-            <View style={styles.drValueRow}>
-              <Text style={styles.drValue}>{currentDrValue}</Text>
-              <View style={styles.drValueCopy}>
-                <Text style={styles.drLabel}>Current DR</Text>
-                <Text style={styles.mutedMeta}>Live rank pressure</Text>
+        {nextUnlocks.length > 0 ? (
+          <View style={styles.nextPanel}>
+            <View style={styles.cardHeaderRow}>
+              <View>
+                <Text style={styles.eyebrow}>Next Unlocks</Text>
+                <Text style={styles.sectionTitle}>Closest awards</Text>
               </View>
             </View>
-            <View style={styles.pulseMetaGrid}>
-              <View style={styles.pulseMetaTile}>
-                <Text style={styles.pulseMetaLabel}>Last signal</Text>
-                <Text style={styles.pulseMetaValue}>{Math.round(latestCompletion)}% completion</Text>
-              </View>
-              <View style={styles.pulseMetaTile}>
-                <Text style={styles.pulseMetaLabel}>Rank</Text>
-                <Text style={styles.pulseMetaValue} numberOfLines={1}>{currentRank}</Text>
-              </View>
-            </View>
-          </View>
-
-          {hasHistory ? (
-            <View style={styles.chartBlock}>
-              <MiniTrendChart
-                points={trendPoints}
-                chartWrapStyle={styles.chartWrap}
-                chartBarStyle={styles.chartBar}
-              />
-            </View>
-          ) : (
-            <Text style={styles.mutedMeta}>No evaluation history yet.</Text>
-          )}
-          <View style={styles.trendFooter}>
-            <Text style={styles.mutedMeta}>Last {Math.min(7, latest7History.length)} evaluations</Text>
-            <Text style={styles.mutedMeta}>DR history</Text>
-          </View>
-        </View>
-
-        <View style={styles.card}>
-          <View style={styles.cardHeaderRow}>
-            <View>
-              <Text style={styles.eyebrow}>Consistency Heat</Text>
-              <Text style={styles.cardTitle}>Discipline Calendar</Text>
-            </View>
-            <Text style={styles.mutedMeta}>30 days</Text>
-          </View>
-          <DisciplineCalendar days={disciplineCalendarDays} colors={colors} />
-        </View>
-
-        <View style={styles.card}>
-          <View style={styles.cardHeaderRow}>
-            <View>
-              <Text style={styles.eyebrow}>Behavior Notes</Text>
-              <Text style={styles.cardTitle}>Discipline Patterns</Text>
-            </View>
-          </View>
-          <DisciplinePatterns days={disciplineCalendarDays} colors={colors} />
-        </View>
-
-        <View style={styles.categoryPanel}>
-          <View style={styles.cardHeaderRow}>
-            <View>
-              <Text style={styles.eyebrow}>Category Loadout</Text>
-              <Text style={styles.cardTitle}>Execution Balance</Text>
-            </View>
-            <Text style={styles.mutedMeta}>{categoryBreakdown.length} domains</Text>
-          </View>
-          <View style={styles.categoryGrid}>
-            {categoryBreakdown.map((item) => (
-              <View key={item.id} style={styles.categoryCard}>
-                <View style={styles.categoryTopRow}>
-                  <Text style={styles.categoryLabel} numberOfLines={1}>{item.label}</Text>
-                  <Text style={styles.categoryPct}>{item.completionPct}%</Text>
+            {nextUnlocks.map(({ achievement, progress, pct }) => (
+              <View key={achievement.id} style={styles.nextRow}>
+                <Text style={styles.nextIcon}>{achievement.icon}</Text>
+                <View style={styles.nextMain}>
+                  <Text style={styles.nextName}>{achievement.name}</Text>
+                  <Text style={styles.nextMeta}>{achievement.description}</Text>
+                  <View style={styles.smallProgressTrack}>
+                    <View style={[styles.smallProgressFill, { width: `${pct}%` }]} />
+                  </View>
                 </View>
-                <View style={styles.progressTrack}>
-                  <View
-                    style={[
-                      styles.progressFill,
-                      {
-                        width: item.completionPct === 0 ? "0%" : `${Math.max(3, item.completionPct)}%`,
-                        opacity: 0.6 + item.completionPct / 250,
-                      },
-                    ]}
-                  />
-                </View>
-                <Text style={styles.categoryMeta}>{item.completed}/{item.total} complete</Text>
+                <Text style={styles.nextProgress}>{progress.label}</Text>
               </View>
             ))}
           </View>
+        ) : null}
+
+        <View style={styles.awardGrid}>
+          {enrichedAchievements.map(({ achievement, progress, pct }) => {
+            const unlocked = Boolean(achievement.unlockedAt);
+            return (
+              <View
+                key={achievement.id}
+                style={[
+                  styles.awardCard,
+                  unlocked ? styles.awardCardUnlocked : styles.awardCardLocked,
+                ]}
+              >
+                <View style={styles.awardTopRow}>
+                  <Text style={[styles.awardIcon, !unlocked && styles.awardIconLocked]}>
+                    {achievement.icon}
+                  </Text>
+                  <Text style={[styles.awardState, unlocked && styles.awardStateUnlocked]}>
+                    {unlocked ? "Unlocked" : progress.label}
+                  </Text>
+                </View>
+                <Text style={styles.awardName}>{achievement.name}</Text>
+                <Text style={styles.awardDescription}>{achievement.description}</Text>
+                <View style={styles.smallProgressTrack}>
+                  <View style={[styles.smallProgressFill, { width: `${unlocked ? 100 : pct}%` }]} />
+                </View>
+                <Text style={styles.awardDate}>
+                  {achievement.unlockedAt ? formatDate(achievement.unlockedAt) : "In progress"}
+                </Text>
+              </View>
+            );
+          })}
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
+function createAchievementStyles(colors: ThemeColors) {
   const cardSurface = createCardSurface(colors, {
     padding: ui.spacing.md,
     radius: ui.radius.card,
     borderOpacity: 0.22,
-    glowOpacity: 0.02,
     backgroundColor: withAlpha(colors.surface2, 0.8),
-  });
-  const heroSurface = createCardSurface(colors, {
-    padding: ui.spacing.md + ui.spacing.xs,
-    radius: ui.radius.card,
-    borderOpacity: 0.26,
-    glowOpacity: 0.03,
-    backgroundColor: withAlpha(colors.surface2, 0.9),
   });
   const tileSurface = createTileSurface(colors, {
     padding: ui.spacing.sm,
     radius: ui.radius.md,
-    borderOpacity: 0.18,
-    backgroundOpacity: 0.18,
+    borderOpacity: 0.2,
+    backgroundOpacity: 0.2,
   });
 
   return StyleSheet.create({
@@ -423,11 +318,10 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       paddingBottom: ui.spacing.xl * 3 + ui.spacing.lg,
       gap: ui.spacing.sm,
     },
-    headerRow: {
+    pageHeader: {
       flexDirection: "row",
       alignItems: "flex-start",
       gap: ui.spacing.sm,
-      paddingTop: 2,
       paddingBottom: ui.spacing.sm,
       borderBottomWidth: 1,
       borderBottomColor: withAlpha(colors.divider, 0.62),
@@ -451,7 +345,6 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       fontSize: 24,
       lineHeight: 29,
       fontWeight: "900",
-      letterSpacing: 0,
     },
     subtitle: {
       color: withAlpha(colors.textSecondary, 0.82),
@@ -460,35 +353,17 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       fontWeight: "700",
       marginTop: 3,
     },
-    commandPanel: {
-      ...heroSurface,
+    heroPanel: {
+      ...cardSurface,
       gap: ui.spacing.sm,
-      borderColor: withAlpha(colors.accentPrimary, 0.18),
+      borderColor: withAlpha(colors.accentPrimary, 0.22),
+      backgroundColor: withAlpha(colors.surface2, 0.9),
     },
-    commandTopRow: {
+    heroTopRow: {
       flexDirection: "row",
-      alignItems: "center",
-      gap: ui.spacing.sm,
-    },
-    rankSlot: {
-      width: 58,
-      height: 58,
-      borderRadius: ui.radius.md,
-      alignItems: "center",
-      justifyContent: "center",
-      borderWidth: 1,
-      borderColor: withAlpha(colors.accentPrimary, 0.18),
-      backgroundColor: withAlpha(colors.bg, 0.32),
-    },
-    commandCopy: {
-      flex: 1,
-      minWidth: 0,
-    },
-    commandEyebrowRow: {
-      flexDirection: "row",
-      alignItems: "center",
+      alignItems: "flex-end",
       justifyContent: "space-between",
-      gap: ui.spacing.xs,
+      gap: ui.spacing.sm,
     },
     eyebrow: {
       color: withAlpha(colors.textSecondary, 0.78),
@@ -498,284 +373,25 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       letterSpacing: 0.75,
       textTransform: "uppercase",
     },
-    commandTitle: {
-      color: colors.textPrimary,
-      fontSize: 20,
-      lineHeight: 26,
-      fontWeight: "800",
-      marginTop: 4,
-    },
-    detailsButton: {
-      borderWidth: 1,
-      borderColor: withAlpha(colors.accentPrimary, 0.22),
-      borderRadius: 999,
-      backgroundColor: withAlpha(colors.accentPrimary, 0.065),
-      paddingHorizontal: ui.spacing.xs,
-      paddingVertical: 4,
-    },
-    detailsButtonPressed: {
-      opacity: 0.72,
-    },
-    detailsButtonText: {
-      color: withAlpha(colors.accentPrimary, 0.92),
-      fontSize: 9,
-      lineHeight: 11,
-      fontWeight: "900",
-      letterSpacing: 0.45,
-      textTransform: "uppercase",
-    },
-    commandDetails: {
-      color: withAlpha(colors.textSecondary, 0.82),
-      fontSize: 12,
-      lineHeight: 18,
-      fontWeight: "700",
-      paddingTop: 2,
-    },
-    commandDivider: {
-      height: 1,
-      backgroundColor: withAlpha(colors.border, 0.22),
-    },
-    commandMetrics: {
-      flexDirection: "row",
-      gap: ui.spacing.xs,
-    },
-    commandMetricPrimary: {
-      ...tileSurface,
-      flex: 1.2,
-      borderColor: withAlpha(colors.accentPrimary, 0.28),
-      backgroundColor: withAlpha(colors.accentPrimary, 0.075),
-      paddingHorizontal: ui.spacing.sm,
-      paddingVertical: ui.spacing.sm,
-      minWidth: 0,
-      minHeight: 76,
-      justifyContent: "center",
-    },
-    commandMetric: {
-      ...tileSurface,
-      flex: 1,
-      paddingHorizontal: ui.spacing.sm,
-      paddingVertical: ui.spacing.sm,
-      minWidth: 0,
-      minHeight: 76,
-      justifyContent: "center",
-    },
-    commandMetricValue: {
+    heroTitle: {
       color: colors.textPrimary,
       fontSize: 26,
-      lineHeight: 30,
+      lineHeight: 31,
       fontWeight: "900",
-    },
-    commandMetricLabel: {
-      color: withAlpha(colors.textSecondary, 0.78),
-      fontSize: 9,
-      lineHeight: 12,
-      fontWeight: "900",
-      letterSpacing: 0.45,
-      textTransform: "uppercase",
       marginTop: 2,
     },
-    signalMap: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: ui.spacing.xs,
-    },
-    signalCard: {
-      ...tileSurface,
-      width: "48.8%",
-      minHeight: 102,
-      paddingHorizontal: ui.spacing.sm,
-      paddingVertical: ui.spacing.sm,
-      justifyContent: "flex-start",
-      gap: 7,
-    },
-    signalLabel: {
-      color: withAlpha(colors.textSecondary, 0.76),
-      fontSize: 9,
-      lineHeight: 12,
-      fontWeight: "900",
-      letterSpacing: 0.5,
-      textTransform: "uppercase",
-    },
-    signalValue: {
-      color: colors.textPrimary,
-      fontSize: 20,
-      lineHeight: 24,
-      fontWeight: "900",
-    },
-    signalMeta: {
-      color: withAlpha(colors.textSecondary, 0.74),
-      fontSize: 11,
-      lineHeight: 15,
-      fontWeight: "700",
-    },
-    card: {
-      ...cardSurface,
-      gap: ui.spacing.sm,
-    },
-    trendPanel: {
-      ...cardSurface,
-      gap: ui.spacing.sm,
-    },
-    cardHeaderRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "flex-start",
-      gap: ui.spacing.sm,
-    },
-    cardTitle: {
-      color: colors.textPrimary,
-      fontSize: 19,
-      lineHeight: 23,
-      fontWeight: "900",
-      marginTop: 1,
-    },
-    trendLabel: {
-      fontSize: 10,
-      lineHeight: 13,
-      fontWeight: "900",
-      letterSpacing: 0.45,
-      textTransform: "uppercase",
-      textAlign: "right",
-      maxWidth: 130,
-    },
-    panelDivider: {
-      height: 1,
-      backgroundColor: withAlpha(colors.border, 0.2),
-    },
-    pulseReadout: {
-      gap: ui.spacing.sm,
-    },
-    drValueRow: {
-      flexDirection: "row",
-      alignItems: "flex-end",
-      gap: ui.spacing.xs,
-    },
-    drValue: {
-      ...ui.typography.drHero,
-      color: colors.textPrimary,
-      fontSize: 56,
-      lineHeight: 58,
-      fontWeight: "900",
-      letterSpacing: -0.5,
-    },
-    drValueCopy: {
-      flex: 1,
-      minWidth: 0,
-      paddingBottom: 8,
-    },
-    drLabel: {
-      color: colors.textPrimary,
-      fontSize: 12,
-      lineHeight: 15,
-      fontWeight: "900",
-      letterSpacing: 0.45,
-      textTransform: "uppercase",
-    },
-    pulseMetaGrid: {
-      flexDirection: "row",
-      gap: ui.spacing.xs,
-    },
-    pulseMetaTile: {
-      ...tileSurface,
-      flex: 1,
-      minWidth: 0,
-      paddingHorizontal: ui.spacing.sm,
-      paddingVertical: ui.spacing.xs,
-      gap: 3,
-    },
-    pulseMetaLabel: {
-      color: withAlpha(colors.textSecondary, 0.76),
-      fontSize: 9,
-      lineHeight: 12,
-      fontWeight: "900",
-      letterSpacing: 0.5,
-      textTransform: "uppercase",
-    },
-    pulseMetaValue: {
-      color: colors.textPrimary,
-      fontSize: 12,
-      lineHeight: 16,
-      fontWeight: "900",
-    },
-    trendFooter: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      borderTopWidth: 1,
-      borderTopColor: withAlpha(colors.border, 0.18),
-      paddingTop: ui.spacing.xs,
-      marginTop: 2,
-    },
-    mutedMeta: {
-      color: withAlpha(colors.textSecondary, 0.86),
-      fontSize: 10,
-      lineHeight: 13,
-      fontWeight: "800",
-      letterSpacing: 0.25,
-      textTransform: "uppercase",
-    },
-    chartBlock: {
-      paddingTop: ui.spacing.xs,
-    },
-    chartWrap: {
-      height: 70,
-      flexDirection: "row",
-      alignItems: "flex-end",
-      gap: 6,
-    },
-    chartBar: {
-      flex: 1,
-      minHeight: 8,
-      borderRadius: 999,
-      backgroundColor: colors.accentPrimary,
-      opacity: 0.86,
-    },
-    categoryPanel: {
-      ...cardSurface,
-      gap: ui.spacing.sm,
-    },
-    categoryGrid: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      justifyContent: "space-between",
-      rowGap: ui.spacing.xs,
-    },
-    categoryCard: {
-      ...tileSurface,
-      width: "48%",
-      paddingHorizontal: ui.spacing.sm,
-      paddingVertical: ui.spacing.xs,
-      gap: 7,
-      minHeight: 72,
-      justifyContent: "center",
-    },
-    categoryTopRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      gap: ui.spacing.xs,
-    },
-    categoryLabel: {
-      color: colors.textPrimary,
-      fontSize: 13,
-      lineHeight: 17,
-      fontWeight: "900",
-      flex: 1,
-      minWidth: 0,
-    },
-    categoryPct: {
+    heroPercent: {
       color: colors.accentPrimary,
-      fontSize: 14,
-      lineHeight: 18,
+      fontSize: 34,
+      lineHeight: 38,
       fontWeight: "900",
     },
     progressTrack: {
-      width: "100%",
-      height: 7,
+      height: 11,
       borderRadius: 999,
-      backgroundColor: withAlpha(colors.bg, 0.92),
+      backgroundColor: withAlpha(colors.bg, 0.72),
       borderWidth: 1,
-      borderColor: withAlpha(colors.border, 0.2),
+      borderColor: withAlpha(colors.border, 0.22),
       overflow: "hidden",
     },
     progressFill: {
@@ -783,12 +399,146 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       borderRadius: 999,
       backgroundColor: colors.accentPrimary,
     },
-    categoryMeta: {
+    heroMeta: {
+      color: withAlpha(colors.textSecondary, 0.8),
+      fontSize: 11,
+      lineHeight: 15,
+      fontWeight: "800",
+      letterSpacing: 0.25,
+      textTransform: "uppercase",
+    },
+    nextPanel: {
+      ...cardSurface,
+      gap: ui.spacing.xs,
+    },
+    cardHeaderRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      gap: ui.spacing.sm,
+    },
+    sectionTitle: {
+      color: colors.textPrimary,
+      fontSize: 19,
+      lineHeight: 23,
+      fontWeight: "900",
+      marginTop: 1,
+    },
+    nextRow: {
+      ...tileSurface,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: ui.spacing.sm,
+    },
+    nextIcon: {
+      color: colors.accentPrimary,
+      fontSize: 18,
+      lineHeight: 22,
+      fontWeight: "900",
+      width: 34,
+      textAlign: "center",
+    },
+    nextMain: {
+      flex: 1,
+      minWidth: 0,
+      gap: 4,
+    },
+    nextName: {
+      color: colors.textPrimary,
+      fontSize: 13,
+      lineHeight: 17,
+      fontWeight: "900",
+    },
+    nextMeta: {
+      color: withAlpha(colors.textSecondary, 0.78),
+      fontSize: 10,
+      lineHeight: 13,
+      fontWeight: "700",
+    },
+    nextProgress: {
+      color: colors.accentPrimary,
+      fontSize: 11,
+      lineHeight: 14,
+      fontWeight: "900",
+    },
+    awardGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "space-between",
+      rowGap: ui.spacing.xs,
+    },
+    awardCard: {
+      ...tileSurface,
+      width: "48.8%",
+      minHeight: 154,
+      gap: 7,
+    },
+    awardCardUnlocked: {
+      borderColor: withAlpha(colors.accentPrimary, 0.3),
+      backgroundColor: withAlpha(colors.accentPrimary, 0.08),
+    },
+    awardCardLocked: {
+      opacity: 0.76,
+    },
+    awardTopRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: ui.spacing.xs,
+    },
+    awardIcon: {
+      color: colors.accentPrimary,
+      fontSize: 20,
+      lineHeight: 24,
+      fontWeight: "900",
+    },
+    awardIconLocked: {
       color: withAlpha(colors.textSecondary, 0.72),
+    },
+    awardState: {
+      color: withAlpha(colors.textSecondary, 0.78),
+      fontSize: 9,
+      lineHeight: 12,
+      fontWeight: "900",
+      letterSpacing: 0.4,
+      textTransform: "uppercase",
+    },
+    awardStateUnlocked: {
+      color: colors.accentPrimary,
+    },
+    awardName: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      lineHeight: 18,
+      fontWeight: "900",
+    },
+    awardDescription: {
+      color: withAlpha(colors.textSecondary, 0.78),
+      fontSize: 11,
+      lineHeight: 15,
+      fontWeight: "700",
+      flex: 1,
+    },
+    smallProgressTrack: {
+      height: 7,
+      borderRadius: 999,
+      backgroundColor: withAlpha(colors.bg, 0.78),
+      borderWidth: 1,
+      borderColor: withAlpha(colors.border, 0.18),
+      overflow: "hidden",
+    },
+    smallProgressFill: {
+      height: "100%",
+      borderRadius: 999,
+      backgroundColor: colors.accentPrimary,
+    },
+    awardDate: {
+      color: withAlpha(colors.textSecondary, 0.74),
       fontSize: 10,
       lineHeight: 13,
       fontWeight: "800",
-      letterSpacing: 0.2,
+      letterSpacing: 0.25,
+      textTransform: "uppercase",
     },
   });
 }

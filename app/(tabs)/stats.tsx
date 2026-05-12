@@ -8,6 +8,8 @@ import { RankBadge } from "./_components/RankBadge";
 import { defaultDrHistory } from "./_utils/defaultData";
 import { createCardSurface, createTileSurface, ui, withAlpha } from "./_utils/designSystem";
 import { formatDelta } from "./_utils/discipline";
+import { getLatestCategoriesFromHistory } from "./_utils/evaluationAnalytics";
+import { readEvaluationHistory, type DailyEvaluationHistoryItem } from "./_utils/evaluationHistory";
 import { buildStreakSummary } from "./_utils/planning";
 import { DR_RANK_THRESHOLDS, getNextRank, getRankFromDR, getRankMeta } from "./_utils/rank";
 import { useTheme, type ThemeColors } from "./_utils/themeContext";
@@ -19,6 +21,7 @@ export default function StatsScreen() {
   const styles = useMemo(() => createDisciplineStyles(colors), [colors]);
   const [disciplineRating, setDisciplineRating] = useState<number>(0);
   const [drHistory, setDrHistory] = useState<DrHistoryEntry[]>(defaultDrHistory);
+  const [evaluationHistory, setEvaluationHistory] = useState<DailyEvaluationHistoryItem[]>([]);
   const [hydrated, setHydrated] = useState(false);
 
   const isDrHistoryEntry = (value: unknown): value is DrHistoryEntry => {
@@ -50,6 +53,9 @@ export default function StatsScreen() {
 
   const loadData = useCallback(async () => {
     try {
+      const loadedEvaluationHistory = await readEvaluationHistory();
+      setEvaluationHistory(loadedEvaluationHistory);
+
       const raw = await AsyncStorage.getItem(STORAGE_KEY);
       if (!raw) {
         setHydrated(true);
@@ -101,9 +107,6 @@ export default function StatsScreen() {
   const trendMin = trendPoints.length ? Math.min(...trendPoints) : 0;
   const trendMax = trendPoints.length ? Math.max(...trendPoints) : 0;
   const trendRange = Math.max(1, trendMax - trendMin);
-  const bestCompletion14d = recent14.length
-    ? Math.max(...recent14.map((entry) => entry.pct))
-    : 0;
   const lastJudgment = recent14[recent14.length - 1] ?? null;
   const trendLabel = (() => {
     if (recent14.length < 2) return "Need 2+ judgments";
@@ -121,19 +124,125 @@ export default function StatsScreen() {
     : 0;
   const latestDelta = lastJudgment?.delta ?? 0;
   const positiveDays14d = recent14.filter((entry) => entry.delta > 0).length;
+  const solidDays14d = recent14.filter((entry) => entry.pct >= 60).length;
   const contractProtected14d = recent14.filter(
     (entry) =>
       typeof entry.contractTotalCount === "number" &&
       entry.contractTotalCount > 0 &&
       entry.contractCompletedCount === entry.contractTotalCount
   ).length;
-  const drRules: { label: string; delta: string; tone: "pos" | "neu" | "neg" }[] = [
-    { label: "100% completion", delta: "+10", tone: "pos" },
-    { label: "85-99%", delta: "+7", tone: "pos" },
-    { label: "60-84%", delta: "+4", tone: "pos" },
-    { label: "30-59%", delta: "0", tone: "neu" },
-    { label: "1-29%", delta: "-4", tone: "neg" },
-    { label: "0% or no quests", delta: "-8", tone: "neg" },
+  const categorySignal = getLatestCategoriesFromHistory(evaluationHistory);
+  const weakestCategory = categorySignal.weakestCategory ?? "Needs more data";
+  const weakestCategoryPhrase = categorySignal.weakestCategory ?? "your weakest lane";
+  const strongestCategory = categorySignal.strongestCategory ?? "Signal building";
+  const rankIndex = Math.max(
+    0,
+    DR_RANK_THRESHOLDS.findIndex((entry) => entry.name === rankName)
+  );
+  const visibleRankPath = DR_RANK_THRESHOLDS.slice(
+    rankIndex,
+    Math.min(DR_RANK_THRESHOLDS.length, rankIndex + 4)
+  );
+  const disciplineMode = (() => {
+    if (recent14.length === 0) return "Calibration";
+    if (avgChange7d < 0 || latestDelta < 0) return "Recovery";
+    if (nextRank && nextRank.remainingDr <= Math.max(30, Math.round(tierSpan * 0.25))) return "Promotion";
+    if (streakSummary.solidDayStreak >= 3) return "Expansion";
+    return "Build";
+  })();
+  const modeColor =
+    disciplineMode === "Recovery"
+      ? colors.negative
+      : disciplineMode === "Build" || disciplineMode === "Calibration"
+      ? colors.accentPrimary
+      : colors.positive;
+  const nextRankLabel = nextRank?.name ?? "Top rank";
+  const nextRankDistance = nextRank ? `${nextRank.remainingDr} DR` : "Max";
+  const rankProgressPercent = Math.round(rankProgress * 100);
+  const pressureBrief = (() => {
+    if (disciplineMode === "Calibration") {
+      return {
+        title: "Set a baseline",
+        body: "Finish a simple board today so midnight has a real first judgment.",
+        primaryLabel: "Target",
+        primaryValue: "60%",
+        secondaryLabel: "Strength",
+        secondaryValue: strongestCategory,
+        steps: ["One contract", "Three small quests", "Midnight score"],
+      };
+    }
+
+    if (disciplineMode === "Recovery") {
+      return {
+        title: "Protect the floor",
+        body: "Recent DR is sliding. One contract plus 60% keeps the day from getting worse.",
+        primaryLabel: "Target",
+        primaryValue: "60%",
+        secondaryLabel: "Watch",
+        secondaryValue: weakestCategory,
+        steps: ["Contract first", "Smallest quest", "Hold 60%"],
+      };
+    }
+
+    if (disciplineMode === "Promotion") {
+      return {
+        title: "Finish clean",
+        body: `${nextRankLabel} is close. A clean 85%+ day matters more than adding extra noise.`,
+        primaryLabel: "Gap",
+        primaryValue: nextRank ? `${nextRank.remainingDr} DR` : "Top",
+        secondaryLabel: "Pace",
+        secondaryValue: formatDelta(avgChange7d),
+        steps: ["Protect contracts", "Push 85%+", "Avoid zero"],
+      };
+    }
+
+    if (disciplineMode === "Expansion") {
+      return {
+        title: "Add pressure carefully",
+        body: `The streak is holding. Add one harder rep in ${weakestCategoryPhrase} without risking the floor.`,
+        primaryLabel: "Streak",
+        primaryValue: `${streakSummary.solidDayStreak}`,
+        secondaryLabel: "Watch",
+        secondaryValue: weakestCategory,
+        steps: ["First win early", "One hard rep", "Protect streak"],
+      };
+    }
+
+    return {
+      title: "Build the floor",
+      body: "Get to 60%, then push one category. The win condition is repeatable momentum.",
+      primaryLabel: "Solid",
+      primaryValue: `${solidDays14d}/${recent14.length || 0}`,
+      secondaryLabel: "Strength",
+      secondaryValue: strongestCategory,
+      steps: ["Hit 60%", "Pinned quest", "Repeat"],
+    };
+  })();
+  const momentumSignals = [
+    {
+      label: "Avg finish",
+      value: `${completion14d}%`,
+      foot: `${solidDays14d} of ${recent14.length || 0} solid`,
+      color: colors.textPrimary,
+    },
+    {
+      label: "Recent DR",
+      value: formatDelta(avgChange7d),
+      foot: `${positiveDays14d} positive days`,
+      color: avgChange7d > 0 ? colors.positive : avgChange7d < 0 ? colors.negative : colors.textPrimary,
+    },
+    {
+      label: "Streak",
+      value: `${streakSummary.solidDayStreak}`,
+      foot: `best ${streakSummary.bestSolidDayStreak}`,
+      color: colors.textPrimary,
+    },
+    {
+      label: "Contracts",
+      value: `${streakSummary.contractStreak}`,
+      foot: `${contractProtected14d} protected`,
+      color: colors.textPrimary,
+    },
   ];
   return (
     <SafeAreaView edges={["top"]} style={styles.safe}>
@@ -143,48 +252,72 @@ export default function StatsScreen() {
             <IconSymbol name="star.fill" size={18} color={colors.accentPrimary} />
           </View>
           <View style={styles.headerCopy}>
-            <Text style={styles.title}>Discipline Console</Text>
-            <Text style={styles.subtitle}>Rank pressure, judgment history, and DR mechanics</Text>
+            <Text style={styles.title}>Rank Console</Text>
+            <Text style={styles.subtitle}>Rank, momentum, and what to do next</Text>
           </View>
         </View>
 
         <View style={styles.heroPanel}>
           <View style={styles.heroTopRow}>
-            <View style={styles.rankMark}>
-              <RankBadge rankTier={rankMeta.tier} size={46} active />
+            <View style={[styles.rankMark, { borderColor: withAlpha(modeColor, 0.3) }]}>
+              <RankBadge rankTier={rankMeta.tier} size={38} active />
             </View>
             <View style={styles.heroTitleBlock}>
-              <Text style={styles.eyebrow}>Current Rank</Text>
-              <Text style={styles.rankName}>{rankName}</Text>
-              <Text style={styles.rankMeta}>
-                Tier {rankMeta.tier} / {DR_RANK_THRESHOLDS.length}
+              <View style={styles.heroLabelRow}>
+                <Text style={styles.eyebrow}>Current Rank</Text>
+                <View
+                  style={[
+                    styles.modePill,
+                    {
+                      borderColor: withAlpha(modeColor, 0.42),
+                      backgroundColor: withAlpha(modeColor, 0.1),
+                    },
+                  ]}
+                >
+                  <Text style={[styles.modePillText, { color: modeColor }]}>{disciplineMode}</Text>
+                </View>
+              </View>
+              <Text style={styles.rankName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78}>
+                {rankName}
               </Text>
-            </View>
-            <View style={styles.deltaCapsule}>
-              <Text style={styles.deltaLabel}>Last</Text>
-              <Text
-                style={[
-                  styles.deltaValue,
-                  { color: latestDelta > 0 ? colors.positive : latestDelta < 0 ? colors.negative : colors.textSecondary },
-                ]}
-              >
-                {formatDelta(latestDelta)}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.drReadoutRow}>
-            <Text style={styles.drNumber}>{disciplineRating}</Text>
-            <View style={styles.drReadoutSide}>
-              <Text style={styles.drLabel}>Discipline Rating</Text>
-              <Text style={styles.drSupport}>
-                {nextRank ? `${nextRank.remainingDr} DR until ${nextRank.name}` : "Maximum rank reached"}
+              <Text style={styles.rankMeta} numberOfLines={1}>
+                Tier {rankMeta.tier} / {DR_RANK_THRESHOLDS.length} - Next: {nextRankLabel}
               </Text>
             </View>
           </View>
 
+          <View style={styles.heroScoreRow}>
+            <View style={styles.heroScoreBlock}>
+              <Text style={styles.heroScoreLabel}>DR Score</Text>
+              <Text style={styles.heroScoreValue}>{disciplineRating}</Text>
+            </View>
+            <View style={styles.heroMiniStack}>
+              <View style={styles.heroMiniMetric}>
+                <Text style={styles.heroMiniLabel}>To next</Text>
+                <Text style={styles.heroMiniValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.78}>
+                  {nextRankDistance}
+                </Text>
+              </View>
+              <View style={styles.heroMiniMetric}>
+                <Text style={styles.heroMiniLabel}>Last change</Text>
+                <Text
+                  style={[
+                    styles.heroMiniValue,
+                    { color: latestDelta > 0 ? colors.positive : latestDelta < 0 ? colors.negative : colors.textPrimary },
+                  ]}
+                >
+                  {formatDelta(latestDelta)}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.heroProgressHeader}>
+            <Text style={styles.heroProgressLabel}>Tier progress</Text>
+            <Text style={styles.heroProgressValue}>{rankProgressPercent}%</Text>
+          </View>
           <View style={styles.rankProgressTrack}>
-            <View style={[styles.rankProgressFill, { width: `${Math.round(rankProgress * 100)}%` }]} />
+            <View style={[styles.rankProgressFill, { width: `${rankProgressPercent}%` }]} />
           </View>
           <View style={styles.rankProgressLabels}>
             <Text style={styles.rankProgressText}>{rankMeta.minDr} DR</Text>
@@ -194,48 +327,50 @@ export default function StatsScreen() {
           </View>
         </View>
 
-        <View style={styles.signalGrid}>
-          <View style={styles.signalTile}>
-            <Text style={styles.signalLabel}>14D Completion</Text>
-            <Text style={styles.signalValue}>{completion14d}%</Text>
-            <View style={styles.signalTrack}>
-              <View style={[styles.signalFill, { width: `${completion14d}%` }]} />
+        <View style={styles.briefPanel}>
+          <View style={styles.briefTopRow}>
+            <View style={styles.briefMain}>
+              <Text style={styles.eyebrow}>Today&apos;s Focus</Text>
+              <Text style={styles.briefTitle}>{pressureBrief.title}</Text>
+              <Text style={styles.briefBody}>{pressureBrief.body}</Text>
+            </View>
+            <View style={styles.briefGauge}>
+              <Text style={styles.briefGaugeLabel}>{pressureBrief.primaryLabel}</Text>
+              <Text
+                style={[styles.briefGaugeValue, { color: modeColor }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.72}
+              >
+                {pressureBrief.primaryValue}
+              </Text>
             </View>
           </View>
-          <View style={styles.signalTile}>
-            <Text style={styles.signalLabel}>7D Avg Change</Text>
-            <Text
-              style={[
-                styles.signalValue,
-                { color: avgChange7d > 0 ? colors.positive : avgChange7d < 0 ? colors.negative : colors.textPrimary },
-              ]}
-            >
-              {formatDelta(avgChange7d)}
-            </Text>
-            <Text style={styles.signalFoot}>{positiveDays14d}/{recent14.length || 0} positive judgments</Text>
+          <View style={styles.briefDivider} />
+          <View style={styles.protocolList}>
+            {pressureBrief.steps.map((step, idx) => (
+              <View key={step} style={styles.protocolStep}>
+                <Text style={[styles.protocolIndex, { color: modeColor }]}>{idx + 1}</Text>
+                <Text style={styles.protocolText}>{step}</Text>
+              </View>
+            ))}
           </View>
-          <View style={styles.signalTile}>
-            <Text style={styles.signalLabel}>Best Finish</Text>
-            <Text style={styles.signalValue}>{bestCompletion14d}%</Text>
-            <Text style={styles.signalFoot}>{contractProtected14d} protected contracts</Text>
+          <View style={styles.briefFooter}>
+            <Text style={styles.briefFooterLabel}>{pressureBrief.secondaryLabel}</Text>
+            <Text style={styles.briefFooterValue} numberOfLines={1}>
+              {pressureBrief.secondaryValue}
+            </Text>
           </View>
         </View>
 
-        <View style={styles.streakBand}>
-          <View style={styles.streakCell}>
-            <Text style={styles.streakValue}>{streakSummary.solidDayStreak}</Text>
-            <Text style={styles.streakLabel}>Solid day streak</Text>
-          </View>
-          <View style={styles.streakDivider} />
-          <View style={styles.streakCell}>
-            <Text style={styles.streakValue}>{streakSummary.contractStreak}</Text>
-            <Text style={styles.streakLabel}>Contract streak</Text>
-          </View>
-          <View style={styles.streakDivider} />
-          <View style={styles.streakCell}>
-            <Text style={styles.streakValue}>{streakSummary.bestSolidDayStreak}</Text>
-            <Text style={styles.streakLabel}>Best solid run</Text>
-          </View>
+        <View style={styles.momentumGrid}>
+          {momentumSignals.map((signal) => (
+            <View key={signal.label} style={styles.momentumTile}>
+              <Text style={styles.momentumLabel}>{signal.label}</Text>
+              <Text style={[styles.momentumValue, { color: signal.color }]}>{signal.value}</Text>
+              <Text style={styles.momentumFoot}>{signal.foot}</Text>
+            </View>
+          ))}
         </View>
 
         <View style={styles.chartPanel}>
@@ -263,7 +398,9 @@ export default function StatsScreen() {
                 return (
                   <View key={`${value}-${idx}`} style={styles.chartColumn}>
                     <View style={[styles.chartBar, { height, backgroundColor: tone }]} />
-                    <Text style={styles.chartLabel}>{entry.date.slice(5, 10)}</Text>
+                    <Text style={styles.chartLabel} numberOfLines={1}>
+                      {entry.date.slice(8, 10)}
+                    </Text>
                   </View>
                 );
               })}
@@ -271,6 +408,64 @@ export default function StatsScreen() {
           ) : (
             <Text style={styles.emptyText}>Complete a midnight judgment to start the trend.</Text>
           )}
+        </View>
+
+        <View style={styles.rankPathPanel}>
+          <View style={styles.cardHeaderRow}>
+            <View>
+              <Text style={styles.eyebrow}>Rank Path</Text>
+              <Text style={styles.sectionTitle}>
+                {nextRank ? `${nextRank.remainingDr} DR to ${nextRank.name}` : "Top rank secured"}
+              </Text>
+            </View>
+            <Text style={styles.miniMeta}>Tier {rankMeta.tier}</Text>
+          </View>
+          <View style={styles.rankPathList}>
+            {visibleRankPath.map((rank) => {
+              const isCurrent = rank.name === rankName;
+              const isNext = nextRank?.name === rank.name;
+              const isUnlocked = disciplineRating >= rank.minDr;
+              const maxLabel = Number.isFinite(rank.maxDr) ? `${rank.maxDr} DR` : "No cap";
+
+              return (
+                <View
+                  key={rank.name}
+                  style={[
+                    styles.rankPathRow,
+                    isCurrent && {
+                      borderColor: withAlpha(colors.accentPrimary, 0.34),
+                      backgroundColor: withAlpha(colors.accentPrimary, 0.07),
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.rankPathMark,
+                      {
+                        borderColor: withAlpha(isUnlocked ? colors.accentPrimary : colors.border, 0.42),
+                      },
+                    ]}
+                  >
+                    <RankBadge
+                      rank={rank.name}
+                      size={24}
+                      active={isUnlocked || isNext}
+                      color={isUnlocked || isNext ? colors.accentPrimary : colors.textSecondary}
+                    />
+                  </View>
+                  <View style={styles.rankPathCopy}>
+                    <Text style={styles.rankPathName}>{rank.name}</Text>
+                    <Text style={styles.rankPathRange}>
+                      {rank.minDr} DR - {maxLabel}
+                    </Text>
+                  </View>
+                  <Text style={[styles.rankPathStatus, isCurrent && { color: colors.accentPrimary }]}>
+                    {isCurrent ? "Current" : isNext ? "Next" : isUnlocked ? "Cleared" : "Locked"}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
         </View>
 
         <View style={styles.judgmentPanel}>
@@ -313,34 +508,6 @@ export default function StatsScreen() {
           )}
         </View>
 
-        <View style={styles.rulesPanel}> 
-          <View style={styles.cardHeaderRow}>
-            <View>
-              <Text style={styles.eyebrow}>System Rules</Text>
-              <Text style={styles.sectionTitle}>Judgment Ladder</Text>
-            </View>
-          </View>
-          {drRules.map((rule) => (
-            <View key={rule.label} style={styles.ruleRow}>
-              <Text style={styles.ruleLabel}>{rule.label}</Text>
-              <Text
-                style={[
-                  styles.ruleDelta,
-                  {
-                    color:
-                      rule.tone === "pos"
-                        ? colors.positive
-                        : rule.tone === "neg"
-                        ? colors.negative
-                        : colors.textSecondary,
-                  },
-                ]}
-              >
-                {rule.delta}
-              </Text>
-            </View>
-          ))}
-        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -377,13 +544,13 @@ function createDisciplineStyles(colors: ThemeColors) {
       paddingHorizontal: ui.spacing.screen,
       paddingTop: ui.spacing.screen,
       paddingBottom: ui.spacing.xl * 3,
-      gap: ui.spacing.md,
+      gap: ui.spacing.sm,
     },
     pageHeader: {
       flexDirection: "row",
       alignItems: "center",
       gap: ui.spacing.sm,
-      paddingBottom: ui.spacing.md,
+      paddingBottom: ui.spacing.lg,
       borderBottomWidth: 1,
       borderBottomColor: withAlpha(colors.divider, 0.72),
     },
@@ -403,8 +570,8 @@ function createDisciplineStyles(colors: ThemeColors) {
     },
     title: {
       color: colors.textPrimary,
-      fontSize: 26,
-      lineHeight: 30,
+      fontSize: 24,
+      lineHeight: 28,
       fontWeight: "900",
       letterSpacing: 0.2,
     },
@@ -418,26 +585,33 @@ function createDisciplineStyles(colors: ThemeColors) {
     heroPanel: {
       ...heroSurface,
       gap: ui.spacing.sm,
+      paddingHorizontal: ui.spacing.md,
+      paddingVertical: ui.spacing.md,
       overflow: "hidden",
     },
     heroTopRow: {
       flexDirection: "row",
-      alignItems: "center",
+      alignItems: "flex-start",
       gap: ui.spacing.sm,
     },
     rankMark: {
-      width: 58,
-      height: 58,
+      width: 50,
+      height: 50,
       borderRadius: ui.radius.md,
       alignItems: "center",
       justifyContent: "center",
       borderWidth: 1,
-      borderColor: withAlpha(colors.border, 0.24),
       backgroundColor: withAlpha(colors.bg, 0.26),
     },
     heroTitleBlock: {
       flex: 1,
       minWidth: 0,
+    },
+    heroLabelRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: ui.spacing.xs,
     },
     eyebrow: {
       color: withAlpha(colors.textSecondary, 0.78),
@@ -449,74 +623,111 @@ function createDisciplineStyles(colors: ThemeColors) {
     },
     rankName: {
       color: colors.textPrimary,
-      fontSize: 25,
-      lineHeight: 29,
+      fontSize: 24,
+      lineHeight: 28,
       fontWeight: "900",
-      marginTop: 1,
+      marginTop: 3,
     },
     rankMeta: {
       color: withAlpha(colors.textSecondary, 0.8),
       fontSize: 11,
       lineHeight: 15,
       fontWeight: "800",
-      marginTop: 1,
+      marginTop: 2,
       textTransform: "uppercase",
     },
-    deltaCapsule: {
-      minWidth: 58,
+    modePill: {
+      flexShrink: 0,
       borderWidth: 1,
-      borderColor: withAlpha(colors.border, 0.24),
       borderRadius: 999,
-      paddingHorizontal: ui.spacing.xs,
-      paddingVertical: 7,
-      alignItems: "center",
-      backgroundColor: withAlpha(colors.bg, 0.22),
+      paddingHorizontal: 8,
+      paddingVertical: 3,
     },
-    deltaLabel: {
-      color: withAlpha(colors.textSecondary, 0.74),
+    modePillText: {
       fontSize: 9,
       lineHeight: 11,
       fontWeight: "900",
       letterSpacing: 0.55,
       textTransform: "uppercase",
     },
-    deltaValue: {
-      fontSize: 17,
-      lineHeight: 21,
-      fontWeight: "900",
-    },
-    drReadoutRow: {
+    heroScoreRow: {
       flexDirection: "row",
-      alignItems: "flex-end",
+      alignItems: "stretch",
       gap: ui.spacing.sm,
     },
-    drNumber: {
-      ...ui.typography.drHero,
-      color: colors.textPrimary,
-      fontSize: 76,
-      lineHeight: 78,
-      fontWeight: "900",
-      letterSpacing: -0.8,
-    },
-    drReadoutSide: {
+    heroScoreBlock: {
       flex: 1,
-      paddingBottom: 10,
       minWidth: 0,
+      borderWidth: 1,
+      borderColor: withAlpha(colors.border, 0.22),
+      borderRadius: ui.radius.md,
+      backgroundColor: withAlpha(colors.bg, 0.24),
+      paddingHorizontal: ui.spacing.sm,
+      paddingVertical: ui.spacing.sm,
     },
-    drLabel: {
+    heroScoreLabel: {
+      color: withAlpha(colors.textSecondary, 0.78),
+      fontSize: 10,
+      lineHeight: 13,
+      fontWeight: "900",
+      letterSpacing: 0.55,
+      textTransform: "uppercase",
+    },
+    heroScoreValue: {
+      color: colors.textPrimary,
+      fontSize: 46,
+      lineHeight: 50,
+      fontWeight: "900",
+      marginTop: 2,
+    },
+    heroMiniStack: {
+      width: 128,
+      gap: ui.spacing.xs,
+    },
+    heroMiniMetric: {
+      flex: 1,
+      borderWidth: 1,
+      borderColor: withAlpha(colors.border, 0.2),
+      borderRadius: ui.radius.md,
+      backgroundColor: withAlpha(colors.bg, 0.18),
+      paddingHorizontal: ui.spacing.xs,
+      paddingVertical: 7,
+      justifyContent: "center",
+    },
+    heroMiniLabel: {
+      color: withAlpha(colors.textSecondary, 0.74),
+      fontSize: 9,
+      lineHeight: 11,
+      fontWeight: "900",
+      letterSpacing: 0.45,
+      textTransform: "uppercase",
+    },
+    heroMiniValue: {
       color: colors.textPrimary,
       fontSize: 14,
-      lineHeight: 18,
-      fontWeight: "900",
-      textTransform: "uppercase",
-      letterSpacing: 0.45,
-    },
-    drSupport: {
-      color: withAlpha(colors.textSecondary, 0.82),
-      fontSize: 12,
       lineHeight: 17,
-      fontWeight: "700",
+      fontWeight: "900",
       marginTop: 2,
+    },
+    heroProgressHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginTop: ui.spacing.xxs,
+    },
+    heroProgressLabel: {
+      color: withAlpha(colors.textSecondary, 0.74),
+      fontSize: 10,
+      lineHeight: 13,
+      fontWeight: "900",
+      letterSpacing: 0.5,
+      textTransform: "uppercase",
+    },
+    heroProgressValue: {
+      color: colors.textPrimary,
+      fontSize: 11,
+      lineHeight: 14,
+      fontWeight: "900",
     },
     rankProgressTrack: {
       height: 12,
@@ -543,19 +754,137 @@ function createDisciplineStyles(colors: ThemeColors) {
       letterSpacing: 0.35,
       textTransform: "uppercase",
     },
-    signalGrid: {
-      flexDirection: "row",
-      gap: ui.spacing.xs,
+    briefPanel: {
+      ...cardSurface,
+      gap: ui.spacing.sm,
+      borderColor: withAlpha(colors.accentPrimary, 0.18),
+      backgroundColor: withAlpha(colors.surface2, 0.74),
+      paddingHorizontal: ui.spacing.md,
+      paddingVertical: ui.spacing.md,
+      overflow: "hidden",
     },
-    signalTile: {
-      ...tileSurface,
+    briefTopRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: ui.spacing.sm,
+    },
+    briefMain: {
       flex: 1,
       minWidth: 0,
-      paddingHorizontal: ui.spacing.xs,
-      paddingVertical: ui.spacing.sm,
-      gap: 5,
     },
-    signalLabel: {
+    briefTitle: {
+      color: colors.textPrimary,
+      fontSize: 20,
+      lineHeight: 24,
+      fontWeight: "900",
+      marginTop: 2,
+    },
+    briefBody: {
+      color: withAlpha(colors.textSecondary, 0.9),
+      fontSize: 13,
+      lineHeight: 18,
+      fontWeight: "700",
+      marginTop: 5,
+    },
+    briefGauge: {
+      minWidth: 72,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1,
+      borderColor: withAlpha(colors.border, 0.22),
+      borderRadius: ui.radius.md,
+      backgroundColor: withAlpha(colors.bg, 0.24),
+      paddingHorizontal: ui.spacing.xs,
+      paddingVertical: ui.spacing.xs,
+    },
+    briefGaugeLabel: {
+      color: withAlpha(colors.textSecondary, 0.76),
+      fontSize: 9,
+      lineHeight: 11,
+      fontWeight: "900",
+      letterSpacing: 0.5,
+      textTransform: "uppercase",
+      textAlign: "center",
+    },
+    briefGaugeValue: {
+      fontSize: 20,
+      lineHeight: 24,
+      fontWeight: "900",
+      marginTop: 2,
+      textAlign: "center",
+    },
+    briefDivider: {
+      height: 1,
+      backgroundColor: withAlpha(colors.border, 0.3),
+    },
+    protocolList: {
+      gap: ui.spacing.xs,
+    },
+    protocolStep: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: ui.spacing.xs,
+    },
+    protocolIndex: {
+      width: 20,
+      height: 20,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: withAlpha(colors.accentPrimary, 0.3),
+      textAlign: "center",
+      lineHeight: 18,
+      fontSize: 10,
+      fontWeight: "900",
+      overflow: "hidden",
+    },
+    protocolText: {
+      flex: 1,
+      color: colors.textPrimary,
+      fontSize: 13,
+      lineHeight: 17,
+      fontWeight: "900",
+      minWidth: 0,
+    },
+    briefFooter: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: ui.spacing.sm,
+      borderTopWidth: 1,
+      borderTopColor: withAlpha(colors.border, 0.26),
+      paddingTop: ui.spacing.xs,
+    },
+    briefFooterLabel: {
+      color: withAlpha(colors.textSecondary, 0.76),
+      fontSize: 10,
+      lineHeight: 13,
+      fontWeight: "900",
+      letterSpacing: 0.55,
+      textTransform: "uppercase",
+    },
+    briefFooterValue: {
+      color: colors.textPrimary,
+      fontSize: 12,
+      lineHeight: 16,
+      fontWeight: "900",
+      flexShrink: 1,
+      textAlign: "right",
+    },
+    momentumGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      columnGap: ui.spacing.xs,
+      rowGap: ui.spacing.xs,
+    },
+    momentumTile: {
+      ...tileSurface,
+      width: "48.8%",
+      minWidth: 0,
+      paddingHorizontal: ui.spacing.sm,
+      paddingVertical: ui.spacing.sm,
+      gap: 4,
+    },
+    momentumLabel: {
       color: withAlpha(colors.textSecondary, 0.76),
       fontSize: 9,
       lineHeight: 12,
@@ -563,65 +892,16 @@ function createDisciplineStyles(colors: ThemeColors) {
       letterSpacing: 0.5,
       textTransform: "uppercase",
     },
-    signalValue: {
-      color: colors.textPrimary,
-      fontSize: 23,
-      lineHeight: 27,
+    momentumValue: {
+      fontSize: 24,
+      lineHeight: 28,
       fontWeight: "900",
     },
-    signalFoot: {
+    momentumFoot: {
       color: withAlpha(colors.textSecondary, 0.74),
       fontSize: 10,
       lineHeight: 13,
       fontWeight: "700",
-    },
-    signalTrack: {
-      height: 7,
-      borderRadius: 999,
-      backgroundColor: withAlpha(colors.bg, 0.8),
-      overflow: "hidden",
-      borderWidth: 1,
-      borderColor: withAlpha(colors.border, 0.2),
-    },
-    signalFill: {
-      height: "100%",
-      borderRadius: 999,
-      backgroundColor: colors.accentPrimary,
-    },
-    streakBand: {
-      ...cardSurface,
-      flexDirection: "row",
-      alignItems: "stretch",
-      padding: 0,
-      overflow: "hidden",
-    },
-    streakCell: {
-      flex: 1,
-      paddingHorizontal: ui.spacing.xs,
-      paddingVertical: ui.spacing.sm,
-      alignItems: "center",
-      justifyContent: "center",
-      minWidth: 0,
-    },
-    streakDivider: {
-      width: 1,
-      backgroundColor: withAlpha(colors.border, 0.18),
-    },
-    streakValue: {
-      color: colors.textPrimary,
-      fontSize: 27,
-      lineHeight: 30,
-      fontWeight: "900",
-    },
-    streakLabel: {
-      color: withAlpha(colors.textSecondary, 0.8),
-      fontSize: 9,
-      lineHeight: 12,
-      fontWeight: "900",
-      letterSpacing: 0.4,
-      textTransform: "uppercase",
-      textAlign: "center",
-      marginTop: 2,
     },
     chartPanel: {
       ...cardSurface,
@@ -670,9 +950,62 @@ function createDisciplineStyles(colors: ThemeColors) {
     },
     chartLabel: {
       color: withAlpha(colors.textSecondary, 0.68),
-      fontSize: 8,
-      lineHeight: 10,
+      fontSize: 9,
+      lineHeight: 11,
+      fontWeight: "900",
+      textAlign: "center",
+    },
+    rankPathPanel: {
+      ...cardSurface,
+      gap: ui.spacing.sm,
+    },
+    rankPathList: {
+      gap: ui.spacing.xs,
+    },
+    rankPathRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: ui.spacing.xs,
+      borderWidth: 1,
+      borderColor: withAlpha(colors.border, 0.2),
+      borderRadius: ui.radius.md,
+      backgroundColor: withAlpha(colors.bg, 0.18),
+      paddingHorizontal: ui.spacing.xs,
+      paddingVertical: ui.spacing.xs,
+    },
+    rankPathMark: {
+      width: 36,
+      height: 36,
+      borderRadius: ui.radius.sm,
+      borderWidth: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: withAlpha(colors.bg, 0.28),
+    },
+    rankPathCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+    rankPathName: {
+      color: colors.textPrimary,
+      fontSize: 13,
+      lineHeight: 17,
+      fontWeight: "900",
+    },
+    rankPathRange: {
+      color: withAlpha(colors.textSecondary, 0.72),
+      fontSize: 10,
+      lineHeight: 13,
       fontWeight: "800",
+      marginTop: 1,
+    },
+    rankPathStatus: {
+      color: withAlpha(colors.textSecondary, 0.78),
+      fontSize: 10,
+      lineHeight: 13,
+      fontWeight: "900",
+      letterSpacing: 0.35,
+      textTransform: "uppercase",
     },
     judgmentPanel: {
       ...cardSurface,
@@ -741,30 +1074,6 @@ function createDisciplineStyles(colors: ThemeColors) {
       lineHeight: 13,
       fontWeight: "800",
       marginTop: 1,
-    },
-    rulesPanel: {
-      ...cardSurface,
-      gap: ui.spacing.xs,
-    },
-    ruleRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-      borderTopWidth: 1,
-      borderTopColor: withAlpha(colors.border, 0.2),
-      paddingTop: ui.spacing.xs,
-      marginTop: ui.spacing.xs,
-    },
-    ruleLabel: {
-      color: colors.textPrimary,
-      fontSize: 13,
-      lineHeight: 17,
-      fontWeight: "800",
-    },
-    ruleDelta: {
-      fontSize: 14,
-      lineHeight: 18,
-      fontWeight: "900",
     },
     emptyText: {
       color: withAlpha(colors.textSecondary, 0.8),

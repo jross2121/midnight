@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { withAlpha } from './_utils/designSystem';
 import { useTheme } from './_utils/themeContext';
 
 export default function TabLayout() {
@@ -28,16 +29,16 @@ export default function TabLayout() {
           paddingBottom: sceneBottomInset,
           backgroundColor: colors.bg,
         },
-        tabBarBackground: () => <View style={{ flex: 1, backgroundColor: '#070E15' }} />,
+        tabBarBackground: () => <View style={{ flex: 1, backgroundColor: colors.surface }} />,
         tabBarStyle: {
           position: 'absolute',
           left: 14,
           right: 14,
           bottom: navBottomOffset,
-          backgroundColor: '#070E15',
+          backgroundColor: colors.surface,
           borderTopWidth: 0,
           borderWidth: 1,
-          borderColor: `${colors.accentPrimary}16`,
+          borderColor: withAlpha(colors.accentPrimary, 0.16),
           borderRadius: 12,
           paddingBottom: navBottomPadding,
           paddingTop: 2,
@@ -79,12 +80,19 @@ export default function TabLayout() {
       <Tabs.Screen
         name="stats"
         options={{
-          title: 'Discipline',
+          title: 'Rank',
           tabBarIcon: ({ color }) => <IconSymbol size={22} name="star.fill" color={color} />,
         }}
       />
       <Tabs.Screen
         name="achievements"
+        options={{
+          title: 'Awards',
+          tabBarIcon: ({ color }) => <IconSymbol size={22} name="trophy.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="insights"
         options={{
           title: 'Insights',
           tabBarIcon: ({ color }) => <IconSymbol size={22} name="chart.bar.fill" color={color} />,
@@ -95,12 +103,6 @@ export default function TabLayout() {
         options={{
           title: 'Settings',
           tabBarIcon: ({ color }) => <IconSymbol size={22} name="gearshape.fill" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          href: null,
         }}
       />
     </Tabs>

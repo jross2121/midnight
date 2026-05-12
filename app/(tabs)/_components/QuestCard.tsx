@@ -1,9 +1,11 @@
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import * as Haptics from "expo-haptics";
 import React, { useRef, useState } from "react";
-import { Animated, Easing, Pressable, Text, View } from "react-native";
+import { Alert, Animated, Easing, Pressable, Text, View } from "react-native";
 import { createStyles } from "../_styles";
+import { getCategoryArtById } from "../_utils/categoryArt";
 import { withAlpha } from "../_utils/designSystem";
+import { getQuestRepeatLabel } from "../_utils/recurrence";
 import { useTheme } from "../_utils/themeContext";
 import type { Quest } from "../_utils/types";
 
@@ -37,6 +39,8 @@ export const QuestCard = React.memo(function QuestCard({
   const [contractPressed, setContractPressed] = useState(false);
   const [deletePressed, setDeletePressed] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const categoryArt = getCategoryArtById(quest.categoryId);
+  const hasStatus = !quest.done && (quest.pinned || quest.contract);
 
   const flashOpacity = useRef(new Animated.Value(0)).current;
   const cardOpacity = useRef(new Animated.Value(1)).current;
@@ -127,8 +131,21 @@ export const QuestCard = React.memo(function QuestCard({
   };
 
   const handleDelete = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    onDelete(quest.id);
+    Alert.alert(
+      "Archive quest?",
+      `"${quest.title}" will move out of today's queue. You can restore it from Settings.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Archive",
+          style: "destructive",
+          onPress: () => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+            onDelete(quest.id);
+          },
+        },
+      ]
+    );
   };
 
   const handlePin = () => {
@@ -151,7 +168,7 @@ export const QuestCard = React.memo(function QuestCard({
       style={[
         styles.questCard,
         { borderColor: withAlpha(colors.border, 0.28) },
-        quest.contract && styles.questContract,
+        quest.contract && !quest.done && styles.questContract,
         quest.done && styles.questDone,
         {
           opacity: cardOpacity,
@@ -166,7 +183,7 @@ export const QuestCard = React.memo(function QuestCard({
           { backgroundColor: colors.accentPrimary, opacity: flashOpacity },
         ]}
       />
-      {quest.contract ? <View pointerEvents="none" style={styles.questContractRail} /> : null}
+      {quest.contract && !quest.done ? <View pointerEvents="none" style={styles.questContractRail} /> : null}
 
       <View style={styles.questHeader}>
         <Pressable
@@ -178,13 +195,38 @@ export const QuestCard = React.memo(function QuestCard({
           onPress={handleComplete}
           hitSlop={8}
           disabled={isCompleting}
+          accessibilityRole="button"
+          accessibilityLabel={
+            quest.done ? `${quest.title} is complete` : `Complete ${quest.title}`
+          }
         >
-          <View style={styles.questCompleteIconWrap}>
-            <IconSymbol
-              name={quest.done ? "checkmark.circle.fill" : "circle"}
-              size={19}
-              color={quest.done ? colors.accentPrimary : colors.textSecondary}
-            />
+          <View
+            style={[
+              styles.questArtBadge,
+              {
+                backgroundColor: withAlpha(categoryArt.color, quest.done ? 0.08 : 0.12),
+                borderColor: withAlpha(categoryArt.color, quest.done ? 0.34 : 0.32),
+              },
+            ]}
+          >
+            <Text style={[styles.questArtGlyph, quest.done && styles.questArtGlyphDone]}>
+              {categoryArt.glyph}
+            </Text>
+            <View
+              style={[
+                styles.questDoneMark,
+                {
+                  backgroundColor: quest.done ? colors.accentPrimary : colors.bg,
+                  borderColor: quest.done
+                    ? withAlpha(colors.accentPrimary, 0.7)
+                    : withAlpha(colors.textSecondary, 0.42),
+                },
+              ]}
+            >
+              {quest.done ? (
+                <IconSymbol name="checkmark" size={12} color={colors.bg} />
+              ) : null}
+            </View>
             {!quest.done && (
               <Animated.View
                 style={[
@@ -201,43 +243,43 @@ export const QuestCard = React.memo(function QuestCard({
         <Pressable
           style={({ pressed }) => [styles.questHeaderMain, pressed && styles.questHeaderPressed]}
           onPress={handleToggleExpanded}
+          accessibilityRole="button"
+          accessibilityLabel={`${isOpen ? "Collapse" : "Expand"} actions for ${quest.title}`}
         >
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={[styles.questTitle, { color: colors.textPrimary }, quest.done && styles.questTitleDone]}>
               {quest.title}
             </Text>
-            <Text style={[styles.questMetaSingleLine, { color: colors.textSecondary }]}>
-              {categoryName} - {`${quest.difficulty.charAt(0).toUpperCase()}${quest.difficulty.slice(1)}`} - {quest.xp} XP
+            <Text
+              style={[
+                styles.questMetaSingleLine,
+                { color: colors.textSecondary },
+                quest.done && styles.questMetaDone,
+              ]}
+            >
+              {categoryName} - {`${quest.difficulty.charAt(0).toUpperCase()}${quest.difficulty.slice(1)}`} - {quest.xp} XP - {getQuestRepeatLabel(quest)}
             </Text>
           </View>
 
-          <View style={styles.questStatusStack}>
-            {quest.pinned && (
-              <View style={[styles.statusPillIcon, { backgroundColor: withAlpha(colors.accentPrimary, 0.1) }]}>
-                <IconSymbol name="pin.fill" size={12} color={colors.accentPrimary} />
-              </View>
-            )}
-            {quest.contract && (
-              <Text
-                style={[
-                  styles.statusPill,
-                  { color: colors.accentPrimary, backgroundColor: withAlpha(colors.accentPrimary, 0.1) },
-                ]}
-              >
-                CONTRACT
-              </Text>
-            )}
-            {quest.done && (
-              <Text
-                style={[
-                  styles.statusPill,
-                  { color: colors.accentPrimary, backgroundColor: withAlpha(colors.accentPrimary, 0.1) },
-                ]}
-              >
-                DONE
-              </Text>
-            )}
-          </View>
+          {hasStatus ? (
+            <View style={styles.questStatusStack}>
+              {quest.pinned && (
+                <View style={[styles.statusPillIcon, { backgroundColor: withAlpha(colors.accentPrimary, 0.1) }]}>
+                  <IconSymbol name="pin.fill" size={12} color={colors.accentPrimary} />
+                </View>
+              )}
+              {quest.contract && (
+                <Text
+                  style={[
+                    styles.statusPill,
+                    { color: colors.accentPrimary, backgroundColor: withAlpha(colors.accentPrimary, 0.1) },
+                  ]}
+                >
+                  CONTRACT
+                </Text>
+              )}
+            </View>
+          ) : null}
         </Pressable>
       </View>
 
@@ -252,6 +294,8 @@ export const QuestCard = React.memo(function QuestCard({
                   { backgroundColor: withAlpha(colors.accentPrimary, 0.12), borderColor: withAlpha(colors.accentPrimary, 0.38) },
                 ]}
                 onPress={handleComplete}
+                accessibilityRole="button"
+                accessibilityLabel={`Complete ${quest.title}`}
               >
                 <Text style={[styles.questActionTextPrimary, { color: colors.accentPrimary }]}>Complete</Text>
               </Pressable>
@@ -262,6 +306,8 @@ export const QuestCard = React.memo(function QuestCard({
               onPress={handleEdit}
               onPressIn={() => setEditPressed(true)}
               onPressOut={() => setEditPressed(false)}
+              accessibilityRole="button"
+              accessibilityLabel={`Edit ${quest.title}`}
             >
               <Text style={[styles.questActionTextSubtle, { color: colors.textSecondary }]}>Edit</Text>
             </Pressable>
@@ -277,6 +323,8 @@ export const QuestCard = React.memo(function QuestCard({
               onPress={handlePin}
               onPressIn={() => setPinPressed(true)}
               onPressOut={() => setPinPressed(false)}
+              accessibilityRole="button"
+              accessibilityLabel={`${quest.pinned ? "Unpin" : "Pin"} ${quest.title}`}
             >
               <Text style={[styles.questActionTextSubtle, { color: quest.pinned ? colors.accentPrimary : colors.textSecondary }]}>
                 {quest.pinned ? "Pinned" : "Pin"}
@@ -294,6 +342,8 @@ export const QuestCard = React.memo(function QuestCard({
               onPress={handleContract}
               onPressIn={() => setContractPressed(true)}
               onPressOut={() => setContractPressed(false)}
+              accessibilityRole="button"
+              accessibilityLabel={`${quest.contract ? "Remove contract from" : "Pledge"} ${quest.title}`}
             >
               <Text style={[styles.questActionTextSubtle, { color: quest.contract ? colors.accentPrimary : colors.textSecondary }]}>
                 {quest.contract ? "Contract" : "Pledge"}
@@ -305,8 +355,10 @@ export const QuestCard = React.memo(function QuestCard({
               onPress={handleDelete}
               onPressIn={() => setDeletePressed(true)}
               onPressOut={() => setDeletePressed(false)}
+              accessibilityRole="button"
+              accessibilityLabel={`Archive ${quest.title}`}
             >
-              <Text style={[styles.questActionTextSubtle, { color: colors.accentPrimary }]}>Delete</Text>
+              <Text style={[styles.questActionTextSubtle, { color: colors.accentPrimary }]}>Archive</Text>
             </Pressable>
           </View>
         </>

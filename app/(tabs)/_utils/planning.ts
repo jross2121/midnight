@@ -1,4 +1,4 @@
-import { DAILY_STANDARD, getDRChangeFromPercent } from "./discipline";
+import { DAILY_STANDARD, getDailyScoringTarget, getDRChangeFromPercent } from "./discipline";
 import type { DrHistoryEntry, Quest } from "./types";
 
 export type PlanSummary = {
@@ -16,6 +16,12 @@ export type StreakSummary = {
   solidDayStreak: number;
   contractStreak: number;
   bestSolidDayStreak: number;
+};
+
+export type NextDayPlan = {
+  title: string;
+  body: string;
+  steps: string[];
 };
 
 function clampPercent(value: number): number {
@@ -69,7 +75,7 @@ export function buildStreakSummary(history: DrHistoryEntry[]): StreakSummary {
 export function buildPlanSummary(quests: Quest[]): PlanSummary {
   const completedCount = quests.filter((quest) => quest.done).length;
   const totalCount = quests.length;
-  const targetQuestCount = Math.min(DAILY_STANDARD, Math.max(1, totalCount));
+  const targetQuestCount = Math.max(1, getDailyScoringTarget(totalCount, DAILY_STANDARD));
   const currentPercent =
     targetQuestCount > 0 ? clampPercent((completedCount / targetQuestCount) * 100) : 0;
   const projectedDelta = getDRChangeFromPercent(currentPercent, totalCount, DAILY_STANDARD);
@@ -122,5 +128,59 @@ export function buildPlanSummary(quests: Quest[]): PlanSummary {
       nextDelta > projectedDelta
         ? "The next completion improves tonight's DR outcome. Take the smallest exposed quest now."
         : "Keep stacking completions. Contracts and pinned quests give the day its backbone.",
+  };
+}
+
+export function buildNextDayPlan(quests: Quest[], history: DrHistoryEntry[]): NextDayPlan {
+  const openContracts = quests.filter((quest) => quest.contract && !quest.done);
+  const openPinned = quests.filter((quest) => quest.pinned && !quest.done);
+  const openHard = quests.filter((quest) => quest.difficulty === "hard" && !quest.done);
+  const streakSummary = buildStreakSummary(history);
+  const latest = history[history.length - 1];
+
+  if (quests.length === 0) {
+    return {
+      title: "Seed tomorrow",
+      body: "Add one easy quest and one contract before the next run starts.",
+      steps: ["Add one easy quest", "Choose one contract", "Keep the board small"],
+    };
+  }
+
+  if (latest && latest.pct < 60) {
+    return {
+      title: "Protect the floor",
+      body: "Tomorrow should be smaller and earlier. Clear one contract before adding pressure.",
+      steps: ["One contract first", "One easy win", "Stop at a clean 60%"],
+    };
+  }
+
+  if (openContracts.length > 0) {
+    return {
+      title: "Contracts first",
+      body: `${openContracts.length} contract${openContracts.length === 1 ? "" : "s"} need priority before any bonus work.`,
+      steps: ["Open contracts", "Smallest visible quest", "Then pinned work"],
+    };
+  }
+
+  if (streakSummary.solidDayStreak >= 3 && openHard.length > 0) {
+    return {
+      title: "Add controlled pressure",
+      body: "The floor is holding. Add one hard rep without risking the daily standard.",
+      steps: ["Quick first win", "One hard quest", "Close at 85%+"],
+    };
+  }
+
+  if (openPinned.length > 0) {
+    return {
+      title: "Pinned priority",
+      body: "A pinned quest is already telling you where the day should start.",
+      steps: ["Pinned quest", "Contract check", "One easy follow-up"],
+    };
+  }
+
+  return {
+    title: "Repeat the floor",
+    body: "The board is stable. Clear the daily standard, then add one intentional extra.",
+    steps: ["Hit 60%", "Protect contracts", "One bonus rep"],
   };
 }
