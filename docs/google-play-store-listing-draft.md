@@ -20,6 +20,7 @@ Features:
 - Recurring quests for daily, weekday, weekly, and one-time routines
 - Up to 10 active quests per day to keep the board focused
 - Contract quests for high-accountability commitments
+- Focus Sprint timer with 5, 15, and 25 minute sessions for the next quest
 - Discipline Rating, ranks, streaks, category XP, and awards
 - Plan tab for weekly scheduling and paused quests
 - Local coaching prompts for next moves, weak spots, weekly review, and board load

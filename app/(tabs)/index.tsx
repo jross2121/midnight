@@ -91,6 +91,19 @@ import type {
 import { STORAGE_KEY } from "./_utils/types";
 
 const FAST_TEMPLATE_VISIBLE_COUNT = 3;
+const FOCUS_DURATION_OPTIONS = [
+  { label: "5m", seconds: 5 * 60 },
+  { label: "15m", seconds: 15 * 60 },
+  { label: "25m", seconds: 25 * 60 },
+];
+const DEFAULT_FOCUS_SECONDS = 15 * 60;
+
+function formatFocusTime(totalSeconds: number): string {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
 
 function applyDrChange(current: number, delta: number): number {
   return Math.max(0, current + delta);
@@ -225,6 +238,10 @@ export default function HomeScreen() {
   // Edit quest state
   const [editingQuestId, setEditingQuestId] = useState<string | null>(null);
   const [openQuestId, setOpenQuestId] = useState<string | null>(null);
+  const [focusQuestId, setFocusQuestId] = useState<string | null>(null);
+  const [focusDurationSeconds, setFocusDurationSeconds] = useState(DEFAULT_FOCUS_SECONDS);
+  const [focusRemainingSeconds, setFocusRemainingSeconds] = useState(DEFAULT_FOCUS_SECONDS);
+  const [focusRunning, setFocusRunning] = useState(false);
 
   const normalizeDifficulty = React.useCallback((d: unknown): "easy" | "medium" | "hard" => {
     if (d === "medium" || d === "hard") return d;
@@ -832,6 +849,42 @@ export default function HomeScreen() {
     if (nextMove.difficulty === "hard") return "Hard quest. Taking it now lowers tonight's pressure.";
     return "Fastest useful move for the current run.";
   }, [nextMove]);
+  const focusQuest = useMemo(
+    () => sortedQuests.find((quest) => quest.id === focusQuestId && !quest.done) ?? nextMove,
+    [focusQuestId, nextMove, sortedQuests]
+  );
+  const focusProgress = useMemo(() => {
+    if (focusDurationSeconds <= 0) return 0;
+    return Math.max(
+      0,
+      Math.min(1, (focusDurationSeconds - focusRemainingSeconds) / focusDurationSeconds)
+    );
+  }, [focusDurationSeconds, focusRemainingSeconds]);
+  const focusProgressWidth = `${Math.round(focusProgress * 100)}%` as `${number}%`;
+  const focusTimeLabel = formatFocusTime(focusRemainingSeconds);
+  const focusComplete = focusRemainingSeconds === 0 && Boolean(focusQuest);
+
+  useEffect(() => {
+    setFocusRunning(false);
+    setFocusRemainingSeconds(focusDurationSeconds);
+  }, [focusDurationSeconds, focusQuest?.id]);
+
+  useEffect(() => {
+    if (!focusRunning) return;
+
+    const interval = setInterval(() => {
+      setFocusRemainingSeconds((current) => Math.max(0, current - 1));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [focusRunning]);
+
+  useEffect(() => {
+    if (focusRunning && focusRemainingSeconds === 0) {
+      setFocusRunning(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+  }, [focusRemainingSeconds, focusRunning]);
 
   const availableQuestTemplates = useMemo(
     () =>
@@ -872,6 +925,42 @@ export default function HomeScreen() {
     setLifetimeCompletedQuestCount(nextLifetimeCompletedCount);
     checkAchievements(updatedQuests, updatedCategories, nextLifetimeCompletedCount);
     setOpenQuestId(null);
+    if (focusQuest?.id === questId) {
+      setFocusRunning(false);
+      setFocusQuestId(null);
+    }
+  };
+
+  const selectFocusDuration = (seconds: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setFocusDurationSeconds(seconds);
+  };
+
+  const startFocusSprint = () => {
+    if (!focusQuest) return;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (focusRemainingSeconds === 0) {
+      setFocusRemainingSeconds(focusDurationSeconds);
+    }
+    setFocusQuestId(focusQuest.id);
+    setFocusRunning(true);
+  };
+
+  const pauseFocusSprint = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setFocusRunning(false);
+  };
+
+  const resetFocusSprint = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setFocusRunning(false);
+    setFocusRemainingSeconds(focusDurationSeconds);
+  };
+
+  const completeFocusedQuest = () => {
+    if (!focusQuest) return;
+    completeQuest(focusQuest.id);
   };
 
   const deleteQuest = (questId: string) => {
@@ -1410,6 +1499,119 @@ export default function HomeScreen() {
                   : "No exposed quests remain."}
               </Text>
               <Text style={styles.nextMoveReason}>{nextMoveReason}</Text>
+            </View>
+
+            <View style={styles.focusSprintCard}>
+              <View style={styles.focusSprintHeader}>
+                <View style={styles.focusSprintTitleWrap}>
+                  <Text style={styles.focusSprintEyebrow}>Focus Sprint</Text>
+                  <Text style={styles.focusSprintTitle} numberOfLines={1}>
+                    {focusQuest ? focusQuest.title : "No active target"}
+                  </Text>
+                </View>
+                <View style={styles.focusSprintTimerPill}>
+                  <Text style={styles.focusSprintTimer}>{focusTimeLabel}</Text>
+                </View>
+              </View>
+
+              <View style={styles.focusProgressTrack}>
+                <View
+                  style={[
+                    styles.focusProgressFill,
+                    {
+                      width: focusProgressWidth,
+                      backgroundColor: focusComplete ? colors.positive : colors.accentPrimary,
+                    },
+                  ]}
+                />
+              </View>
+
+              <Text style={styles.focusSprintMeta}>
+                {focusQuest
+                  ? `${categoryName(focusQuest.categoryId)} - ${focusQuest.difficulty.toUpperCase()} - ${focusQuest.xp} XP`
+                  : "Clear or add a quest to start a focused run."}
+              </Text>
+
+              <View style={styles.focusDurationRow}>
+                {FOCUS_DURATION_OPTIONS.map((option) => {
+                  const active = option.seconds === focusDurationSeconds;
+                  return (
+                    <Pressable
+                      key={option.seconds}
+                      onPress={() => selectFocusDuration(option.seconds)}
+                      disabled={focusRunning}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Set focus sprint to ${option.label}`}
+                      style={[
+                        styles.focusDurationChip,
+                        active && styles.focusDurationChipActive,
+                        focusRunning && styles.focusDurationChipDisabled,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.focusDurationText,
+                          active && styles.focusDurationTextActive,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <View style={styles.focusActionRow}>
+                <Pressable
+                  onPress={focusRunning ? pauseFocusSprint : startFocusSprint}
+                  disabled={!focusQuest}
+                  accessibilityRole="button"
+                  accessibilityLabel={focusRunning ? "Pause focus sprint" : "Start focus sprint"}
+                  style={[
+                    styles.focusPrimaryButton,
+                    !focusQuest && styles.focusButtonDisabled,
+                  ]}
+                >
+                  <Text style={styles.focusPrimaryButtonText}>
+                    {focusRunning ? "Pause" : focusRemainingSeconds === 0 ? "Restart" : "Start"}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={resetFocusSprint}
+                  disabled={!focusQuest || focusRemainingSeconds === focusDurationSeconds}
+                  accessibilityRole="button"
+                  accessibilityLabel="Reset focus sprint"
+                  style={[
+                    styles.focusSecondaryButton,
+                    (!focusQuest || focusRemainingSeconds === focusDurationSeconds) &&
+                      styles.focusButtonDisabled,
+                  ]}
+                >
+                  <Text style={styles.focusSecondaryButtonText}>Reset</Text>
+                </Pressable>
+                <Pressable
+                  onPress={completeFocusedQuest}
+                  disabled={!focusQuest}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    focusQuest ? `Complete focused quest: ${focusQuest.title}` : "No focused quest"
+                  }
+                  style={[
+                    styles.focusSecondaryButton,
+                    focusComplete && styles.focusCompleteButton,
+                    !focusQuest && styles.focusButtonDisabled,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.focusSecondaryButtonText,
+                      focusComplete && styles.focusCompleteButtonText,
+                    ]}
+                  >
+                    Complete
+                  </Text>
+                </Pressable>
+              </View>
             </View>
 
             {displayedFastTemplates.length > 0 ? (

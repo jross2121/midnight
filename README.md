@@ -11,6 +11,7 @@ The app turns everyday tasks into a focused daily run:
 - unlock awards from lifetime progress and streaks
 - archive quests instead of losing them
 - schedule quests as once, daily, weekdays, or weekly
+- run focused 5, 15, or 25 minute sprints on the current next move
 - review momentum through rank, weekly insights, and next-day plans
 - get local coaching prompts based on quest load and recent patterns
 - export or import a JSON backup from Settings
