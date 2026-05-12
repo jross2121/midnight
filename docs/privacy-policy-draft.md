@@ -13,7 +13,7 @@ Midnight stores app data locally using device storage. This can include:
 - archived quests
 - reminder preferences and local notification schedule identifiers
 - theme preference
-- backup JSON that you generate or paste inside Settings
+- backup JSON, including reminder preferences, that you generate or paste inside Settings
 
 ## Data Collection
 

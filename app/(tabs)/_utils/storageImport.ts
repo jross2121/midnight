@@ -11,6 +11,7 @@ import {
 import { localDateKey } from "./dateHelpers";
 import { getQuestXpForDifficulty } from "./questXp";
 import { normalizeQuestRepeat, normalizeScheduledWeekday } from "./recurrence";
+import { normalizeReminderSettings, type ReminderSettings } from "./reminders";
 import {
   STORAGE_KEY,
   type Achievement,
@@ -28,12 +29,14 @@ export type DataExportPayload = {
   state: Partial<StoredState> | null;
   evaluationHistory: unknown[] | null;
   lastEvaluatedDate: string | null;
+  reminders?: ReminderSettings | null;
 };
 
 export type ParsedImportPayload = {
   state: StoredState;
   evaluationHistory?: unknown[];
   lastEvaluatedDate?: string | null;
+  reminders?: ReminderSettings;
 };
 
 const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -242,6 +245,10 @@ export function parseImportPayload(value: unknown): ParsedImportPayload | null {
       typeof payload.lastEvaluatedDate === "string" && DATE_KEY_PATTERN.test(payload.lastEvaluatedDate)
         ? payload.lastEvaluatedDate
         : null;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, "reminders")) {
+    parsed.reminders = normalizeReminderSettings(payload.reminders);
   }
 
   return parsed;

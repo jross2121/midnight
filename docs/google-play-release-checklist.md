@@ -25,6 +25,7 @@ Change the Android package before the first Play Store upload if you want a diff
 - Phone screenshots for key screens: Home, Plan, Quest Queue, Rank, Awards, Insights, Settings.
 - Short description.
 - Full description.
+- Use `docs/google-play-store-listing-draft.md` as starting copy.
 - Support email.
 
 ## Release Checks
@@ -34,8 +35,11 @@ Change the Android package before the first Play Store upload if you want a diff
 - `npm.cmd run check`
 - If the native Android folder is not present, run `npx expo prebuild --platform android` first.
 - `cd android && .\gradlew.bat :app:processReleaseManifest :app:compileReleaseKotlin --console=plain --no-daemon`
+- `eas build --platform android --profile preview`
+- `eas build --platform android --profile production`
 - Test fresh install.
 - Test backup export/import.
+- Confirm backup export/import preserves reminder preferences.
 - Test archive restore/clear.
 - Test reminder permission request, enable/disable, and each reminder slot.
 - Test midnight evaluation flow.

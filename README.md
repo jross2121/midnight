@@ -45,4 +45,10 @@ permanent app ID.
 Release planning docs:
 
 - `docs/google-play-release-checklist.md`
+- `docs/google-play-store-listing-draft.md`
 - `docs/privacy-policy-draft.md`
+
+Build profiles are defined in `eas.json`:
+
+- `eas build --platform android --profile preview` creates an internal APK.
+- `eas build --platform android --profile production` creates a Google Play AAB.

@@ -1,6 +1,7 @@
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
+import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import { Alert, Pressable, ScrollView, Text, TextInput, View } from "react-native";
@@ -44,6 +45,12 @@ function getReminderPermissionCopy(status: ReminderPermissionStatus) {
   if (status === "granted") return "Allowed";
   if (status === "denied") return "Blocked in Android settings";
   return "Not requested";
+}
+
+function getAppVersionCopy() {
+  const version = Constants.expoConfig?.version ?? "1.0.0";
+  const versionCode = Constants.expoConfig?.android?.versionCode;
+  return versionCode ? `${version} (${versionCode})` : version;
 }
 
 export default function SettingsScreen() {
@@ -355,6 +362,7 @@ export default function SettingsScreen() {
         AsyncStorage.getItem(DAILY_EVALUATION_HISTORY_STORAGE_KEY),
         AsyncStorage.getItem(MIDNIGHT_EVALUATION_STORAGE_KEY),
       ]);
+      const savedReminders = await loadReminderSettings();
 
       const payload: DataExportPayload = {
         version: 1,
@@ -363,6 +371,7 @@ export default function SettingsScreen() {
         state: rawState ? (JSON.parse(rawState) as Partial<StoredState>) : null,
         evaluationHistory: rawEvaluationHistory ? (JSON.parse(rawEvaluationHistory) as unknown[]) : null,
         lastEvaluatedDate,
+        reminders: savedReminders,
       };
 
       setExportPayload(JSON.stringify(payload, null, 2));
@@ -398,10 +407,21 @@ export default function SettingsScreen() {
         await AsyncStorage.removeItem(MIDNIGHT_EVALUATION_STORAGE_KEY);
       }
 
+      if (backup.reminders) {
+        const permission = await syncReminderSchedule(backup.reminders);
+        setReminderSettings(backup.reminders);
+        setReminderPermission(permission);
+      }
+
       setImportPayload("");
       setExportPayload("");
       await loadArchive();
-      Alert.alert("Import complete", "Your saved quests, stats, archive, and history were restored.");
+      Alert.alert(
+        "Import complete",
+        backup.reminders
+          ? "Your saved quests, stats, archive, history, and reminders were restored."
+          : "Your saved quests, stats, archive, and history were restored."
+      );
     } catch (error) {
       console.log("Failed to import data:", error);
       Alert.alert("Import failed", "Could not read that JSON backup.");
@@ -600,7 +620,7 @@ export default function SettingsScreen() {
             About
           </Text>
           <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 10 }]}>
-            Midnight v1.0
+            Midnight v{getAppVersionCopy()}
           </Text>
           <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 8 }]}>
             Daily Discipline Tracker focused on consistency, accountability, and measurable progress.
