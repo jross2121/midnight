@@ -863,6 +863,16 @@ export default function HomeScreen() {
   const focusProgressWidth = `${Math.round(focusProgress * 100)}%` as `${number}%`;
   const focusTimeLabel = formatFocusTime(focusRemainingSeconds);
   const focusComplete = focusRemainingSeconds === 0 && Boolean(focusQuest);
+  const focusStatusLabel = !focusQuest
+    ? "Idle"
+    : focusComplete
+      ? "Ready to complete"
+      : focusRunning
+        ? "Running"
+        : focusRemainingSeconds < focusDurationSeconds
+          ? "Paused"
+          : "Ready";
+  const focusDurationLabel = `${Math.round(focusDurationSeconds / 60)} minute sprint`;
 
   useEffect(() => {
     setFocusRunning(false);
@@ -1502,16 +1512,34 @@ export default function HomeScreen() {
             </View>
 
             <View style={styles.focusSprintCard}>
-              <View style={styles.focusSprintHeader}>
+              <View pointerEvents="none" style={styles.focusSprintAccentRail} />
+              <View style={styles.focusSprintTopRow}>
                 <View style={styles.focusSprintTitleWrap}>
                   <Text style={styles.focusSprintEyebrow}>Focus Sprint</Text>
-                  <Text style={styles.focusSprintTitle} numberOfLines={1}>
-                    {focusQuest ? focusQuest.title : "No active target"}
+                  <Text style={styles.focusSprintSubtitle}>Single-task timer for the current move</Text>
+                </View>
+                <View
+                  style={[
+                    styles.focusStatusPill,
+                    focusRunning && styles.focusStatusPillRunning,
+                    focusComplete && styles.focusStatusPillComplete,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.focusStatusText,
+                      focusRunning && styles.focusStatusTextRunning,
+                      focusComplete && styles.focusStatusTextComplete,
+                    ]}
+                  >
+                    {focusStatusLabel}
                   </Text>
                 </View>
-                <View style={styles.focusSprintTimerPill}>
-                  <Text style={styles.focusSprintTimer}>{focusTimeLabel}</Text>
-                </View>
+              </View>
+
+              <View style={styles.focusTimerConsole}>
+                <Text style={styles.focusSprintTimer}>{focusTimeLabel}</Text>
+                <Text style={styles.focusSprintTimerLabel}>{focusDurationLabel}</Text>
               </View>
 
               <View style={styles.focusProgressTrack}>
@@ -1526,11 +1554,20 @@ export default function HomeScreen() {
                 />
               </View>
 
-              <Text style={styles.focusSprintMeta}>
-                {focusQuest
-                  ? `${categoryName(focusQuest.categoryId)} - ${focusQuest.difficulty.toUpperCase()} - ${focusQuest.xp} XP`
-                  : "Clear or add a quest to start a focused run."}
-              </Text>
+              <View style={styles.focusTargetStrip}>
+                <View style={styles.focusTargetDot} />
+                <View style={styles.focusTargetTextWrap}>
+                  <Text style={styles.focusTargetLabel}>Locked Target</Text>
+                  <Text style={styles.focusSprintTitle} numberOfLines={1}>
+                    {focusQuest ? focusQuest.title : "No active target"}
+                  </Text>
+                  <Text style={styles.focusSprintMeta}>
+                    {focusQuest
+                      ? `${categoryName(focusQuest.categoryId)} - ${focusQuest.difficulty.toUpperCase()} - ${focusQuest.xp} XP`
+                      : "Clear or add a quest to start a focused run."}
+                  </Text>
+                </View>
+              </View>
 
               <View style={styles.focusDurationRow}>
                 {FOCUS_DURATION_OPTIONS.map((option) => {
