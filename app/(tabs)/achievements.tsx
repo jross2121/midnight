@@ -21,6 +21,8 @@ import { useTheme, type ThemeColors } from "./_utils/themeContext";
 import type { Achievement, Category, DrHistoryEntry, Quest, StoredState } from "./_utils/types";
 import { STORAGE_KEY } from "./_utils/types";
 
+type IconSymbolName = React.ComponentProps<typeof IconSymbol>["name"];
+
 type AchievementProgress = {
   current: number;
   target: number;
@@ -42,6 +44,14 @@ type AwardMeta = {
   collection: Exclude<AwardCollectionId, "all">;
   rarity: AwardRarity;
   hint: string;
+};
+
+type AwardVisual = {
+  icon: IconSymbolName;
+  primary: string;
+  soft: string;
+  deep: string;
+  label: string;
 };
 
 type EnrichedAchievement = {
@@ -222,6 +232,41 @@ const FALLBACK_AWARD_META: AwardMeta = {
   hint: "Keep completing quests to reveal this trophy.",
 };
 
+const RARITY_VISUALS: Record<AwardRarity, AwardVisual> = {
+  Core: {
+    icon: "checkmark.circle.fill",
+    primary: "#34D399",
+    soft: "#123D33",
+    deep: "#0B241F",
+    label: "Tier 1 Core",
+  },
+  Advanced: {
+    icon: "star.fill",
+    primary: "#F5B84B",
+    soft: "#493414",
+    deep: "#281D0B",
+    label: "Tier 2 Advanced",
+  },
+  Elite: {
+    icon: "trophy.fill",
+    primary: "#F472B6",
+    soft: "#4A1835",
+    deep: "#2A1020",
+    label: "Tier 3 Elite",
+  },
+};
+
+const AWARD_PAGE_ACCENT = RARITY_VISUALS.Advanced.primary;
+
+const COLLECTION_ICONS: Record<Exclude<AwardCollectionId, "all">, IconSymbolName> = {
+  quests: "checkmark.circle.fill",
+  contracts: "pin.fill",
+  streaks: "chart.bar.fill",
+  rank: "trophy.fill",
+  mastery: "star.fill",
+  rare: "trophy.fill",
+};
+
 function isAchievement(value: unknown): value is Achievement {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as Partial<Achievement>;
@@ -386,6 +431,190 @@ function getRarityWeight(rarity: AwardRarity): number {
   return 1;
 }
 
+function getAwardVisual(meta: AwardMeta): AwardVisual {
+  return {
+    ...RARITY_VISUALS[meta.rarity],
+    icon: COLLECTION_ICONS[meta.collection],
+  };
+}
+
+function getAwardStatusLabel(item: EnrichedAchievement): string {
+  if (item.unlocked) return "Unlocked";
+  if (item.ready) return "Ready";
+  return item.progress.label;
+}
+
+function AwardEmblem({
+  item,
+  size = "medium",
+}: {
+  item: EnrichedAchievement;
+  size?: "small" | "medium" | "large";
+}) {
+  const visual = getAwardVisual(item.meta);
+  const styles = size === "large"
+    ? {
+        outer: localAwardArtStyles.largeOuter,
+        ring: localAwardArtStyles.largeRing,
+        core: localAwardArtStyles.largeCore,
+        iconSize: 28,
+        notch: localAwardArtStyles.largeNotch,
+      }
+    : size === "small"
+      ? {
+          outer: localAwardArtStyles.smallOuter,
+          ring: localAwardArtStyles.smallRing,
+          core: localAwardArtStyles.smallCore,
+          iconSize: 17,
+          notch: localAwardArtStyles.smallNotch,
+        }
+      : {
+          outer: localAwardArtStyles.mediumOuter,
+          ring: localAwardArtStyles.mediumRing,
+          core: localAwardArtStyles.mediumCore,
+          iconSize: 22,
+          notch: localAwardArtStyles.mediumNotch,
+        };
+
+  return (
+    <View
+      style={[
+        styles.outer,
+        {
+          backgroundColor: item.unlocked || item.ready ? visual.soft : "transparent",
+          borderColor: item.unlocked || item.ready ? withAlpha(visual.primary, 0.7) : "#3A3F48",
+        },
+      ]}
+    >
+      <View
+        style={[
+          styles.ring,
+          {
+            backgroundColor: item.unlocked || item.ready ? visual.deep : "#1C2129",
+            borderColor: item.unlocked || item.ready ? withAlpha(visual.primary, 0.85) : "#4A505C",
+          },
+        ]}
+      >
+        <View
+          style={[
+            styles.core,
+            {
+              backgroundColor: item.unlocked || item.ready ? withAlpha(visual.primary, 0.16) : "#252B35",
+            },
+          ]}
+        >
+          <IconSymbol
+            name={visual.icon}
+            size={styles.iconSize}
+            color={item.unlocked || item.ready ? visual.primary : "#87909F"}
+          />
+        </View>
+      </View>
+      <View
+        style={[
+          styles.notch,
+          {
+            backgroundColor: item.unlocked || item.ready ? visual.primary : "#687180",
+          },
+        ]}
+      />
+    </View>
+  );
+}
+
+const localAwardArtStyles = StyleSheet.create({
+  largeOuter: {
+    width: 76,
+    height: 76,
+    borderRadius: 24,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  largeRing: {
+    width: 58,
+    height: 58,
+    borderRadius: 20,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  largeCore: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  largeNotch: {
+    position: "absolute",
+    bottom: 8,
+    width: 22,
+    height: 4,
+    borderRadius: 999,
+  },
+  mediumOuter: {
+    width: 52,
+    height: 52,
+    borderRadius: 17,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mediumRing: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mediumCore: {
+    width: 29,
+    height: 29,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mediumNotch: {
+    position: "absolute",
+    bottom: 5,
+    width: 16,
+    height: 3,
+    borderRadius: 999,
+  },
+  smallOuter: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  smallRing: {
+    width: 32,
+    height: 32,
+    borderRadius: 11,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  smallCore: {
+    width: 23,
+    height: 23,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  smallNotch: {
+    position: "absolute",
+    bottom: 4,
+    width: 13,
+    height: 3,
+    borderRadius: 999,
+  },
+});
+
 export default function AchievementsScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => createAchievementStyles(colors), [colors]);
@@ -511,7 +740,7 @@ export default function AchievementsScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.pageHeader}>
           <View style={styles.headerIcon}>
-            <IconSymbol name="trophy.fill" size={18} color={colors.accentPrimary} />
+            <IconSymbol name="trophy.fill" size={18} color={AWARD_PAGE_ACCENT} />
           </View>
           <View style={styles.headerCopy}>
             <Text style={styles.title}>Awards</Text>
@@ -547,13 +776,22 @@ export default function AchievementsScreen() {
               <Text style={styles.heroStatLabel}>oath days</Text>
             </View>
           </View>
+          <View style={styles.rarityLegend}>
+            {(["Core", "Advanced", "Elite"] as const).map((rarity) => {
+              const visual = RARITY_VISUALS[rarity];
+              return (
+                <View key={rarity} style={styles.rarityLegendItem}>
+                  <View style={[styles.rarityLegendDot, { backgroundColor: visual.primary }]} />
+                  <Text style={styles.rarityLegendText}>{visual.label}</Text>
+                </View>
+              );
+            })}
+          </View>
         </View>
 
         {featuredAward ? (
           <View style={styles.featuredPanel}>
-            <View style={styles.featuredBadge}>
-              <Text style={styles.featuredIcon}>{featuredAward.achievement.icon}</Text>
-            </View>
+            <AwardEmblem item={featuredAward} size="large" />
             <View style={styles.featuredCopy}>
               <Text style={styles.eyebrow}>
                 {featuredAward.unlocked ? "Latest Trophy" : "Closest Trophy"}
@@ -567,7 +805,14 @@ export default function AchievementsScreen() {
                   : featuredAward.meta.hint}
               </Text>
             </View>
-            <Text style={styles.featuredRarity}>{featuredAward.meta.rarity}</Text>
+            <Text
+              style={[
+                styles.featuredRarity,
+                { color: getAwardVisual(featuredAward.meta).primary },
+              ]}
+            >
+              {getAwardVisual(featuredAward.meta).label}
+            </Text>
           </View>
         ) : null}
 
@@ -613,29 +858,56 @@ export default function AchievementsScreen() {
                 accessibilityLabel={`View award ${item.achievement.name}`}
                 style={({ pressed }) => [styles.nextRow, pressed && styles.pressed]}
               >
-                <Text style={styles.nextIcon}>{item.achievement.icon}</Text>
+                <AwardEmblem item={item} size="small" />
                 <View style={styles.nextMain}>
                   <Text style={styles.nextName}>{item.achievement.name}</Text>
-                  <Text style={styles.nextMeta}>{item.meta.hint}</Text>
+                  <Text style={styles.nextMeta}>
+                    {getAwardVisual(item.meta).label} - {item.meta.hint}
+                  </Text>
                   <View style={styles.smallProgressTrack}>
-                    <View style={[styles.smallProgressFill, { width: progressWidth(item.pct) }]} />
+                    <View
+                      style={[
+                        styles.smallProgressFill,
+                        {
+                          width: progressWidth(item.pct),
+                          backgroundColor: getAwardVisual(item.meta).primary,
+                        },
+                      ]}
+                    />
                   </View>
                 </View>
-                <Text style={styles.nextProgress}>{item.progress.label}</Text>
+                <Text
+                  style={[
+                    styles.nextProgress,
+                    { color: getAwardVisual(item.meta).primary },
+                  ]}
+                >
+                  {item.progress.label}
+                </Text>
               </Pressable>
             ))}
           </View>
         ) : null}
 
         {selectedAward ? (
-          <View style={styles.detailPanel}>
-            <View style={styles.detailBadge}>
-              <Text style={styles.detailIcon}>{selectedAward.achievement.icon}</Text>
-            </View>
+          <View
+            style={[
+              styles.detailPanel,
+              {
+                borderColor: withAlpha(getAwardVisual(selectedAward.meta).primary, 0.34),
+              },
+            ]}
+          >
+            <AwardEmblem item={selectedAward} size="large" />
             <View style={styles.detailCopy}>
               <View style={styles.detailTopLine}>
-                <Text style={styles.eyebrow}>{selectedAward.meta.rarity} Trophy</Text>
-                <Text style={styles.detailStatus}>
+                <Text style={styles.eyebrow}>{getAwardVisual(selectedAward.meta).label} Trophy</Text>
+                <Text
+                  style={[
+                    styles.detailStatus,
+                    { color: getAwardVisual(selectedAward.meta).primary },
+                  ]}
+                >
                   {selectedAward.unlocked
                     ? "Unlocked"
                     : selectedAward.ready
@@ -659,44 +931,71 @@ export default function AchievementsScreen() {
         ) : null}
 
         <View style={styles.awardGrid}>
-          {filteredAchievements.map((item) => (
-            <Pressable
-              key={item.achievement.id}
-              onPress={() => setSelectedAwardId(item.achievement.id)}
-              accessibilityRole="button"
-              accessibilityLabel={`View award ${item.achievement.name}`}
-              style={({ pressed }) => [
-                styles.awardCard,
-                item.unlocked ? styles.awardCardUnlocked : styles.awardCardLocked,
-                selectedAward?.achievement.id === item.achievement.id && styles.awardCardSelected,
-                pressed && styles.pressed,
-              ]}
-            >
-              <View style={styles.awardTopRow}>
-                <Text style={[styles.awardIcon, !item.unlocked && styles.awardIconLocked]}>
-                  {item.achievement.icon}
-                </Text>
-                <Text style={[styles.awardState, item.unlocked && styles.awardStateUnlocked]}>
-                  {item.unlocked ? "Unlocked" : item.ready ? "Ready" : item.progress.label}
-                </Text>
-              </View>
-              <Text style={styles.awardName}>{item.achievement.name}</Text>
-              <Text style={styles.awardDescription}>{item.achievement.description}</Text>
-              <View style={styles.smallProgressTrack}>
-                <View style={[styles.smallProgressFill, { width: progressWidth(item.pct) }]} />
-              </View>
-              <View style={styles.awardFooter}>
-                <Text style={styles.awardDate}>
-                  {item.achievement.unlockedAt
-                    ? formatDate(item.achievement.unlockedAt)
-                    : item.ready
-                      ? "Ready"
-                      : "In progress"}
-                </Text>
-                <Text style={styles.awardRarity}>{item.meta.rarity}</Text>
-              </View>
-            </Pressable>
-          ))}
+          {filteredAchievements.map((item) => {
+            const visual = getAwardVisual(item.meta);
+            return (
+              <Pressable
+                key={item.achievement.id}
+                onPress={() => setSelectedAwardId(item.achievement.id)}
+                accessibilityRole="button"
+                accessibilityLabel={`View award ${item.achievement.name}`}
+                style={({ pressed }) => [
+                  styles.awardCard,
+                  item.unlocked || item.ready
+                    ? {
+                        borderColor: withAlpha(visual.primary, item.unlocked ? 0.5 : 0.36),
+                        backgroundColor: withAlpha(visual.primary, item.unlocked ? 0.1 : 0.05),
+                      }
+                    : styles.awardCardLocked,
+                  selectedAward?.achievement.id === item.achievement.id && {
+                    borderColor: withAlpha(visual.primary, 0.72),
+                  },
+                  pressed && styles.pressed,
+                ]}
+              >
+                <View style={styles.awardTopRow}>
+                  <AwardEmblem item={item} />
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      styles.awardTierPill,
+                      {
+                        borderColor: withAlpha(visual.primary, 0.34),
+                        color: visual.primary,
+                      },
+                    ]}
+                  >
+                    {visual.label}
+                  </Text>
+                </View>
+                <Text style={styles.awardName}>{item.achievement.name}</Text>
+                <Text style={styles.awardDescription}>{item.achievement.description}</Text>
+                <View style={styles.smallProgressTrack}>
+                  <View
+                    style={[
+                      styles.smallProgressFill,
+                      {
+                        width: progressWidth(item.pct),
+                        backgroundColor: visual.primary,
+                      },
+                    ]}
+                  />
+                </View>
+                <View style={styles.awardFooter}>
+                  <Text style={styles.awardDate}>
+                    {item.achievement.unlockedAt
+                      ? formatDate(item.achievement.unlockedAt)
+                      : item.ready
+                        ? "Ready"
+                        : "In progress"}
+                  </Text>
+                  <Text style={[styles.awardRarity, { color: visual.primary }]}>
+                    {getAwardStatusLabel(item)}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -743,8 +1042,8 @@ function createAchievementStyles(colors: ThemeColors) {
       alignItems: "center",
       justifyContent: "center",
       borderWidth: 1,
-      borderColor: withAlpha(colors.accentPrimary, 0.24),
-      backgroundColor: withAlpha(colors.accentPrimary, 0.075),
+      borderColor: withAlpha(AWARD_PAGE_ACCENT, 0.34),
+      backgroundColor: withAlpha(AWARD_PAGE_ACCENT, 0.11),
     },
     headerCopy: {
       flex: 1,
@@ -766,7 +1065,7 @@ function createAchievementStyles(colors: ThemeColors) {
     heroPanel: {
       ...cardSurface,
       gap: ui.spacing.sm,
-      borderColor: withAlpha(colors.accentPrimary, 0.24),
+      borderColor: withAlpha(AWARD_PAGE_ACCENT, 0.3),
       backgroundColor: withAlpha(colors.surface2, 0.9),
     },
     heroTopRow: {
@@ -798,14 +1097,14 @@ function createAchievementStyles(colors: ThemeColors) {
       minWidth: 82,
       borderRadius: ui.radius.md,
       borderWidth: 1,
-      borderColor: withAlpha(colors.accentPrimary, 0.3),
-      backgroundColor: withAlpha(colors.accentPrimary, 0.1),
+      borderColor: withAlpha(AWARD_PAGE_ACCENT, 0.38),
+      backgroundColor: withAlpha(AWARD_PAGE_ACCENT, 0.12),
       alignItems: "center",
       paddingHorizontal: ui.spacing.xs,
       paddingVertical: 8,
     },
     heroPercent: {
-      color: colors.accentPrimary,
+      color: AWARD_PAGE_ACCENT,
       fontSize: 28,
       lineHeight: 31,
       fontWeight: "900",
@@ -829,7 +1128,7 @@ function createAchievementStyles(colors: ThemeColors) {
     progressFill: {
       height: "100%",
       borderRadius: 999,
-      backgroundColor: colors.accentPrimary,
+      backgroundColor: AWARD_PAGE_ACCENT,
     },
     heroStatsRow: {
       flexDirection: "row",
@@ -857,29 +1156,40 @@ function createAchievementStyles(colors: ThemeColors) {
       textTransform: "uppercase",
       marginTop: 2,
     },
+    rarityLegend: {
+      flexDirection: "row",
+      gap: ui.spacing.xs,
+      borderTopWidth: 1,
+      borderTopColor: withAlpha(colors.border, 0.18),
+      paddingTop: ui.spacing.xs,
+    },
+    rarityLegendItem: {
+      flex: 1,
+      minWidth: 0,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+    },
+    rarityLegendDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 999,
+    },
+    rarityLegendText: {
+      color: withAlpha(colors.textSecondary, 0.82),
+      fontSize: 9,
+      lineHeight: 11,
+      fontWeight: "900",
+      letterSpacing: 0.25,
+      textTransform: "uppercase",
+    },
     featuredPanel: {
       ...cardSurface,
       flexDirection: "row",
       alignItems: "center",
       gap: ui.spacing.sm,
-      borderColor: withAlpha(colors.accentPrimary, 0.22),
+      borderColor: withAlpha(AWARD_PAGE_ACCENT, 0.24),
       backgroundColor: withAlpha(colors.bg, 0.18),
-    },
-    featuredBadge: {
-      width: 58,
-      height: 58,
-      borderRadius: ui.radius.md,
-      borderWidth: 1,
-      borderColor: withAlpha(colors.accentPrimary, 0.34),
-      backgroundColor: withAlpha(colors.accentPrimary, 0.12),
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    featuredIcon: {
-      color: colors.accentPrimary,
-      fontSize: 17,
-      lineHeight: 21,
-      fontWeight: "900",
     },
     featuredCopy: {
       flex: 1,
@@ -900,7 +1210,7 @@ function createAchievementStyles(colors: ThemeColors) {
       marginTop: 3,
     },
     featuredRarity: {
-      color: colors.accentPrimary,
+      color: AWARD_PAGE_ACCENT,
       fontSize: 9,
       lineHeight: 11,
       fontWeight: "900",
@@ -924,8 +1234,8 @@ function createAchievementStyles(colors: ThemeColors) {
       gap: 2,
     },
     collectionChipActive: {
-      borderColor: withAlpha(colors.accentPrimary, 0.44),
-      backgroundColor: withAlpha(colors.accentPrimary, 0.12),
+      borderColor: withAlpha(AWARD_PAGE_ACCENT, 0.46),
+      backgroundColor: withAlpha(AWARD_PAGE_ACCENT, 0.12),
     },
     collectionLabel: {
       color: colors.textPrimary,
@@ -934,7 +1244,7 @@ function createAchievementStyles(colors: ThemeColors) {
       fontWeight: "900",
     },
     collectionLabelActive: {
-      color: colors.accentPrimary,
+      color: AWARD_PAGE_ACCENT,
     },
     collectionMeta: {
       color: withAlpha(colors.textSecondary, 0.76),
@@ -970,14 +1280,6 @@ function createAchievementStyles(colors: ThemeColors) {
       alignItems: "center",
       gap: ui.spacing.sm,
     },
-    nextIcon: {
-      color: colors.accentPrimary,
-      fontSize: 15,
-      lineHeight: 20,
-      fontWeight: "900",
-      width: 40,
-      textAlign: "center",
-    },
     nextMain: {
       flex: 1,
       minWidth: 0,
@@ -996,7 +1298,7 @@ function createAchievementStyles(colors: ThemeColors) {
       fontWeight: "700",
     },
     nextProgress: {
-      color: colors.accentPrimary,
+      color: AWARD_PAGE_ACCENT,
       fontSize: 11,
       lineHeight: 14,
       fontWeight: "900",
@@ -1005,25 +1307,8 @@ function createAchievementStyles(colors: ThemeColors) {
       ...cardSurface,
       flexDirection: "row",
       gap: ui.spacing.sm,
-      borderColor: withAlpha(colors.accentPrimary, 0.2),
+      borderColor: withAlpha(AWARD_PAGE_ACCENT, 0.2),
       backgroundColor: withAlpha(colors.surface2, 0.7),
-    },
-    detailBadge: {
-      width: 64,
-      minHeight: 78,
-      borderRadius: ui.radius.md,
-      borderWidth: 1,
-      borderColor: withAlpha(colors.accentPrimary, 0.28),
-      backgroundColor: withAlpha(colors.accentPrimary, 0.1),
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    detailIcon: {
-      color: colors.accentPrimary,
-      fontSize: 19,
-      lineHeight: 24,
-      fontWeight: "900",
-      textAlign: "center",
     },
     detailCopy: {
       flex: 1,
@@ -1036,7 +1321,7 @@ function createAchievementStyles(colors: ThemeColors) {
       gap: ui.spacing.xs,
     },
     detailStatus: {
-      color: colors.accentPrimary,
+      color: AWARD_PAGE_ACCENT,
       fontSize: 10,
       lineHeight: 13,
       fontWeight: "900",
@@ -1076,15 +1361,8 @@ function createAchievementStyles(colors: ThemeColors) {
       minHeight: 172,
       gap: 7,
     },
-    awardCardUnlocked: {
-      borderColor: withAlpha(colors.accentPrimary, 0.3),
-      backgroundColor: withAlpha(colors.accentPrimary, 0.08),
-    },
     awardCardLocked: {
       opacity: 0.82,
-    },
-    awardCardSelected: {
-      borderColor: withAlpha(colors.accentPrimary, 0.54),
     },
     awardTopRow: {
       flexDirection: "row",
@@ -1092,25 +1370,19 @@ function createAchievementStyles(colors: ThemeColors) {
       justifyContent: "space-between",
       gap: ui.spacing.xs,
     },
-    awardIcon: {
-      color: colors.accentPrimary,
-      fontSize: 16,
-      lineHeight: 20,
-      fontWeight: "900",
-    },
-    awardIconLocked: {
-      color: withAlpha(colors.textSecondary, 0.72),
-    },
-    awardState: {
-      color: withAlpha(colors.textSecondary, 0.78),
+    awardTierPill: {
+      borderWidth: 1,
+      borderRadius: 999,
+      paddingHorizontal: 7,
+      paddingVertical: 4,
+      flexShrink: 1,
       fontSize: 9,
       lineHeight: 12,
       fontWeight: "900",
       letterSpacing: 0.4,
       textTransform: "uppercase",
-    },
-    awardStateUnlocked: {
-      color: colors.accentPrimary,
+      textAlign: "right",
+      overflow: "hidden",
     },
     awardName: {
       color: colors.textPrimary,
@@ -1136,7 +1408,7 @@ function createAchievementStyles(colors: ThemeColors) {
     smallProgressFill: {
       height: "100%",
       borderRadius: 999,
-      backgroundColor: colors.accentPrimary,
+      backgroundColor: AWARD_PAGE_ACCENT,
     },
     awardFooter: {
       flexDirection: "row",
@@ -1154,7 +1426,7 @@ function createAchievementStyles(colors: ThemeColors) {
       flex: 1,
     },
     awardRarity: {
-      color: colors.accentPrimary,
+      color: AWARD_PAGE_ACCENT,
       fontSize: 8,
       lineHeight: 10,
       fontWeight: "900",
