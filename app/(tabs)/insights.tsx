@@ -14,6 +14,7 @@ import {
     defaultQuests,
 } from "./_utils/defaultData";
 import { createCardSurface, createTileSurface, ui, withAlpha } from "./_utils/designSystem";
+import { buildCoachResponse, COACH_PROMPTS, type CoachPromptId } from "./_utils/coach";
 import {
     buildCalendarFromHistory,
     buildInsightOfTheDay,
@@ -99,6 +100,7 @@ export default function InsightsScreen() {
   const [quests, setQuests] = useState<Quest[]>(defaultQuests);
   const [hydrated, setHydrated] = useState(false);
   const [readoutExpanded, setReadoutExpanded] = useState(false);
+  const [selectedCoachPrompt, setSelectedCoachPrompt] = useState<CoachPromptId>("next");
 
   const loadData = useCallback(async () => {
     try {
@@ -232,6 +234,18 @@ export default function InsightsScreen() {
     if (weeklyAvgCompletion >= 85) return `Add one harder rep in ${weakestCategory}.`;
     return `Keep the floor at 60% and push ${strongestCategory} for one extra completion.`;
   })();
+  const coachResponse = buildCoachResponse(selectedCoachPrompt, {
+    todaysQuests,
+    evaluationHistory,
+    strongestCategory,
+    weakestCategory,
+  });
+  const coachToneColor =
+    coachResponse.tone === "positive"
+      ? colors.positive
+      : coachResponse.tone === "warning"
+        ? colors.negative
+        : colors.accentPrimary;
 
   return (
     <SafeAreaView edges={["top"]} style={styles.safe}>
@@ -286,6 +300,59 @@ export default function InsightsScreen() {
               </Text>
               <Text style={styles.commandMetricLabel}>7D DR</Text>
             </View>
+          </View>
+        </View>
+
+        <View style={styles.coachPanel}>
+          <View style={styles.cardHeaderRow}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.eyebrow}>Midnight Coach</Text>
+              <Text style={styles.cardTitle}>{coachResponse.title}</Text>
+            </View>
+            <View style={[styles.coachMetric, { borderColor: withAlpha(coachToneColor, 0.28) }]}>
+              <Text style={[styles.coachMetricValue, { color: coachToneColor }]}>
+                {coachResponse.metricValue}
+              </Text>
+              <Text style={styles.coachMetricLabel}>{coachResponse.metricLabel}</Text>
+            </View>
+          </View>
+
+          <View style={styles.promptGrid}>
+            {COACH_PROMPTS.map((prompt) => {
+              const selected = prompt.id === selectedCoachPrompt;
+              return (
+                <Pressable
+                  key={prompt.id}
+                  onPress={() => setSelectedCoachPrompt(prompt.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={prompt.label}
+                  style={({ pressed }) => [
+                    styles.promptButton,
+                    selected && styles.promptButtonSelected,
+                    pressed && styles.promptButtonPressed,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.promptButtonText,
+                      selected && styles.promptButtonTextSelected,
+                    ]}
+                  >
+                    {prompt.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <Text style={styles.coachBody}>{coachResponse.body}</Text>
+          <View style={styles.coachBulletList}>
+            {coachResponse.bullets.map((item, index) => (
+              <View key={`${selectedCoachPrompt}-${index}`} style={styles.coachBulletRow}>
+                <View style={[styles.coachBulletDot, { backgroundColor: coachToneColor }]} />
+                <Text style={styles.coachBulletText}>{item}</Text>
+              </View>
+            ))}
           </View>
         </View>
 
@@ -681,6 +748,104 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       gap: ui.spacing.sm,
       borderColor: withAlpha(colors.accentPrimary, 0.18),
       backgroundColor: withAlpha(colors.surface2, 0.76),
+    },
+    coachPanel: {
+      ...cardSurface,
+      gap: ui.spacing.sm,
+      borderColor: withAlpha(colors.accentPrimary, 0.24),
+      backgroundColor: withAlpha(colors.surface2, 0.84),
+    },
+    coachMetric: {
+      minWidth: 76,
+      minHeight: 52,
+      borderRadius: ui.radius.md,
+      borderWidth: 1,
+      backgroundColor: withAlpha(colors.bg, 0.28),
+      alignItems: "flex-end",
+      justifyContent: "center",
+      paddingHorizontal: ui.spacing.xs,
+      paddingVertical: 6,
+    },
+    coachMetricValue: {
+      fontSize: 18,
+      lineHeight: 22,
+      fontWeight: "900",
+    },
+    coachMetricLabel: {
+      color: withAlpha(colors.textSecondary, 0.76),
+      fontSize: 8,
+      lineHeight: 10,
+      fontWeight: "900",
+      letterSpacing: 0.4,
+      textTransform: "uppercase",
+      marginTop: 1,
+      textAlign: "right",
+    },
+    promptGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: ui.spacing.xs,
+    },
+    promptButton: {
+      width: "48.7%",
+      minHeight: 34,
+      borderRadius: ui.radius.button,
+      borderWidth: 1,
+      borderColor: withAlpha(colors.border, 0.24),
+      backgroundColor: withAlpha(colors.bg, 0.24),
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: ui.spacing.xs,
+      paddingVertical: 7,
+    },
+    promptButtonSelected: {
+      borderColor: withAlpha(colors.accentPrimary, 0.46),
+      backgroundColor: withAlpha(colors.accentPrimary, 0.12),
+    },
+    promptButtonPressed: {
+      opacity: 0.74,
+    },
+    promptButtonText: {
+      color: withAlpha(colors.textSecondary, 0.84),
+      fontSize: 11,
+      lineHeight: 14,
+      fontWeight: "900",
+      letterSpacing: 0.2,
+      textAlign: "center",
+    },
+    promptButtonTextSelected: {
+      color: colors.textPrimary,
+    },
+    coachBody: {
+      color: withAlpha(colors.textSecondary, 0.92),
+      fontSize: 13,
+      lineHeight: 19,
+      fontWeight: "700",
+    },
+    coachBulletList: {
+      gap: 8,
+      borderTopWidth: 1,
+      borderTopColor: withAlpha(colors.border, 0.2),
+      paddingTop: ui.spacing.xs,
+    },
+    coachBulletRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 8,
+    },
+    coachBulletDot: {
+      width: 7,
+      height: 7,
+      borderRadius: 999,
+      marginTop: 5,
+    },
+    coachBulletText: {
+      flex: 1,
+      minWidth: 0,
+      color: colors.textPrimary,
+      fontSize: 12,
+      lineHeight: 17,
+      fontWeight: "800",
     },
     cardHeaderRow: {
       flexDirection: "row",

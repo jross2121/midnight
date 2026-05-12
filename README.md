@@ -12,6 +12,7 @@ The app turns everyday tasks into a focused daily run:
 - archive quests instead of losing them
 - schedule quests as once, daily, weekdays, or weekly
 - review momentum through rank, weekly insights, and next-day plans
+- get local coaching prompts based on quest load and recent patterns
 - export or import a JSON backup from Settings
 
 ## Development

@@ -22,6 +22,7 @@ Features:
 - Contract quests for high-accountability commitments
 - Discipline Rating, ranks, streaks, category XP, and awards
 - Plan tab for weekly scheduling and paused quests
+- Local coaching prompts for next moves, weak spots, weekly review, and board load
 - Optional local reminders for planning and contract checks
 - Quest archive, manual backup export, and backup import
 - Local-first storage with no account, no ads, and no analytics SDKs

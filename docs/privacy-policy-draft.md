@@ -21,6 +21,8 @@ The current app does not create an account, upload your data to a Midnight serve
 
 If you enable reminders, Midnight schedules local notifications on your device. Reminder content and timing are handled by the operating system and are not uploaded to a Midnight server.
 
+Local coaching prompts are generated on your device from your saved quests and evaluation history.
+
 If you choose to export a backup, the app generates a JSON backup on your device. You control where that backup is copied, stored, or shared.
 
 ## Data Sharing
