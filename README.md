@@ -8,7 +8,7 @@ The app turns everyday tasks into a focused daily run:
 - protect up to three contract quests
 - earn category XP
 - build Discipline Rating and ranks
-- unlock awards from lifetime progress and streaks
+- unlock a trophy-room style awards collection from lifetime progress, streaks, contracts, ranks, and mastery
 - archive quests instead of losing them
 - schedule quests as once, daily, weekdays, or weekly
 - run focused 5, 15, or 25 minute sprints on the current next move

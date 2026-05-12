@@ -21,7 +21,7 @@ Features:
 - Up to 10 active quests per day to keep the board focused
 - Contract quests for high-accountability commitments
 - Focus Sprint timer with 5, 15, and 25 minute sessions for the next quest
-- Discipline Rating, ranks, streaks, category XP, and awards
+- Discipline Rating, ranks, streaks, category XP, and a 30-award trophy room
 - Plan tab for weekly scheduling and paused quests
 - Local coaching prompts for next moves, weak spots, weekly review, and board load
 - Optional local reminders for planning and contract checks
@@ -32,7 +32,7 @@ Midnight is designed to help you keep the day small enough to win and serious en
 
 ## Release Notes
 
-Initial Android release with daily quests, planning, ranks, awards, insights, local reminders, and manual backup tools.
+Initial Android release with daily quests, planning, ranks, trophy-room awards, insights, local reminders, and manual backup tools.
 
 ## Data Safety Notes
 
@@ -48,6 +48,6 @@ Initial Android release with daily quests, planning, ranks, awards, insights, lo
 - Add or edit quest flow
 - Plan tab with week ahead
 - Rank screen
-- Awards screen
+- Awards trophy room
 - Insights screen
 - Settings with reminders and backup tools

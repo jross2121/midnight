@@ -290,6 +290,8 @@ export default function HomeScreen() {
       .filter((q) => q.done)
       .reduce((sum, q) => sum + q.xp, 0);
     const questsDone = todaysUpdatedQuests.filter((q) => q.done);
+    const hardQuestDoneCount = questsDone.filter((q) => q.difficulty === "hard").length;
+    const completedCategoryCount = new Set(questsDone.map((q) => q.categoryId)).size;
 
     // first_quest: Complete first quest
     if (
@@ -348,6 +350,57 @@ export default function HomeScreen() {
       !achievements.find((a) => a.id === "30_quests")?.unlockedAt
     ) {
       unlockAchievement("30_quests");
+    }
+
+    if (
+      nextLifetimeCompletedCount >= 10 &&
+      !achievements.find((a) => a.id === "quest_10")?.unlockedAt
+    ) {
+      unlockAchievement("quest_10");
+    }
+
+    if (
+      nextLifetimeCompletedCount >= 100 &&
+      !achievements.find((a) => a.id === "quest_100")?.unlockedAt
+    ) {
+      unlockAchievement("quest_100");
+    }
+
+    if (
+      hardQuestDoneCount >= 2 &&
+      !achievements.find((a) => a.id === "double_hard")?.unlockedAt
+    ) {
+      unlockAchievement("double_hard");
+    }
+
+    if (todayXPTotal >= 150 && !achievements.find((a) => a.id === "xp_150")?.unlockedAt) {
+      unlockAchievement("xp_150");
+    }
+
+    if (todayXPTotal >= 200 && !achievements.find((a) => a.id === "xp_200")?.unlockedAt) {
+      unlockAchievement("xp_200");
+    }
+
+    if (
+      completedCategoryCount >= 4 &&
+      !achievements.find((a) => a.id === "balanced_day")?.unlockedAt
+    ) {
+      unlockAchievement("balanced_day");
+    }
+
+    if (
+      updatedCategories.some((c) => c.level >= 10) &&
+      !achievements.find((a) => a.id === "level_10")?.unlockedAt
+    ) {
+      unlockAchievement("level_10");
+    }
+
+    if (
+      updatedCategories.every((c) => c.level >= 5) &&
+      updatedCategories.length > 0 &&
+      !achievements.find((a) => a.id === "all_categories_5")?.unlockedAt
+    ) {
+      unlockAchievement("all_categories_5");
     }
 
     const contractQuestsForDay = todaysUpdatedQuests.filter((q) => q.contract);
@@ -661,11 +714,45 @@ export default function HomeScreen() {
       if (nextStreakSummary.solidDayStreak >= 3) {
         unlockAchievement("three_solid_days");
       }
+      if (nextStreakSummary.solidDayStreak >= 7) {
+        unlockAchievement("solid_7");
+      }
+      if (nextStreakSummary.solidDayStreak >= 14) {
+        unlockAchievement("solid_14");
+      }
+      if (nextStreakSummary.contractStreak >= 3) {
+        unlockAchievement("contract_3");
+      }
+      if (nextStreakSummary.contractStreak >= 7) {
+        unlockAchievement("contract_7");
+      }
+      if (nextStreakSummary.contractStreak >= 14) {
+        unlockAchievement("contract_14");
+      }
+      if (nextHistory.filter((entry) => entry.pct >= 100).length >= 3) {
+        unlockAchievement("perfect_3");
+      }
       if (pendingEvaluation.comebackBonus > 0) {
         unlockAchievement("comeback_day");
       }
-      if (getRankMeta(rankAfterEvaluation).tier >= 2) {
+      const rankTier = getRankMeta(rankAfterEvaluation).tier;
+      if (rankTier >= 2) {
         unlockAchievement("rank_climber");
+      }
+      if (rankTier >= 3) {
+        unlockAchievement("rank_focused");
+      }
+      if (rankTier >= 4) {
+        unlockAchievement("rank_driven");
+      }
+      if (rankTier >= 5) {
+        unlockAchievement("rank_relentless");
+      }
+      if (rankTier >= 6) {
+        unlockAchievement("rank_elite");
+      }
+      if (rankTier >= 7) {
+        unlockAchievement("rank_grand");
       }
     } catch (error) {
       console.log("Failed to commit midnight evaluation:", error);

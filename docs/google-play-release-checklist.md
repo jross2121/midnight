@@ -43,6 +43,7 @@ Change the Android package before the first Play Store upload if you want a diff
 - Test archive restore/clear.
 - Test reminder permission request, enable/disable, and each reminder slot.
 - Test Focus Sprint start, pause, reset, duration change, and quest completion.
+- Test Awards filters, next unlocks, selected award details, and new trophy progress.
 - Test midnight evaluation flow.
 - Test dark and light theme.
 - Verify dev-only tools are hidden in release builds.
