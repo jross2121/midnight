@@ -29,12 +29,29 @@ import {
 import { readEvaluationHistory, type DailyEvaluationHistoryItem } from "./_utils/evaluationHistory";
 import { localDateKey } from "./_utils/dateHelpers";
 import { getScheduledQuestsForDate } from "./_utils/recurrence";
-import { getRankFromDR } from "./_utils/rank";
+import { getRankFromDR, getRankMeta } from "./_utils/rank";
 import { useTheme } from "./_utils/themeContext";
 import type { Category, Quest, StoredState } from "./_utils/types";
 import { STORAGE_KEY } from "./_utils/types";
 
 const MAIN_CATEGORIES = getMainCategoryDisplayEntries();
+const INSIGHTS_UNLOCK_RANK = "Focused";
+const INSIGHTS_UNLOCK_TONE = "#F5B84B";
+
+const LOCKED_INSIGHT_PREVIEWS = [
+  {
+    title: "Pattern Readout",
+    body: "See what your recent judgments say about momentum, pressure, and next moves.",
+  },
+  {
+    title: "Weekly Review",
+    body: "Compare finish rate, contract protection, and DR changes across your latest week.",
+  },
+  {
+    title: "Execution Balance",
+    body: "Spot which life domains are carrying the run and which ones need attention.",
+  },
+];
 
 type CategoryInsight = {
   id: string;
@@ -143,6 +160,18 @@ export default function InsightsScreen() {
     return null;
   }
 
+  const focusedMinDr = getRankMeta(INSIGHTS_UNLOCK_RANK).minDr;
+  const peakRecordedDr = Math.max(
+    disciplineRating,
+    ...evaluationHistory.map((entry) => Math.max(entry.drBefore, entry.drAfter))
+  );
+  const insightsUnlocked = peakRecordedDr >= focusedMinDr;
+  const unlockProgressPercent = Math.min(
+    100,
+    Math.round((Math.max(0, peakRecordedDr) / focusedMinDr) * 100)
+  );
+  const unlockRemainingDr = Math.max(0, focusedMinDr - peakRecordedDr);
+
   const todaysQuests = getScheduledQuestsForDate(quests, localDateKey());
   const categoryBreakdown = MAIN_CATEGORIES.map((entry) => {
     const relatedQuests = todaysQuests.filter((quest) => quest.categoryId === entry.id);
@@ -246,6 +275,65 @@ export default function InsightsScreen() {
       : coachResponse.tone === "warning"
         ? colors.negative
         : colors.accentPrimary;
+
+  if (!insightsUnlocked) {
+    return (
+      <SafeAreaView edges={["top"]} style={styles.safe}>
+        <ScrollView contentContainerStyle={styles.container}>
+          <View style={styles.headerRow}>
+            <View style={[styles.headerIcon, styles.lockedHeaderIcon]}>
+              <IconSymbol name="chart.bar.fill" size={18} color={INSIGHTS_UNLOCK_TONE} />
+            </View>
+            <View style={styles.headerCopy}>
+              <Text style={styles.title}>Insight Matrix</Text>
+              <Text style={styles.subtitle}>Unlocks at Focused rank</Text>
+            </View>
+          </View>
+
+          <View style={styles.lockedPanel}>
+            <View style={styles.lockedTopRow}>
+              <View style={styles.lockedRankPlate}>
+                <RankBadge rank={INSIGHTS_UNLOCK_RANK} size={44} color={INSIGHTS_UNLOCK_TONE} active />
+              </View>
+              <View style={styles.lockedCopy}>
+                <Text style={styles.eyebrow}>Rank Unlock</Text>
+                <Text style={styles.lockedTitle}>Reach Focused to open Insights</Text>
+                <Text style={styles.lockedBody}>
+                  Midnight needs enough judgments before it can read your patterns clearly.
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.unlockProgressBlock}>
+              <View style={styles.unlockProgressHeader}>
+                <Text style={styles.unlockProgressLabel}>Focused progress</Text>
+                <Text style={styles.unlockProgressValue}>{unlockProgressPercent}%</Text>
+              </View>
+              <View style={styles.unlockTrack}>
+                <View style={[styles.unlockFill, { width: `${unlockProgressPercent}%` }]} />
+              </View>
+              <View style={styles.unlockMetaRow}>
+                <Text style={styles.unlockMeta}>{peakRecordedDr} DR</Text>
+                <Text style={styles.unlockMeta}>
+                  {unlockRemainingDr > 0 ? `${unlockRemainingDr} DR to unlock` : "Ready"}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.lockedPreviewGrid}>
+            {LOCKED_INSIGHT_PREVIEWS.map((item) => (
+              <View key={item.title} style={styles.lockedPreviewCard}>
+                <View style={styles.lockedPreviewDot} />
+                <Text style={styles.lockedPreviewTitle}>{item.title}</Text>
+                <Text style={styles.lockedPreviewBody}>{item.body}</Text>
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView edges={["top"]} style={styles.safe}>
@@ -569,6 +657,10 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       borderColor: withAlpha(colors.accentPrimary, 0.24),
       backgroundColor: withAlpha(colors.accentPrimary, 0.075),
     },
+    lockedHeaderIcon: {
+      borderColor: withAlpha(INSIGHTS_UNLOCK_TONE, 0.34),
+      backgroundColor: withAlpha(INSIGHTS_UNLOCK_TONE, 0.11),
+    },
     headerCopy: {
       flex: 1,
       minWidth: 0,
@@ -700,6 +792,126 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       letterSpacing: 0.45,
       textTransform: "uppercase",
       marginTop: 2,
+    },
+    lockedPanel: {
+      ...heroSurface,
+      gap: ui.spacing.md,
+      borderColor: withAlpha(INSIGHTS_UNLOCK_TONE, 0.3),
+      backgroundColor: withAlpha(colors.surface2, 0.88),
+    },
+    lockedTopRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: ui.spacing.sm,
+    },
+    lockedRankPlate: {
+      width: 72,
+      height: 72,
+      borderRadius: 22,
+      borderWidth: 1,
+      borderColor: withAlpha(INSIGHTS_UNLOCK_TONE, 0.5),
+      backgroundColor: withAlpha(INSIGHTS_UNLOCK_TONE, 0.1),
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    lockedCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+    lockedTitle: {
+      color: colors.textPrimary,
+      fontSize: 22,
+      lineHeight: 27,
+      fontWeight: "900",
+      marginTop: 2,
+    },
+    lockedBody: {
+      color: withAlpha(colors.textSecondary, 0.86),
+      fontSize: 12,
+      lineHeight: 17,
+      fontWeight: "700",
+      marginTop: 5,
+    },
+    unlockProgressBlock: {
+      gap: ui.spacing.xs,
+      borderTopWidth: 1,
+      borderTopColor: withAlpha(colors.border, 0.2),
+      paddingTop: ui.spacing.sm,
+    },
+    unlockProgressHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: ui.spacing.sm,
+    },
+    unlockProgressLabel: {
+      color: withAlpha(colors.textSecondary, 0.78),
+      fontSize: 10,
+      lineHeight: 13,
+      fontWeight: "900",
+      letterSpacing: 0.5,
+      textTransform: "uppercase",
+    },
+    unlockProgressValue: {
+      color: INSIGHTS_UNLOCK_TONE,
+      fontSize: 12,
+      lineHeight: 15,
+      fontWeight: "900",
+    },
+    unlockTrack: {
+      height: 11,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: withAlpha(colors.border, 0.2),
+      backgroundColor: withAlpha(colors.bg, 0.76),
+      overflow: "hidden",
+    },
+    unlockFill: {
+      height: "100%",
+      borderRadius: 999,
+      backgroundColor: INSIGHTS_UNLOCK_TONE,
+    },
+    unlockMetaRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: ui.spacing.sm,
+    },
+    unlockMeta: {
+      color: withAlpha(colors.textSecondary, 0.82),
+      fontSize: 10,
+      lineHeight: 13,
+      fontWeight: "900",
+      letterSpacing: 0.3,
+      textTransform: "uppercase",
+    },
+    lockedPreviewGrid: {
+      gap: ui.spacing.xs,
+    },
+    lockedPreviewCard: {
+      ...tileSurface,
+      minHeight: 96,
+      gap: 6,
+      borderColor: withAlpha(INSIGHTS_UNLOCK_TONE, 0.18),
+      backgroundColor: withAlpha(colors.surface2, 0.58),
+    },
+    lockedPreviewDot: {
+      width: 22,
+      height: 4,
+      borderRadius: 999,
+      backgroundColor: withAlpha(INSIGHTS_UNLOCK_TONE, 0.8),
+    },
+    lockedPreviewTitle: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      lineHeight: 19,
+      fontWeight: "900",
+    },
+    lockedPreviewBody: {
+      color: withAlpha(colors.textSecondary, 0.82),
+      fontSize: 12,
+      lineHeight: 17,
+      fontWeight: "700",
     },
     signalMap: {
       flexDirection: "row",

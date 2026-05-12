@@ -1,3 +1,4 @@
+import { IconSymbol } from "@/components/ui/icon-symbol";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
@@ -36,6 +37,14 @@ type WeekPlanDay = {
   isToday: boolean;
   quests: Quest[];
 };
+
+type IconSymbolName = React.ComponentProps<typeof IconSymbol>["name"];
+
+const PLAN_TONES = {
+  gold: "#F5B84B",
+  slate: "#8EA0B2",
+  warning: "#F472B6",
+} as const;
 
 function addDaysToDateKey(dateKey: string, days: number): string {
   const date = parseDateKey(dateKey);
@@ -86,29 +95,223 @@ function showQuestLimitAlert(conflict: QuestLimitConflict) {
   );
 }
 
-function DayPlanCard({ day, colors, styles }: { day: WeekPlanDay; colors: ThemeColors; styles: ReturnType<typeof createPlanStyles> }) {
+function getQuestTone(quest: Pick<Quest, "contract" | "difficulty">): string {
+  if (quest.contract) return PLAN_TONES.gold;
+  return PLAN_TONES.slate;
+}
+
+function getQuestIcon(quest: Pick<Quest, "contract" | "difficulty">): IconSymbolName {
+  if (quest.contract) return "pin.fill";
+  if (quest.difficulty === "hard") return "trophy.fill";
+  if (quest.difficulty === "medium") return "star.fill";
+  return "checkmark.circle.fill";
+}
+
+function getDayTone(day: WeekPlanDay): string {
+  if (day.isToday) return PLAN_TONES.gold;
+  if (day.quests.length >= MAX_ACTIVE_QUESTS_PER_DAY) return PLAN_TONES.warning;
+  return PLAN_TONES.slate;
+}
+
+function PlanSignalBadge({
+  icon,
+  tone,
+  size = "medium",
+}: {
+  icon: IconSymbolName;
+  tone: string;
+  size?: "small" | "medium" | "large";
+}) {
+  const badgeStyles =
+    size === "large"
+      ? {
+          shell: localPlanArtStyles.largeShell,
+          ring: localPlanArtStyles.largeRing,
+          core: localPlanArtStyles.largeCore,
+          notch: localPlanArtStyles.largeNotch,
+          iconSize: 28,
+        }
+      : size === "small"
+        ? {
+            shell: localPlanArtStyles.smallShell,
+            ring: localPlanArtStyles.smallRing,
+            core: localPlanArtStyles.smallCore,
+            notch: localPlanArtStyles.smallNotch,
+            iconSize: 15,
+          }
+        : {
+            shell: localPlanArtStyles.mediumShell,
+            ring: localPlanArtStyles.mediumRing,
+            core: localPlanArtStyles.mediumCore,
+            notch: localPlanArtStyles.mediumNotch,
+            iconSize: 20,
+          };
+
+  return (
+    <View
+      style={[
+        badgeStyles.shell,
+        {
+          borderColor: withAlpha(tone, 0.55),
+          backgroundColor: withAlpha(tone, 0.11),
+        },
+      ]}
+    >
+      <View
+        style={[
+          badgeStyles.ring,
+          {
+            borderColor: withAlpha(tone, 0.72),
+            backgroundColor: withAlpha(tone, 0.08),
+          },
+        ]}
+      >
+        <View style={[badgeStyles.core, { backgroundColor: withAlpha(tone, 0.16) }]}>
+          <IconSymbol name={icon} size={badgeStyles.iconSize} color={tone} />
+        </View>
+      </View>
+      <View style={[badgeStyles.notch, { backgroundColor: tone }]} />
+    </View>
+  );
+}
+
+const localPlanArtStyles = StyleSheet.create({
+  largeShell: {
+    width: 76,
+    height: 76,
+    borderRadius: 24,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  largeRing: {
+    width: 58,
+    height: 58,
+    borderRadius: 20,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  largeCore: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  largeNotch: {
+    position: "absolute",
+    bottom: 8,
+    width: 22,
+    height: 4,
+    borderRadius: 999,
+  },
+  mediumShell: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mediumRing: {
+    width: 36,
+    height: 36,
+    borderRadius: 13,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mediumCore: {
+    width: 26,
+    height: 26,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mediumNotch: {
+    position: "absolute",
+    bottom: 5,
+    width: 15,
+    height: 3,
+    borderRadius: 999,
+  },
+  smallShell: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  smallRing: {
+    width: 25,
+    height: 25,
+    borderRadius: 9,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  smallCore: {
+    width: 18,
+    height: 18,
+    borderRadius: 7,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  smallNotch: {
+    position: "absolute",
+    bottom: 3,
+    width: 11,
+    height: 3,
+    borderRadius: 999,
+  },
+});
+
+function DayPlanCard({ day, styles }: { day: WeekPlanDay; styles: ReturnType<typeof createPlanStyles> }) {
   const totalCount = day.quests.length;
   const isFull = totalCount >= MAX_ACTIVE_QUESTS_PER_DAY;
   const contractCount = day.quests.filter((quest) => quest.contract).length;
   const hardCount = day.quests.filter((quest) => quest.difficulty === "hard").length;
   const completedCount = day.isToday ? day.quests.filter((quest) => quest.done).length : 0;
   const topQuests = day.quests.slice(0, 3);
+  const tone = getDayTone(day);
+  const progressPct = Math.min(100, Math.round((totalCount / MAX_ACTIVE_QUESTS_PER_DAY) * 100));
 
   return (
-    <View style={[styles.dayCard, day.isToday && { borderColor: withAlpha(colors.accentPrimary, 0.55) }]}>
+    <View
+      style={[
+        styles.dayCard,
+        {
+          borderColor: withAlpha(tone, day.isToday ? 0.62 : 0.32),
+          backgroundColor: withAlpha(tone, day.isToday ? 0.08 : 0.035),
+        },
+      ]}
+    >
+      <View style={[styles.dayAccentRail, { backgroundColor: tone }]} />
       <View style={styles.dayTopRow}>
-        <View>
-          <Text style={styles.dayLabel}>{day.isToday ? "Today" : day.dayLabel}</Text>
-          <Text style={styles.dayDate}>{day.dateLabel}</Text>
+        <View style={styles.dayIdentity}>
+          <PlanSignalBadge icon={day.isToday ? "calendar" : "checkmark.circle.fill"} tone={tone} size="small" />
+          <View style={styles.dayTitleBlock}>
+            <Text style={styles.dayLabel}>{day.isToday ? "Today" : day.dayLabel}</Text>
+            <Text style={styles.dayDate}>{day.dateLabel}</Text>
+          </View>
         </View>
         <View
           style={[
             styles.dayCountPill,
-            isFull && { borderColor: withAlpha(colors.accentPrimary, 0.5) },
+            {
+              borderColor: withAlpha(tone, isFull ? 0.62 : 0.36),
+              backgroundColor: withAlpha(tone, 0.12),
+            },
           ]}
         >
-          <Text style={styles.dayCountText}>{totalCount}/{MAX_ACTIVE_QUESTS_PER_DAY}</Text>
+          <Text style={[styles.dayCountText, { color: tone }]}>{totalCount}/{MAX_ACTIVE_QUESTS_PER_DAY}</Text>
         </View>
+      </View>
+
+      <View style={styles.dayLoadTrack}>
+        <View style={[styles.dayLoadFill, { width: `${progressPct}%`, backgroundColor: tone }]} />
       </View>
 
       <View style={styles.dayMetricRow}>
@@ -120,10 +323,13 @@ function DayPlanCard({ day, colors, styles }: { day: WeekPlanDay; colors: ThemeC
       {topQuests.length > 0 ? (
         <View style={styles.dayQuestList}>
           {topQuests.map((quest) => (
-            <Text key={`${day.dateKey}-${quest.id}`} style={styles.dayQuestText} numberOfLines={1}>
-              {quest.contract ? "Contract: " : ""}
-              {quest.title}
-            </Text>
+            <View key={`${day.dateKey}-${quest.id}`} style={styles.dayQuestLine}>
+              <View style={[styles.dayQuestDot, { backgroundColor: getQuestTone(quest) }]} />
+              <Text style={styles.dayQuestText} numberOfLines={1}>
+                {quest.contract ? "Contract: " : ""}
+                {quest.title}
+              </Text>
+            </View>
           ))}
           {day.quests.length > topQuests.length ? (
             <Text style={styles.dayMoreText}>+{day.quests.length - topQuests.length} more</Text>
@@ -149,20 +355,42 @@ function QuestLibraryRow({
   onTogglePause: (questId: string) => void;
   onToggleContract: (questId: string) => void;
 }) {
+  const tone = getQuestTone(quest);
+  const categoryLabel = getCategoryDisplayNameById(quest.categoryId);
+  const difficultyLabel = quest.difficulty === "hard" ? "Hard" : quest.difficulty === "medium" ? "Medium" : "Easy";
+
   return (
-    <View style={[styles.questRow, quest.paused && styles.questRowPaused]}>
+    <View
+      style={[
+        styles.questRow,
+        {
+          borderColor: withAlpha(tone, quest.paused ? 0.18 : 0.3),
+          backgroundColor: withAlpha(tone, quest.paused ? 0.03 : 0.045),
+        },
+        quest.paused && styles.questRowPaused,
+      ]}
+    >
       <View style={styles.questRowTop}>
+        <PlanSignalBadge icon={getQuestIcon(quest)} tone={quest.paused ? PLAN_TONES.slate : tone} size="medium" />
         <View style={styles.questTitleWrap}>
           <Text style={styles.questTitle} numberOfLines={2}>
             {quest.title}
           </Text>
           <Text style={styles.questMeta} numberOfLines={1}>
-            {getCategoryDisplayNameById(quest.categoryId)} - {quest.difficulty.toUpperCase()} - {quest.xp} XP - {getQuestRepeatLabel(quest)}
+            {categoryLabel} - {difficultyLabel} - {quest.xp} XP - {getQuestRepeatLabel(quest)}
           </Text>
         </View>
         {quest.contract ? (
-          <View style={styles.contractPill}>
-            <Text style={styles.contractPillText}>Contract</Text>
+          <View
+            style={[
+              styles.contractPill,
+              {
+                borderColor: withAlpha(PLAN_TONES.gold, 0.42),
+                backgroundColor: withAlpha(PLAN_TONES.gold, 0.12),
+              },
+            ]}
+          >
+            <Text style={[styles.contractPillText, { color: PLAN_TONES.gold }]}>Contract</Text>
           </View>
         ) : null}
       </View>
@@ -178,7 +406,7 @@ function QuestLibraryRow({
             pressed && styles.pressed,
           ]}
         >
-          <Text style={[styles.smallButtonText, quest.paused ? { color: colors.bg } : { color: colors.accentPrimary }]}>
+          <Text style={[styles.smallButtonText, quest.paused ? { color: colors.bg } : { color: PLAN_TONES.gold }]}>
             {quest.paused ? "Resume" : "Pause"}
           </Text>
         </Pressable>
@@ -193,7 +421,7 @@ function QuestLibraryRow({
             pressed && styles.pressed,
           ]}
         >
-          <Text style={[styles.smallButtonText, { color: quest.contract ? colors.accentPrimary : colors.textSecondary }]}>
+          <Text style={[styles.smallButtonText, { color: quest.contract ? PLAN_TONES.gold : colors.textSecondary }]}>
             {quest.contract ? "Unpledge" : "Pledge"}
           </Text>
         </Pressable>
@@ -269,6 +497,11 @@ export default function PlanScreen() {
     (max, day) => Math.max(max, day.quests.length),
     0
   );
+  const weeklyLoadPercent = Math.min(
+    100,
+    Math.round((weeklyQuestSlots / (MAX_ACTIVE_QUESTS_PER_DAY * weekPlan.length)) * 100)
+  );
+  const maxDayTone = fullestDayCount >= MAX_ACTIVE_QUESTS_PER_DAY ? PLAN_TONES.warning : PLAN_TONES.slate;
   const templateCandidates = useMemo(
     () =>
       questTemplates
@@ -403,28 +636,62 @@ export default function PlanScreen() {
     <SafeAreaView edges={["top"]} style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>Plan</Text>
-          <Text style={styles.subtitle}>Weekly plan and quest library</Text>
+          <View style={styles.headerIcon}>
+            <IconSymbol name="calendar" size={18} color={PLAN_TONES.gold} />
+          </View>
+          <View style={styles.headerCopy}>
+            <Text style={styles.title}>Plan</Text>
+            <Text style={styles.subtitle}>Weekly plan and quest library</Text>
+          </View>
         </View>
 
         <View style={styles.heroCard}>
-          <Text style={styles.heroEyebrow}>Planning Signal</Text>
-          <Text style={styles.heroTitle}>{weeklyQuestSlots} quest slots this week</Text>
+          <View style={styles.heroTopRow}>
+            <PlanSignalBadge icon="calendar" tone={PLAN_TONES.gold} size="large" />
+            <View style={styles.heroCopy}>
+              <Text style={styles.heroEyebrow}>Planning Signal</Text>
+              <Text style={styles.heroTitle}>{weeklyQuestSlots} quest slots this week</Text>
+              <Text style={styles.heroSubtitle}>
+                {weeklyLoadPercent}% weekly load - {contractCount}/3 contracts protected
+              </Text>
+            </View>
+          </View>
+          <View style={styles.weekSignalRail}>
+            {weekPlan.map((day) => {
+              const tone = getDayTone(day);
+              return (
+                <View key={day.dateKey} style={styles.weekSignalColumn}>
+                  <View
+                    style={[
+                      styles.weekSignalDot,
+                      {
+                        backgroundColor: tone,
+                        opacity: day.quests.length > 0 || day.isToday ? 1 : 0.36,
+                      },
+                    ]}
+                  />
+                  <Text style={[styles.weekSignalLabel, day.isToday && { color: PLAN_TONES.gold }]}>
+                    {day.isToday ? "Now" : day.dayLabel}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
           <View style={styles.heroMetricRow}>
-            <View style={styles.heroMetric}>
-              <Text style={styles.heroMetricValue}>{activeQuests.length}</Text>
+            <View style={[styles.heroMetric, { borderColor: withAlpha(PLAN_TONES.gold, 0.26) }]}>
+              <Text style={[styles.heroMetricValue, { color: PLAN_TONES.gold }]}>{activeQuests.length}</Text>
               <Text style={styles.heroMetricLabel}>active</Text>
             </View>
-            <View style={styles.heroMetric}>
-              <Text style={styles.heroMetricValue}>{contractCount}/3</Text>
+            <View style={[styles.heroMetric, { borderColor: withAlpha(PLAN_TONES.gold, 0.3) }]}>
+              <Text style={[styles.heroMetricValue, { color: PLAN_TONES.gold }]}>{contractCount}/3</Text>
               <Text style={styles.heroMetricLabel}>contracts</Text>
             </View>
-            <View style={styles.heroMetric}>
-              <Text style={styles.heroMetricValue}>{pausedQuests.length}</Text>
+            <View style={[styles.heroMetric, { borderColor: withAlpha(PLAN_TONES.slate, 0.22) }]}>
+              <Text style={[styles.heroMetricValue, { color: PLAN_TONES.slate }]}>{pausedQuests.length}</Text>
               <Text style={styles.heroMetricLabel}>paused</Text>
             </View>
-            <View style={styles.heroMetric}>
-              <Text style={styles.heroMetricValue}>{fullestDayCount}/{MAX_ACTIVE_QUESTS_PER_DAY}</Text>
+            <View style={[styles.heroMetric, { borderColor: withAlpha(maxDayTone, 0.26) }]}>
+              <Text style={[styles.heroMetricValue, { color: maxDayTone }]}>{fullestDayCount}/{MAX_ACTIVE_QUESTS_PER_DAY}</Text>
               <Text style={styles.heroMetricLabel}>max day</Text>
             </View>
           </View>
@@ -437,7 +704,7 @@ export default function PlanScreen() {
           </View>
           <View style={styles.dayGrid}>
             {weekPlan.map((day) => (
-              <DayPlanCard key={day.dateKey} day={day} colors={colors} styles={styles} />
+              <DayPlanCard key={day.dateKey} day={day} styles={styles} />
             ))}
           </View>
         </View>
@@ -499,27 +766,50 @@ export default function PlanScreen() {
               <Text style={styles.sectionMeta}>templates</Text>
             </View>
             <View style={styles.templateGrid}>
-              {templateCandidates.map((template) => (
-                <Pressable
-                  key={template.id}
-                  onPress={() => addQuestFromTemplate(template.id)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Add ${template.title}`}
-                  style={({ pressed }) => [styles.templateCard, pressed && styles.pressed]}
-                >
-                  <Text style={styles.templateTitle} numberOfLines={2}>
-                    {template.title}
-                  </Text>
-                  <Text style={styles.templateMeta}>
-                    {getCategoryDisplayNameById(template.categoryId)} - {template.xp} XP
-                  </Text>
-                  {template.contract ? (
-                    <View style={styles.templateContractPill}>
-                      <Text style={styles.templateContractText}>Contract-ready</Text>
+              {templateCandidates.map((template) => {
+                const tone = getQuestTone(template);
+                return (
+                  <Pressable
+                    key={template.id}
+                    onPress={() => addQuestFromTemplate(template.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Add ${template.title}`}
+                    style={({ pressed }) => [
+                      styles.templateCard,
+                      {
+                        borderColor: withAlpha(tone, 0.28),
+                        backgroundColor: withAlpha(tone, 0.04),
+                      },
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <View style={styles.templateTopRow}>
+                      <PlanSignalBadge icon={getQuestIcon(template)} tone={tone} size="small" />
+                      <View style={styles.templateCopy}>
+                        <Text style={styles.templateTitle} numberOfLines={2}>
+                          {template.title}
+                        </Text>
+                        <Text style={styles.templateMeta} numberOfLines={1}>
+                          {getCategoryDisplayNameById(template.categoryId)} - {template.xp} XP
+                        </Text>
+                      </View>
                     </View>
-                  ) : null}
-                </Pressable>
-              ))}
+                    {template.contract ? (
+                      <View
+                        style={[
+                          styles.templateContractPill,
+                          {
+                            borderColor: withAlpha(PLAN_TONES.gold, 0.34),
+                            backgroundColor: withAlpha(PLAN_TONES.gold, 0.11),
+                          },
+                        ]}
+                      >
+                        <Text style={[styles.templateContractText, { color: PLAN_TONES.gold }]}>Contract-ready</Text>
+                      </View>
+                    ) : null}
+                  </Pressable>
+                );
+              })}
             </View>
           </View>
         ) : null}
@@ -554,7 +844,24 @@ function createPlanStyles(colors: ThemeColors) {
       fontWeight: "700",
     },
     header: {
-      gap: 4,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      paddingBottom: 2,
+    },
+    headerIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: withAlpha(PLAN_TONES.gold, 0.34),
+      backgroundColor: withAlpha(PLAN_TONES.gold, 0.11),
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    headerCopy: {
+      flex: 1,
+      minWidth: 0,
     },
     title: {
       color: colors.textPrimary,
@@ -569,21 +876,71 @@ function createPlanStyles(colors: ThemeColors) {
     heroCard: {
       borderRadius: 8,
       borderWidth: 1,
-      borderColor: withAlpha(colors.accentPrimary, 0.24),
-      backgroundColor: withAlpha(colors.surface2, 0.86),
+      borderColor: withAlpha(PLAN_TONES.gold, 0.3),
+      backgroundColor: withAlpha(colors.surface2, 0.88),
       padding: 16,
       gap: 12,
     },
+    heroTopRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+    },
+    heroCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
     heroEyebrow: {
-      color: colors.accentPrimary,
+      color: PLAN_TONES.gold,
       fontSize: 11,
+      lineHeight: 14,
       fontWeight: "900",
+      letterSpacing: 0.6,
       textTransform: "uppercase",
     },
     heroTitle: {
       color: colors.textPrimary,
       fontSize: 24,
+      lineHeight: 29,
       fontWeight: "900",
+      marginTop: 2,
+    },
+    heroSubtitle: {
+      color: withAlpha(colors.textSecondary, 0.82),
+      fontSize: 11,
+      lineHeight: 15,
+      fontWeight: "800",
+      marginTop: 4,
+      textTransform: "uppercase",
+      letterSpacing: 0.25,
+    },
+    weekSignalRail: {
+      flexDirection: "row",
+      gap: 6,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: withAlpha(colors.border, 0.18),
+      backgroundColor: withAlpha(colors.bg, 0.22),
+      paddingHorizontal: 8,
+      paddingVertical: 8,
+    },
+    weekSignalColumn: {
+      flex: 1,
+      minWidth: 0,
+      alignItems: "center",
+      gap: 4,
+    },
+    weekSignalDot: {
+      width: "100%",
+      height: 8,
+      borderRadius: 999,
+    },
+    weekSignalLabel: {
+      color: withAlpha(colors.textSecondary, 0.76),
+      fontSize: 8,
+      lineHeight: 10,
+      fontWeight: "900",
+      textTransform: "uppercase",
     },
     heroMetricRow: {
       flexDirection: "row",
@@ -592,7 +949,7 @@ function createPlanStyles(colors: ThemeColors) {
     heroMetric: {
       flex: 1,
       borderRadius: 8,
-      backgroundColor: withAlpha(colors.bg, 0.34),
+      backgroundColor: withAlpha(colors.bg, 0.3),
       borderWidth: 1,
       borderColor: withAlpha(colors.border, 0.22),
       paddingVertical: 10,
@@ -605,9 +962,11 @@ function createPlanStyles(colors: ThemeColors) {
     },
     heroMetricLabel: {
       color: colors.textSecondary,
-      fontSize: 11,
-      fontWeight: "800",
+      fontSize: 10,
+      lineHeight: 12,
+      fontWeight: "900",
       marginTop: 2,
+      textTransform: "uppercase",
     },
     section: {
       gap: 10,
@@ -638,12 +997,31 @@ function createPlanStyles(colors: ThemeColors) {
       backgroundColor: withAlpha(colors.surface, 0.9),
       padding: 12,
       gap: 10,
+      overflow: "hidden",
+    },
+    dayAccentRail: {
+      position: "absolute",
+      left: 0,
+      top: 0,
+      bottom: 0,
+      width: 4,
     },
     dayTopRow: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
       gap: 12,
+    },
+    dayIdentity: {
+      flex: 1,
+      minWidth: 0,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
+    dayTitleBlock: {
+      flex: 1,
+      minWidth: 0,
     },
     dayLabel: {
       color: colors.textPrimary,
@@ -659,17 +1037,26 @@ function createPlanStyles(colors: ThemeColors) {
     dayCountPill: {
       minWidth: 38,
       borderRadius: 8,
-      backgroundColor: withAlpha(colors.accentPrimary, 0.13),
       borderWidth: 1,
-      borderColor: withAlpha(colors.accentPrimary, 0.28),
       paddingVertical: 6,
       paddingHorizontal: 8,
       alignItems: "center",
     },
     dayCountText: {
-      color: colors.accentPrimary,
       fontSize: 14,
       fontWeight: "900",
+    },
+    dayLoadTrack: {
+      height: 7,
+      borderRadius: 999,
+      backgroundColor: withAlpha(colors.bg, 0.58),
+      borderWidth: 1,
+      borderColor: withAlpha(colors.border, 0.16),
+      overflow: "hidden",
+    },
+    dayLoadFill: {
+      height: "100%",
+      borderRadius: 999,
     },
     dayMetricRow: {
       flexDirection: "row",
@@ -684,13 +1071,26 @@ function createPlanStyles(colors: ThemeColors) {
     dayQuestList: {
       gap: 4,
     },
+    dayQuestLine: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 7,
+      minWidth: 0,
+    },
+    dayQuestDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 999,
+    },
     dayQuestText: {
+      flex: 1,
+      minWidth: 0,
       color: colors.textPrimary,
       fontSize: 12,
       fontWeight: "700",
     },
     dayMoreText: {
-      color: colors.accentPrimary,
+      color: PLAN_TONES.gold,
       fontSize: 12,
       fontWeight: "800",
     },
@@ -731,14 +1131,11 @@ function createPlanStyles(colors: ThemeColors) {
     },
     contractPill: {
       borderRadius: 8,
-      backgroundColor: withAlpha(colors.accentPrimary, 0.12),
       borderWidth: 1,
-      borderColor: withAlpha(colors.accentPrimary, 0.3),
       paddingVertical: 5,
       paddingHorizontal: 8,
     },
     contractPillText: {
-      color: colors.accentPrimary,
       fontSize: 10,
       fontWeight: "900",
     },
@@ -756,12 +1153,12 @@ function createPlanStyles(colors: ThemeColors) {
       borderWidth: 1,
     },
     primaryButton: {
-      backgroundColor: colors.accentPrimary,
-      borderColor: colors.accentPrimary,
+      backgroundColor: PLAN_TONES.gold,
+      borderColor: PLAN_TONES.gold,
     },
     secondaryButton: {
-      backgroundColor: withAlpha(colors.accentPrimary, 0.08),
-      borderColor: withAlpha(colors.accentPrimary, 0.3),
+      backgroundColor: withAlpha(PLAN_TONES.gold, 0.08),
+      borderColor: withAlpha(PLAN_TONES.gold, 0.3),
     },
     ghostButton: {
       backgroundColor: withAlpha(colors.bg, 0.22),
@@ -803,6 +1200,15 @@ function createPlanStyles(colors: ThemeColors) {
       padding: 12,
       gap: 6,
     },
+    templateTopRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
+    templateCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
     templateTitle: {
       color: colors.textPrimary,
       fontSize: 14,
@@ -817,13 +1223,10 @@ function createPlanStyles(colors: ThemeColors) {
       alignSelf: "flex-start",
       borderRadius: 8,
       borderWidth: 1,
-      borderColor: withAlpha(colors.accentPrimary, 0.3),
-      backgroundColor: withAlpha(colors.accentPrimary, 0.1),
       paddingVertical: 5,
       paddingHorizontal: 8,
     },
     templateContractText: {
-      color: colors.accentPrimary,
       fontSize: 10,
       fontWeight: "900",
     },

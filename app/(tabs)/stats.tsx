@@ -16,6 +16,13 @@ import { useTheme, type ThemeColors } from "./_utils/themeContext";
 import type { DrHistoryEntry, StoredState } from "./_utils/types";
 import { STORAGE_KEY } from "./_utils/types";
 
+const RANK_CONSOLE_TONE = "#F5B84B";
+const RANK_CONSOLE_MUTED = "#8EA0B2";
+
+function getRankTone(tier: number): string {
+  return tier >= 7 ? "#FFE19A" : RANK_CONSOLE_TONE;
+}
+
 export default function StatsScreen() {
   const { colors } = useTheme();
   const styles = useMemo(() => createDisciplineStyles(colors), [colors]);
@@ -93,6 +100,7 @@ export default function StatsScreen() {
 
   const rankName = getRankFromDR(disciplineRating);
   const rankMeta = getRankMeta(rankName);
+  const rankTone = getRankTone(rankMeta.tier);
   const nextRank = getNextRank(disciplineRating);
   const nextRankMeta = nextRank ? getRankMeta(nextRank.name) : null;
   const tierSpan = nextRankMeta ? Math.max(1, nextRankMeta.minDr - rankMeta.minDr) : 1;
@@ -135,14 +143,7 @@ export default function StatsScreen() {
   const weakestCategory = categorySignal.weakestCategory ?? "Needs more data";
   const weakestCategoryPhrase = categorySignal.weakestCategory ?? "your weakest lane";
   const strongestCategory = categorySignal.strongestCategory ?? "Signal building";
-  const rankIndex = Math.max(
-    0,
-    DR_RANK_THRESHOLDS.findIndex((entry) => entry.name === rankName)
-  );
-  const visibleRankPath = DR_RANK_THRESHOLDS.slice(
-    rankIndex,
-    Math.min(DR_RANK_THRESHOLDS.length, rankIndex + 4)
-  );
+  const visibleRankPath = DR_RANK_THRESHOLDS;
   const disciplineMode = (() => {
     if (recent14.length === 0) return "Calibration";
     if (avgChange7d < 0 || latestDelta < 0) return "Recovery";
@@ -150,12 +151,7 @@ export default function StatsScreen() {
     if (streakSummary.solidDayStreak >= 3) return "Expansion";
     return "Build";
   })();
-  const modeColor =
-    disciplineMode === "Recovery"
-      ? colors.negative
-      : disciplineMode === "Build" || disciplineMode === "Calibration"
-      ? colors.accentPrimary
-      : colors.positive;
+  const modeColor = rankTone;
   const nextRankLabel = nextRank?.name ?? "Top rank";
   const nextRankDistance = nextRank ? `${nextRank.remainingDr} DR` : "Max";
   const rankProgressPercent = Math.round(rankProgress * 100);
@@ -223,33 +219,41 @@ export default function StatsScreen() {
       label: "Avg finish",
       value: `${completion14d}%`,
       foot: `${solidDays14d} of ${recent14.length || 0} solid`,
-      color: colors.textPrimary,
+      color: rankTone,
     },
     {
       label: "Recent DR",
       value: formatDelta(avgChange7d),
       foot: `${positiveDays14d} positive days`,
-      color: avgChange7d > 0 ? colors.positive : avgChange7d < 0 ? colors.negative : colors.textPrimary,
+      color: avgChange7d > 0 ? rankTone : RANK_CONSOLE_MUTED,
     },
     {
       label: "Streak",
       value: `${streakSummary.solidDayStreak}`,
       foot: `best ${streakSummary.bestSolidDayStreak}`,
-      color: colors.textPrimary,
+      color: rankTone,
     },
     {
       label: "Contracts",
       value: `${streakSummary.contractStreak}`,
       foot: `${contractProtected14d} protected`,
-      color: colors.textPrimary,
+      color: rankTone,
     },
   ];
   return (
     <SafeAreaView edges={["top"]} style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.pageHeader}>
-          <View style={styles.headerIcon}>
-            <IconSymbol name="star.fill" size={18} color={colors.accentPrimary} />
+          <View
+            style={[
+              styles.headerIcon,
+              {
+                borderColor: withAlpha(rankTone, 0.34),
+                backgroundColor: withAlpha(rankTone, 0.1),
+              },
+            ]}
+          >
+            <IconSymbol name="star.fill" size={18} color={rankTone} />
           </View>
           <View style={styles.headerCopy}>
             <Text style={styles.title}>Rank Console</Text>
@@ -257,7 +261,15 @@ export default function StatsScreen() {
           </View>
         </View>
 
-        <View style={styles.heroPanel}>
+        <View
+          style={[
+            styles.heroPanel,
+            {
+              borderColor: withAlpha(RANK_CONSOLE_TONE, 0.3),
+              backgroundColor: withAlpha(colors.surface2, 0.88),
+            },
+          ]}
+        >
           <View style={styles.heroTopRow}>
             <View style={[styles.rankMark, { borderColor: withAlpha(modeColor, 0.3) }]}>
               <RankBadge rankTier={rankMeta.tier} size={38} active />
@@ -289,7 +301,7 @@ export default function StatsScreen() {
           <View style={styles.heroScoreRow}>
             <View style={styles.heroScoreBlock}>
               <Text style={styles.heroScoreLabel}>DR Score</Text>
-              <Text style={styles.heroScoreValue}>{disciplineRating}</Text>
+              <Text style={[styles.heroScoreValue, { color: rankTone }]}>{disciplineRating}</Text>
             </View>
             <View style={styles.heroMiniStack}>
               <View style={styles.heroMiniMetric}>
@@ -303,7 +315,7 @@ export default function StatsScreen() {
                 <Text
                   style={[
                     styles.heroMiniValue,
-                    { color: latestDelta > 0 ? colors.positive : latestDelta < 0 ? colors.negative : colors.textPrimary },
+                    { color: latestDelta > 0 ? rankTone : RANK_CONSOLE_MUTED },
                   ]}
                 >
                   {formatDelta(latestDelta)}
@@ -314,10 +326,10 @@ export default function StatsScreen() {
 
           <View style={styles.heroProgressHeader}>
             <Text style={styles.heroProgressLabel}>Tier progress</Text>
-            <Text style={styles.heroProgressValue}>{rankProgressPercent}%</Text>
+            <Text style={[styles.heroProgressValue, { color: rankTone }]}>{rankProgressPercent}%</Text>
           </View>
           <View style={styles.rankProgressTrack}>
-            <View style={[styles.rankProgressFill, { width: `${rankProgressPercent}%` }]} />
+            <View style={[styles.rankProgressFill, { width: `${rankProgressPercent}%`, backgroundColor: rankTone }]} />
           </View>
           <View style={styles.rankProgressLabels}>
             <Text style={styles.rankProgressText}>{rankMeta.minDr} DR</Text>
@@ -327,7 +339,15 @@ export default function StatsScreen() {
           </View>
         </View>
 
-        <View style={styles.briefPanel}>
+        <View
+          style={[
+            styles.briefPanel,
+            {
+              borderColor: withAlpha(modeColor, 0.22),
+              backgroundColor: withAlpha(modeColor, 0.045),
+            },
+          ]}
+        >
           <View style={styles.briefTopRow}>
             <View style={styles.briefMain}>
               <Text style={styles.eyebrow}>Today&apos;s Focus</Text>
@@ -350,7 +370,17 @@ export default function StatsScreen() {
           <View style={styles.protocolList}>
             {pressureBrief.steps.map((step, idx) => (
               <View key={step} style={styles.protocolStep}>
-                <Text style={[styles.protocolIndex, { color: modeColor }]}>{idx + 1}</Text>
+                <Text
+                  style={[
+                    styles.protocolIndex,
+                    {
+                      color: modeColor,
+                      borderColor: withAlpha(modeColor, 0.34),
+                    },
+                  ]}
+                >
+                  {idx + 1}
+                </Text>
                 <Text style={styles.protocolText}>{step}</Text>
               </View>
             ))}
@@ -391,10 +421,10 @@ export default function StatsScreen() {
                 const entry = recent14[idx];
                 const tone =
                   entry.delta > 0
-                    ? colors.positive
+                    ? rankTone
                     : entry.delta < 0
-                    ? colors.negative
-                    : colors.accentPrimary;
+                    ? RANK_CONSOLE_MUTED
+                    : rankTone;
                 return (
                   <View key={`${value}-${idx}`} style={styles.chartColumn}>
                     <View style={[styles.chartBar, { height, backgroundColor: tone }]} />
@@ -418,13 +448,14 @@ export default function StatsScreen() {
                 {nextRank ? `${nextRank.remainingDr} DR to ${nextRank.name}` : "Top rank secured"}
               </Text>
             </View>
-            <Text style={styles.miniMeta}>Tier {rankMeta.tier}</Text>
+            <Text style={styles.miniMeta}>All {DR_RANK_THRESHOLDS.length}</Text>
           </View>
           <View style={styles.rankPathList}>
             {visibleRankPath.map((rank) => {
               const isCurrent = rank.name === rankName;
               const isNext = nextRank?.name === rank.name;
               const isUnlocked = disciplineRating >= rank.minDr;
+              const rowTone = getRankTone(rank.tier);
               const maxLabel = Number.isFinite(rank.maxDr) ? `${rank.maxDr} DR` : "No cap";
 
               return (
@@ -433,16 +464,41 @@ export default function StatsScreen() {
                   style={[
                     styles.rankPathRow,
                     isCurrent && {
-                      borderColor: withAlpha(colors.accentPrimary, 0.34),
-                      backgroundColor: withAlpha(colors.accentPrimary, 0.07),
+                      borderColor: withAlpha(rowTone, 0.58),
+                      backgroundColor: withAlpha(rowTone, 0.1),
+                    },
+                    isNext && styles.rankPathRowNext,
+                    isNext && {
+                      borderColor: withAlpha(rowTone, 0.42),
+                      backgroundColor: withAlpha(rowTone, 0.028),
+                    },
+                    isUnlocked && !isCurrent && {
+                      borderColor: withAlpha(rowTone, 0.2),
+                      backgroundColor: withAlpha(rowTone, 0.025),
                     },
                   ]}
                 >
                   <View
                     style={[
+                      styles.rankPathStateRail,
+                      {
+                        backgroundColor: isCurrent
+                          ? rowTone
+                          : isNext
+                            ? "transparent"
+                            : isUnlocked
+                              ? withAlpha(rowTone, 0.42)
+                              : withAlpha(colors.border, 0.42),
+                        borderColor: isNext ? withAlpha(rowTone, 0.44) : "transparent",
+                      },
+                    ]}
+                  />
+                  <View
+                    style={[
                       styles.rankPathMark,
                       {
-                        borderColor: withAlpha(isUnlocked ? colors.accentPrimary : colors.border, 0.42),
+                        borderColor: withAlpha(isCurrent ? rowTone : isNext ? rowTone : colors.border, isCurrent ? 0.7 : 0.42),
+                        backgroundColor: withAlpha(rowTone, isCurrent ? 0.15 : isNext ? 0.055 : 0.025),
                       },
                     ]}
                   >
@@ -450,7 +506,7 @@ export default function StatsScreen() {
                       rank={rank.name}
                       size={24}
                       active={isUnlocked || isNext}
-                      color={isUnlocked || isNext ? colors.accentPrimary : colors.textSecondary}
+                      color={isUnlocked || isNext ? rowTone : colors.textSecondary}
                     />
                   </View>
                   <View style={styles.rankPathCopy}>
@@ -459,9 +515,28 @@ export default function StatsScreen() {
                       {rank.minDr} DR - {maxLabel}
                     </Text>
                   </View>
-                  <Text style={[styles.rankPathStatus, isCurrent && { color: colors.accentPrimary }]}>
-                    {isCurrent ? "Current" : isNext ? "Next" : isUnlocked ? "Cleared" : "Locked"}
-                  </Text>
+                  <View
+                    style={[
+                      styles.rankPathStatusPill,
+                      isCurrent && {
+                        borderColor: withAlpha(rowTone, 0.5),
+                        backgroundColor: withAlpha(rowTone, 0.14),
+                      },
+                      isNext && {
+                        borderColor: withAlpha(rowTone, 0.36),
+                        backgroundColor: withAlpha(colors.bg, 0.36),
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.rankPathStatus,
+                        (isCurrent || isNext || isUnlocked) && { color: rowTone },
+                      ]}
+                    >
+                      {isCurrent ? "Current" : isNext ? "Target" : isUnlocked ? "Cleared" : "Locked"}
+                    </Text>
+                  </View>
                 </View>
               );
             })}
@@ -479,7 +554,7 @@ export default function StatsScreen() {
           {latestHistory.length ? (
             latestHistory.map((entry, idx) => {
               const deltaColor =
-                entry.delta > 0 ? colors.positive : entry.delta < 0 ? colors.negative : colors.textSecondary;
+                entry.delta > 0 ? rankTone : entry.delta < 0 ? RANK_CONSOLE_MUTED : colors.textSecondary;
 
               return (
                 <View key={`${entry.date}-${idx}`} style={styles.judgmentRow}>
@@ -561,8 +636,8 @@ function createDisciplineStyles(colors: ThemeColors) {
       alignItems: "center",
       justifyContent: "center",
       borderWidth: 1,
-      borderColor: withAlpha(colors.accentPrimary, 0.26),
-      backgroundColor: withAlpha(colors.accentPrimary, 0.08),
+      borderColor: withAlpha(RANK_CONSOLE_TONE, 0.26),
+      backgroundColor: withAlpha(RANK_CONSOLE_TONE, 0.08),
     },
     headerCopy: {
       flex: 1,
@@ -740,7 +815,7 @@ function createDisciplineStyles(colors: ThemeColors) {
     rankProgressFill: {
       height: "100%",
       borderRadius: 999,
-      backgroundColor: colors.accentPrimary,
+      backgroundColor: RANK_CONSOLE_TONE,
     },
     rankProgressLabels: {
       flexDirection: "row",
@@ -757,7 +832,7 @@ function createDisciplineStyles(colors: ThemeColors) {
     briefPanel: {
       ...cardSurface,
       gap: ui.spacing.sm,
-      borderColor: withAlpha(colors.accentPrimary, 0.18),
+      borderColor: withAlpha(RANK_CONSOLE_TONE, 0.18),
       backgroundColor: withAlpha(colors.surface2, 0.74),
       paddingHorizontal: ui.spacing.md,
       paddingVertical: ui.spacing.md,
@@ -830,7 +905,7 @@ function createDisciplineStyles(colors: ThemeColors) {
       height: 20,
       borderRadius: 999,
       borderWidth: 1,
-      borderColor: withAlpha(colors.accentPrimary, 0.3),
+      borderColor: withAlpha(RANK_CONSOLE_TONE, 0.3),
       textAlign: "center",
       lineHeight: 18,
       fontSize: 10,
@@ -973,6 +1048,16 @@ function createDisciplineStyles(colors: ThemeColors) {
       paddingHorizontal: ui.spacing.xs,
       paddingVertical: ui.spacing.xs,
     },
+    rankPathRowNext: {
+      borderStyle: "dashed",
+    },
+    rankPathStateRail: {
+      width: 5,
+      alignSelf: "stretch",
+      borderRadius: 999,
+      borderWidth: 1,
+      minHeight: 34,
+    },
     rankPathMark: {
       width: 36,
       height: 36,
@@ -1006,6 +1091,15 @@ function createDisciplineStyles(colors: ThemeColors) {
       fontWeight: "900",
       letterSpacing: 0.35,
       textTransform: "uppercase",
+    },
+    rankPathStatusPill: {
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: "transparent",
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      alignItems: "center",
+      justifyContent: "center",
     },
     judgmentPanel: {
       ...cardSurface,
