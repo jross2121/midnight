@@ -12,17 +12,9 @@ import { defaultLastCompletionPct, defaultLastDrDelta, defaultLastDrUpdateDate }
 import { DAILY_EVALUATION_HISTORY_STORAGE_KEY } from "./_utils/evaluationHistory";
 import { MIDNIGHT_EVALUATION_STORAGE_KEY } from "./_utils/midnightEvaluation";
 import { getQuestXpForDifficulty } from "./_utils/questXp";
+import { parseImportPayload, type DataExportPayload } from "./_utils/storageImport";
 import { useTheme } from "./_utils/themeContext";
 import { STORAGE_KEY, type ArchivedQuest, type Quest, type StoredState } from "./_utils/types";
-
-type DataExportPayload = {
-  version: 1;
-  exportedAt: string;
-  storageKey: typeof STORAGE_KEY;
-  state: Partial<StoredState> | null;
-  evaluationHistory: unknown[] | null;
-  lastEvaluatedDate: string | null;
-};
 
 function getYesterdayDateKey() {
   const d = new Date();
@@ -31,20 +23,6 @@ function getYesterdayDateKey() {
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
-}
-
-function isStoredStateCandidate(value: unknown): value is Partial<StoredState> {
-  if (typeof value !== "object" || value === null) return false;
-  const candidate = value as Partial<StoredState>;
-  return Array.isArray(candidate.categories) && Array.isArray(candidate.quests);
-}
-
-function extractImportState(value: unknown): Partial<StoredState> | null {
-  if (isStoredStateCandidate(value)) return value;
-  if (typeof value !== "object" || value === null) return null;
-
-  const candidate = value as Partial<DataExportPayload>;
-  return isStoredStateCandidate(candidate.state) ? candidate.state : null;
 }
 
 export default function SettingsScreen() {
@@ -173,26 +151,25 @@ export default function SettingsScreen() {
   const importData = async () => {
     try {
       const parsed = JSON.parse(importPayload);
-      const state = extractImportState(parsed);
+      const backup = parseImportPayload(parsed);
 
-      if (!state) {
+      if (!backup) {
         Alert.alert("Import failed", "Paste a valid Midnight backup JSON before importing.");
         return;
       }
 
-      const payload = typeof parsed === "object" && parsed !== null ? (parsed as Partial<DataExportPayload>) : {};
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(backup.state));
 
-      if (Array.isArray(payload.evaluationHistory)) {
+      if (Array.isArray(backup.evaluationHistory)) {
         await AsyncStorage.setItem(
           DAILY_EVALUATION_HISTORY_STORAGE_KEY,
-          JSON.stringify(payload.evaluationHistory)
+          JSON.stringify(backup.evaluationHistory)
         );
       }
 
-      if (typeof payload.lastEvaluatedDate === "string") {
-        await AsyncStorage.setItem(MIDNIGHT_EVALUATION_STORAGE_KEY, payload.lastEvaluatedDate);
-      } else if (payload.lastEvaluatedDate === null) {
+      if (typeof backup.lastEvaluatedDate === "string") {
+        await AsyncStorage.setItem(MIDNIGHT_EVALUATION_STORAGE_KEY, backup.lastEvaluatedDate);
+      } else if (backup.lastEvaluatedDate === null) {
         await AsyncStorage.removeItem(MIDNIGHT_EVALUATION_STORAGE_KEY);
       }
 
@@ -311,6 +288,30 @@ export default function SettingsScreen() {
           </Text>
           <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 8 }]}>
             Daily Discipline Tracker focused on consistency, accountability, and measurable progress.
+          </Text>
+        </View>
+
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              marginTop: 16,
+            },
+          ]}
+        >
+          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
+            Data & Privacy
+          </Text>
+          <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 10 }]}>
+            Midnight stores quests, stats, awards, archive, and theme settings on this device.
+          </Text>
+          <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 8 }]}>
+            This build does not use accounts, ads, analytics SDKs, or server sync.
+          </Text>
+          <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 8 }]}>
+            Backup export is manual. Anything you copy from the export box is controlled by you.
           </Text>
         </View>
 
