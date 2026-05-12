@@ -12,6 +12,17 @@ import { defaultLastCompletionPct, defaultLastDrDelta, defaultLastDrUpdateDate }
 import { DAILY_EVALUATION_HISTORY_STORAGE_KEY } from "./_utils/evaluationHistory";
 import { MIDNIGHT_EVALUATION_STORAGE_KEY } from "./_utils/midnightEvaluation";
 import { getQuestXpForDifficulty } from "./_utils/questXp";
+import {
+  adjustReminderTime,
+  DEFAULT_REMINDER_SETTINGS,
+  formatReminderTime,
+  getReminderPermissionStatus,
+  loadReminderSettings,
+  requestReminderPermissions,
+  syncReminderSchedule,
+  type ReminderPermissionStatus,
+  type ReminderSettings,
+} from "./_utils/reminders";
 import { parseImportPayload, type DataExportPayload } from "./_utils/storageImport";
 import { useTheme } from "./_utils/themeContext";
 import { STORAGE_KEY, type ArchivedQuest, type Quest, type StoredState } from "./_utils/types";
@@ -25,6 +36,16 @@ function getYesterdayDateKey() {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+type ReminderEnabledKey = "morningEnabled" | "contractEnabled" | "nextMoveEnabled";
+type ReminderHourKey = "morningHour" | "contractHour" | "nextMoveHour";
+type ReminderMinuteKey = "morningMinute" | "contractMinute" | "nextMoveMinute";
+
+function getReminderPermissionCopy(status: ReminderPermissionStatus) {
+  if (status === "granted") return "Allowed";
+  if (status === "denied") return "Blocked in Android settings";
+  return "Not requested";
+}
+
 export default function SettingsScreen() {
   const router = useRouter();
   const { theme, toggleTheme, colors } = useTheme();
@@ -32,6 +53,11 @@ export default function SettingsScreen() {
   const [archivedQuests, setArchivedQuests] = useState<ArchivedQuest[]>([]);
   const [exportPayload, setExportPayload] = useState("");
   const [importPayload, setImportPayload] = useState("");
+  const [reminderSettings, setReminderSettings] =
+    useState<ReminderSettings>(DEFAULT_REMINDER_SETTINGS);
+  const [reminderPermission, setReminderPermission] =
+    useState<ReminderPermissionStatus>("undetermined");
+  const [remindersSaving, setRemindersSaving] = useState(false);
 
   const loadArchive = useCallback(async () => {
     try {
@@ -49,11 +75,210 @@ export default function SettingsScreen() {
     }
   }, []);
 
+  const loadReminders = useCallback(async () => {
+    const [settings, permission] = await Promise.all([
+      loadReminderSettings(),
+      getReminderPermissionStatus(),
+    ]);
+    setReminderSettings(settings);
+    setReminderPermission(permission);
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       loadArchive();
-    }, [loadArchive])
+      loadReminders();
+    }, [loadArchive, loadReminders])
   );
+
+  const saveReminderUpdate = async (
+    updater: (settings: ReminderSettings) => ReminderSettings
+  ) => {
+    if (remindersSaving) return;
+
+    let nextSettings = updater(reminderSettings);
+    setReminderSettings(nextSettings);
+    setRemindersSaving(true);
+
+    try {
+      let permission = reminderPermission;
+
+      if (nextSettings.enabled && permission !== "granted") {
+        permission = await requestReminderPermissions();
+        setReminderPermission(permission);
+
+        if (permission !== "granted") {
+          nextSettings = { ...nextSettings, enabled: false };
+          setReminderSettings(nextSettings);
+          Alert.alert(
+            "Notifications are off",
+            "Midnight can save reminder choices, but Android notifications must be allowed before reminders can fire."
+          );
+        }
+      }
+
+      const syncedPermission = await syncReminderSchedule(nextSettings);
+      setReminderPermission(syncedPermission);
+    } catch (error) {
+      console.log("Failed to save reminders:", error);
+      const savedSettings = await loadReminderSettings();
+      setReminderSettings(savedSettings);
+      Alert.alert("Reminder update failed", "Could not update your notification schedule.");
+    } finally {
+      setRemindersSaving(false);
+    }
+  };
+
+  const toggleReminderMaster = () => {
+    saveReminderUpdate((settings) => ({ ...settings, enabled: !settings.enabled }));
+  };
+
+  const toggleReminderSlot = (key: ReminderEnabledKey) => {
+    saveReminderUpdate((settings) => ({ ...settings, [key]: !settings[key] }));
+  };
+
+  const shiftReminderTime = (
+    hourKey: ReminderHourKey,
+    minuteKey: ReminderMinuteKey,
+    deltaMinutes: number
+  ) => {
+    saveReminderUpdate((settings) => {
+      const nextTime = adjustReminderTime(settings[hourKey], settings[minuteKey], deltaMinutes);
+      return {
+        ...settings,
+        [hourKey]: nextTime.hour,
+        [minuteKey]: nextTime.minute,
+      };
+    });
+  };
+
+  const renderReminderRow = (
+    title: string,
+    description: string,
+    enabledKey: ReminderEnabledKey,
+    hourKey: ReminderHourKey,
+    minuteKey: ReminderMinuteKey
+  ) => {
+    const enabled = reminderSettings[enabledKey];
+    const time = formatReminderTime(reminderSettings[hourKey], reminderSettings[minuteKey]);
+    const controlsDisabled = remindersSaving || !reminderSettings.enabled;
+
+    return (
+      <View
+        style={{
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+          paddingTop: 12,
+          marginTop: 12,
+          gap: 10,
+        }}
+      >
+        <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={[styles.cardTitle, { color: colors.textPrimary, fontSize: 14 }]}>
+              {title}
+            </Text>
+            <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 4 }]}>
+              {description}
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => toggleReminderSlot(enabledKey)}
+            disabled={remindersSaving}
+            accessibilityRole="button"
+            accessibilityLabel={`${enabled ? "Disable" : "Enable"} ${title}`}
+            style={({ pressed }) => [
+              {
+                alignSelf: "flex-start",
+                backgroundColor: enabled ? colors.accentPrimary : colors.surface2,
+                borderWidth: enabled ? 0 : 1,
+                borderColor: colors.border,
+                borderRadius: 8,
+                paddingVertical: 7,
+                paddingHorizontal: 10,
+                opacity: remindersSaving ? 0.5 : pressed ? 0.78 : 1,
+              },
+            ]}
+          >
+            <Text
+              style={{
+                color: enabled ? colors.textPrimary : colors.textSecondary,
+                fontWeight: "900",
+                fontSize: 11,
+              }}
+            >
+              {enabled ? "On" : "Off"}
+            </Text>
+          </Pressable>
+        </View>
+
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Pressable
+            onPress={() => shiftReminderTime(hourKey, minuteKey, -30)}
+            disabled={controlsDisabled}
+            accessibilityRole="button"
+            accessibilityLabel={`Move ${title} earlier`}
+            style={({ pressed }) => [
+              {
+                width: 38,
+                height: 34,
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.surface2,
+                opacity: controlsDisabled ? 0.42 : pressed ? 0.75 : 1,
+              },
+            ]}
+          >
+            <Text style={{ color: colors.textPrimary, fontWeight: "900", fontSize: 16 }}>
+              -
+            </Text>
+          </Pressable>
+          <View
+            style={{
+              minWidth: 92,
+              height: 34,
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.surface2,
+            }}
+          >
+            <Text style={{ color: colors.textPrimary, fontWeight: "900", fontSize: 13 }}>
+              {time}
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => shiftReminderTime(hourKey, minuteKey, 30)}
+            disabled={controlsDisabled}
+            accessibilityRole="button"
+            accessibilityLabel={`Move ${title} later`}
+            style={({ pressed }) => [
+              {
+                width: 38,
+                height: 34,
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: colors.border,
+                backgroundColor: colors.surface2,
+                opacity: controlsDisabled ? 0.42 : pressed ? 0.75 : 1,
+              },
+            ]}
+          >
+            <Text style={{ color: colors.textPrimary, fontWeight: "900", fontSize: 16 }}>
+              +
+            </Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  };
 
   const saveArchiveState = async (
     updater: (state: Partial<StoredState>) => Partial<StoredState>
@@ -222,6 +447,13 @@ export default function SettingsScreen() {
     }
   };
 
+  const reminderPermissionTone =
+    reminderPermission === "granted"
+      ? colors.positive
+      : reminderPermission === "denied"
+        ? colors.negative
+        : colors.textSecondary;
+
   return (
     <SafeAreaView edges={["top"]} style={[styles.safe, { backgroundColor: colors.bg }]}>
       <ScrollView contentContainerStyle={styles.container}>
@@ -269,6 +501,90 @@ export default function SettingsScreen() {
           </Text>
         </View>
 
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              marginTop: 16,
+            },
+          ]}
+        >
+          <View style={styles.cardTop}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
+                Reminders
+              </Text>
+              <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 6 }]}>
+                Permission:{" "}
+                <Text style={{ color: reminderPermissionTone, fontWeight: "800" }}>
+                  {getReminderPermissionCopy(reminderPermission)}
+                </Text>
+              </Text>
+            </View>
+            <Pressable
+              onPress={toggleReminderMaster}
+              disabled={remindersSaving}
+              accessibilityRole="button"
+              accessibilityLabel={`${reminderSettings.enabled ? "Disable" : "Enable"} reminders`}
+              style={({ pressed }) => [
+                {
+                  backgroundColor: reminderSettings.enabled
+                    ? colors.accentPrimary
+                    : colors.surface2,
+                  borderWidth: reminderSettings.enabled ? 0 : 1,
+                  borderColor: colors.border,
+                  paddingVertical: 8,
+                  paddingHorizontal: 12,
+                  borderRadius: 8,
+                  opacity: remindersSaving ? 0.5 : pressed ? 0.78 : 1,
+                },
+              ]}
+            >
+              <Text
+                style={{
+                  color: reminderSettings.enabled ? colors.textPrimary : colors.textSecondary,
+                  fontWeight: "900",
+                  fontSize: 12,
+                }}
+              >
+                {reminderSettings.enabled ? "Enabled" : "Enable"}
+              </Text>
+            </Pressable>
+          </View>
+          <Text style={[styles.questMeta, { color: colors.textSecondary }]}>
+            Local Android notifications for planning your day and protecting contracts.
+          </Text>
+          <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 6 }]}>
+            {reminderSettings.enabled
+              ? "Scheduled slots will repeat daily on this device."
+              : "Slots are saved, but notifications stay paused until enabled."}
+          </Text>
+
+          {renderReminderRow(
+            "Morning Plan",
+            "Start the day with a clean quest board.",
+            "morningEnabled",
+            "morningHour",
+            "morningMinute"
+          )}
+          {renderReminderRow(
+            "Contract Warning",
+            "Catch pledged quests before the day resets.",
+            "contractEnabled",
+            "contractHour",
+            "contractMinute"
+          )}
+          {renderReminderRow(
+            "Next Move",
+            "A midday nudge when momentum needs help.",
+            "nextMoveEnabled",
+            "nextMoveHour",
+            "nextMoveMinute"
+          )}
+        </View>
+
         {/* About Section */}
         <View
           style={[
@@ -305,7 +621,7 @@ export default function SettingsScreen() {
             Data & Privacy
           </Text>
           <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 10 }]}>
-            Midnight stores quests, stats, awards, archive, and theme settings on this device.
+            Midnight stores quests, stats, awards, archive, reminders, and theme settings on this device.
           </Text>
           <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 8 }]}>
             This build does not use accounts, ads, analytics SDKs, or server sync.

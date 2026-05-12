@@ -59,6 +59,12 @@ import {
   type MidnightEvaluationData,
 } from "./_utils/midnightEvaluation";
 import { buildNextDayPlan, buildPlanSummary, buildStreakSummary } from "./_utils/planning";
+import {
+  findDailyQuestLimitConflict,
+  formatQuestLimitDate,
+  getUpcomingDateKeys,
+  type QuestLimitConflict,
+} from "./_utils/questLimits";
 import { getQuestXpForDifficulty } from "./_utils/questXp";
 import {
   getCompletedOneTimeArchives,
@@ -233,6 +239,7 @@ export default function HomeScreen() {
         xp: getQuestXpForDifficulty(normalizeDifficulty(quest.difficulty)),
         pinned: Boolean(quest.pinned),
         contract: Boolean(quest.contract),
+        paused: Boolean(quest.paused),
         target: typeof quest.target === "string" ? quest.target : "",
       },
       localDateKey()
@@ -246,6 +253,13 @@ export default function HomeScreen() {
           ? { ...a, unlockedAt: new Date().toISOString() }
           : a
       )
+    );
+  };
+
+  const showQuestLimitAlert = (conflict: QuestLimitConflict) => {
+    Alert.alert(
+      "Daily quest limit",
+      `${formatQuestLimitDate(conflict.dateKey)} would have ${conflict.totalCount}/${conflict.maxCount} active quests. Pause or move a quest first.`
     );
   };
 
@@ -372,6 +386,7 @@ export default function HomeScreen() {
               difficulty: normalizeDifficulty(quest.difficulty),
               pinned: Boolean(quest.pinned),
               contract: Boolean(quest.contract),
+              paused: Boolean(quest.paused),
               target: typeof quest.target === "string" ? quest.target : "",
             },
             savedResetDate
@@ -670,6 +685,7 @@ export default function HomeScreen() {
                 difficulty: normalizeDifficulty(quest.difficulty),
                 pinned: Boolean(quest.pinned),
                 contract: Boolean(quest.contract),
+                paused: Boolean(quest.paused),
                 target: typeof quest.target === "string" ? quest.target : "",
               },
               savedResetDate
@@ -722,11 +738,16 @@ export default function HomeScreen() {
   }, []);
 
   const todayDateKey = localDateKey();
+  const questLimitDateKeys = useMemo(() => getUpcomingDateKeys(todayDateKey), [todayDateKey]);
   const todaysQuests = useMemo(
     () => getScheduledQuestsForDate(quests, todayDateKey),
     [quests, todayDateKey]
   );
-  const hiddenScheduledQuestCount = quests.length - todaysQuests.length;
+  const pausedQuestCount = useMemo(() => quests.filter((quest) => quest.paused).length, [quests]);
+  const hiddenScheduledQuestCount = useMemo(
+    () => quests.filter((quest) => !quest.paused && !isQuestScheduledForDate(quest, todayDateKey)).length,
+    [quests, todayDateKey]
+  );
   const doneCount = useMemo(() => todaysQuests.filter((q) => q.done).length, [todaysQuests]);
   const totalQuestCount = todaysQuests.length;
   const dayScoreTarget = useMemo(
@@ -881,8 +902,7 @@ export default function HomeScreen() {
   ) => {
     const safeDifficulty = normalizeDifficulty(difficulty);
     const safeRepeat = normalizeQuestRepeat(repeat);
-    setQuests((prev) =>
-      prev.map((q) =>
+    const nextQuests = quests.map((q) =>
         q.id === questId
           ? {
               ...q,
@@ -898,8 +918,14 @@ export default function HomeScreen() {
                   : undefined,
             }
           : q
-      )
     );
+    const conflict = findDailyQuestLimitConflict(nextQuests, questLimitDateKeys);
+    if (conflict) {
+      showQuestLimitAlert(conflict);
+      return;
+    }
+
+    setQuests(nextQuests);
     setEditingQuestId(null);
     setOpenQuestId(null);
   };
@@ -932,7 +958,7 @@ export default function HomeScreen() {
 
   const toggleContract = (questId: string) => {
     setQuests((prev) => {
-      const selectedCount = prev.filter((q) => q.contract).length;
+      const selectedCount = prev.filter((q) => q.contract && !q.paused).length;
       return prev.map((q) => {
         if (q.id !== questId) return q;
         if (q.contract) return { ...q, contract: false };
@@ -1015,25 +1041,30 @@ export default function HomeScreen() {
 
     const safeDifficulty = normalizeDifficulty(newDifficulty);
     const safeRepeat = normalizeQuestRepeat(newRepeat);
-    setQuests((prev) => [
-      ...prev,
-      {
-        id: "q" + Date.now(),
-        title,
-        categoryId: newCategory,
-        xp: getQuestXpForDifficulty(safeDifficulty),
-        target: "",
-        difficulty: safeDifficulty,
-        repeat: safeRepeat,
-        scheduledWeekday:
-          safeRepeat === "weekly"
-            ? normalizeScheduledWeekday(newScheduledWeekday, getTodayWeekday())
-            : undefined,
-        done: false,
-        pinned: false,
-        contract: false,
-      },
-    ]);
+    const nextQuest: Quest = {
+      id: "q" + Date.now(),
+      title,
+      categoryId: newCategory,
+      xp: getQuestXpForDifficulty(safeDifficulty),
+      target: "",
+      difficulty: safeDifficulty,
+      repeat: safeRepeat,
+      scheduledWeekday:
+        safeRepeat === "weekly"
+          ? normalizeScheduledWeekday(newScheduledWeekday, getTodayWeekday())
+          : undefined,
+      done: false,
+      pinned: false,
+      contract: false,
+      paused: false,
+    };
+    const conflict = findDailyQuestLimitConflict([...quests, nextQuest], questLimitDateKeys);
+    if (conflict) {
+      showQuestLimitAlert(conflict);
+      return;
+    }
+
+    setQuests((prev) => [...prev, nextQuest]);
 
     setNewTitle("");
     setNewDifficulty("easy");
@@ -1065,28 +1096,35 @@ export default function HomeScreen() {
         return prev;
       }
 
-      const activeContracts = prev.filter((quest) => quest.contract).length;
+      const activeContracts = prev.filter((quest) => quest.contract && !quest.paused).length;
       const shouldContract = Boolean(template.contract) && activeContracts < 3;
       const repeat = normalizeQuestRepeat(template.repeat);
+      const nextQuest: Quest = {
+        id: `q${Date.now()}-${template.id}`,
+        title: template.title,
+        categoryId: template.categoryId,
+        xp: getQuestXpForDifficulty(template.difficulty),
+        target: template.target,
+        difficulty: template.difficulty,
+        repeat,
+        scheduledWeekday:
+          repeat === "weekly"
+            ? normalizeScheduledWeekday(template.scheduledWeekday, getTodayWeekday())
+            : undefined,
+        done: false,
+        pinned: shouldContract,
+        contract: shouldContract,
+        paused: false,
+      };
+      const conflict = findDailyQuestLimitConflict([...prev, nextQuest], questLimitDateKeys);
+      if (conflict) {
+        showQuestLimitAlert(conflict);
+        return prev;
+      }
 
       return [
         ...prev,
-        {
-          id: `q${Date.now()}-${template.id}`,
-          title: template.title,
-          categoryId: template.categoryId,
-          xp: getQuestXpForDifficulty(template.difficulty),
-          target: template.target,
-          difficulty: template.difficulty,
-          repeat,
-          scheduledWeekday:
-            repeat === "weekly"
-              ? normalizeScheduledWeekday(template.scheduledWeekday, getTodayWeekday())
-              : undefined,
-          done: false,
-          pinned: shouldContract,
-          contract: shouldContract,
-        },
+        nextQuest,
       ];
     });
   };
@@ -1310,6 +1348,11 @@ export default function HomeScreen() {
               {hiddenScheduledQuestCount > 0 ? (
                 <Text style={styles.sectionSubtext}>
                   {hiddenScheduledQuestCount} quest{hiddenScheduledQuestCount === 1 ? "" : "s"} scheduled for another day.
+                </Text>
+              ) : null}
+              {pausedQuestCount > 0 ? (
+                <Text style={styles.sectionSubtext}>
+                  {pausedQuestCount} paused quest{pausedQuestCount === 1 ? "" : "s"} waiting in Plan.
                 </Text>
               ) : null}
             </View>

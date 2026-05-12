@@ -6,8 +6,11 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { configureNotificationHandler } from './(tabs)/_utils/reminders';
 import { ThemeProvider as CustomThemeProvider, useTheme } from './(tabs)/_utils/themeContext';
 import { ONBOARDING_STORAGE_KEY } from './(tabs)/_utils/types';
+
+configureNotificationHandler();
 
 export const unstable_settings = {
   anchor: '(tabs)',

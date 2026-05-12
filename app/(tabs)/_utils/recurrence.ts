@@ -34,6 +34,8 @@ export function getQuestRepeatLabel(quest: Pick<Quest, "repeat" | "scheduledWeek
 }
 
 export function isQuestScheduledForDate(quest: Quest, dateKey: string): boolean {
+  if (quest.paused) return false;
+
   const repeat = normalizeQuestRepeat(quest.repeat);
   if (repeat === "once" || repeat === "daily") return true;
 
@@ -54,6 +56,7 @@ export function normalizeQuestSchedule(quest: Quest, fallbackDateKey: string): Q
   return {
     ...quest,
     repeat,
+    paused: Boolean(quest.paused),
     scheduledWeekday:
       repeat === "weekly"
         ? normalizeScheduledWeekday(quest.scheduledWeekday, fallbackWeekday)

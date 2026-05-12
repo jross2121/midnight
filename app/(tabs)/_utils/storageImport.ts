@@ -100,6 +100,7 @@ function normalizeQuest(value: unknown, fallbackCategoryId: string): Quest | nul
     done: Boolean(value.done),
     pinned: Boolean(value.pinned),
     contract: Boolean(value.contract),
+    paused: Boolean(value.paused),
   };
 }
 

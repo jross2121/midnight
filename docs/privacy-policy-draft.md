@@ -2,7 +2,7 @@
 
 Last updated: May 12, 2026
 
-Midnight is designed as a local-first daily discipline tracker. The app stores your quests, completion history, ranks, awards, archive, theme preference, and backup data on your device.
+Midnight is designed as a local-first daily discipline tracker. The app stores your quests, completion history, ranks, awards, archive, reminder preferences, theme preference, and backup data on your device.
 
 ## Data Stored On Device
 
@@ -11,12 +11,15 @@ Midnight stores app data locally using device storage. This can include:
 - quest titles, categories, schedules, difficulty, pinned status, and contract status
 - completion history, Discipline Rating, ranks, streaks, and awards
 - archived quests
+- reminder preferences and local notification schedule identifiers
 - theme preference
 - backup JSON that you generate or paste inside Settings
 
 ## Data Collection
 
 The current app does not create an account, upload your data to a Midnight server, use analytics SDKs, or use advertising SDKs.
+
+If you enable reminders, Midnight schedules local notifications on your device. Reminder content and timing are handled by the operating system and are not uploaded to a Midnight server.
 
 If you choose to export a backup, the app generates a JSON backup on your device. You control where that backup is copied, stored, or shared.
 

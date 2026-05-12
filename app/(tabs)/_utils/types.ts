@@ -20,6 +20,7 @@ export type Quest = {
   done: boolean;
   pinned: boolean;
   contract?: boolean;
+  paused?: boolean;
 };
 
 export type ArchivedQuest = Quest & {

@@ -15,13 +15,14 @@ Change the Android package before the first Play Store upload if you want a diff
 - Publish a public privacy policy URL.
 - Use `docs/privacy-policy-draft.md` as the starting copy.
 - In Google Play Data Safety, current app behavior is local-first with no account, no analytics SDK, no ads SDK, and no server upload.
+- Local notifications are optional reminders. Verify the Android notification permission prompt and disclose notification behavior in the store listing if needed.
 - Update privacy answers before adding AI coaching, cloud sync, analytics, accounts, subscriptions, or support forms.
 
 ## Store Assets
 
 - Final app icon and adaptive icon.
 - Feature graphic.
-- Phone screenshots for key screens: Home, Quest Queue, Rank, Awards, Insights, Settings.
+- Phone screenshots for key screens: Home, Plan, Quest Queue, Rank, Awards, Insights, Settings.
 - Short description.
 - Full description.
 - Support email.
@@ -36,6 +37,7 @@ Change the Android package before the first Play Store upload if you want a diff
 - Test fresh install.
 - Test backup export/import.
 - Test archive restore/clear.
+- Test reminder permission request, enable/disable, and each reminder slot.
 - Test midnight evaluation flow.
 - Test dark and light theme.
 - Verify dev-only tools are hidden in release builds.
