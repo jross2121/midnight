@@ -2,7 +2,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import * as Haptics from "expo-haptics";
 import React, { useRef, useState } from "react";
 import { Alert, Animated, Easing, Pressable, Text, View } from "react-native";
-import { createStyles } from "../_styles";
+import { HOME_GOLD, createStyles } from "../_styles";
 import { getCategoryArtById } from "../_utils/categoryArt";
 import { withAlpha } from "../_utils/designSystem";
 import { getQuestRepeatLabel } from "../_utils/recurrence";
@@ -40,6 +40,7 @@ export const QuestCard = React.memo(function QuestCard({
   const [deletePressed, setDeletePressed] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const categoryArt = getCategoryArtById(quest.categoryId);
+  const questAccent = quest.pinned || quest.contract ? HOME_GOLD : categoryArt.color;
   const hasStatus = !quest.done && (quest.pinned || quest.contract);
 
   const flashOpacity = useRef(new Animated.Value(0)).current;
@@ -169,6 +170,7 @@ export const QuestCard = React.memo(function QuestCard({
         styles.questCard,
         { borderColor: withAlpha(colors.border, 0.28) },
         quest.contract && !quest.done && styles.questContract,
+        quest.pinned && !quest.done && styles.questContract,
         quest.done && styles.questDone,
         {
           opacity: cardOpacity,
@@ -180,10 +182,10 @@ export const QuestCard = React.memo(function QuestCard({
         pointerEvents="none"
         style={[
           styles.questCompletionFlashOverlay,
-          { backgroundColor: colors.accentPrimary, opacity: flashOpacity },
+          { backgroundColor: HOME_GOLD, opacity: flashOpacity },
         ]}
       />
-      {quest.contract && !quest.done ? <View pointerEvents="none" style={styles.questContractRail} /> : null}
+      {(quest.contract || quest.pinned) && !quest.done ? <View pointerEvents="none" style={styles.questContractRail} /> : null}
 
       <View style={styles.questHeader}>
         <Pressable
@@ -204,8 +206,8 @@ export const QuestCard = React.memo(function QuestCard({
             style={[
               styles.questArtBadge,
               {
-                backgroundColor: withAlpha(categoryArt.color, quest.done ? 0.08 : 0.12),
-                borderColor: withAlpha(categoryArt.color, quest.done ? 0.34 : 0.32),
+                backgroundColor: withAlpha(questAccent, quest.done ? 0.08 : 0.12),
+                borderColor: withAlpha(questAccent, quest.done ? 0.34 : 0.32),
               },
             ]}
           >
@@ -216,9 +218,9 @@ export const QuestCard = React.memo(function QuestCard({
               style={[
                 styles.questDoneMark,
                 {
-                  backgroundColor: quest.done ? colors.accentPrimary : colors.bg,
+                  backgroundColor: quest.done ? HOME_GOLD : colors.bg,
                   borderColor: quest.done
-                    ? withAlpha(colors.accentPrimary, 0.7)
+                    ? withAlpha(HOME_GOLD, 0.72)
                     : withAlpha(colors.textSecondary, 0.42),
                 },
               ]}
@@ -234,7 +236,7 @@ export const QuestCard = React.memo(function QuestCard({
                   { opacity: checkOpacity, transform: [{ scale: checkScale }] },
                 ]}
               >
-                <IconSymbol name="checkmark.circle.fill" size={19} color={colors.accentPrimary} />
+                <IconSymbol name="checkmark.circle.fill" size={19} color={HOME_GOLD} />
               </Animated.View>
             )}
           </View>
@@ -264,15 +266,15 @@ export const QuestCard = React.memo(function QuestCard({
           {hasStatus ? (
             <View style={styles.questStatusStack}>
               {quest.pinned && (
-                <View style={[styles.statusPillIcon, { backgroundColor: withAlpha(colors.accentPrimary, 0.1) }]}>
-                  <IconSymbol name="pin.fill" size={12} color={colors.accentPrimary} />
+                <View style={[styles.statusPillIcon, { backgroundColor: withAlpha(HOME_GOLD, 0.1) }]}>
+                  <IconSymbol name="pin.fill" size={12} color={HOME_GOLD} />
                 </View>
               )}
               {quest.contract && (
                 <Text
                   style={[
                     styles.statusPill,
-                    { color: colors.accentPrimary, backgroundColor: withAlpha(colors.accentPrimary, 0.1) },
+                    { color: HOME_GOLD, backgroundColor: withAlpha(HOME_GOLD, 0.1) },
                   ]}
                 >
                   CONTRACT
@@ -291,32 +293,36 @@ export const QuestCard = React.memo(function QuestCard({
               <Pressable
                 style={[
                   styles.questActionBtnPrimary,
-                  { backgroundColor: withAlpha(colors.accentPrimary, 0.12), borderColor: withAlpha(colors.accentPrimary, 0.38) },
+                  { backgroundColor: withAlpha(HOME_GOLD, 0.12), borderColor: withAlpha(HOME_GOLD, 0.38) },
                 ]}
                 onPress={handleComplete}
                 accessibilityRole="button"
                 accessibilityLabel={`Complete ${quest.title}`}
               >
-                <Text style={[styles.questActionTextPrimary, { color: colors.accentPrimary }]}>Complete</Text>
+                <Text style={[styles.questActionTextPrimary, { color: HOME_GOLD }]}>Complete</Text>
               </Pressable>
             )}
 
             <Pressable
-              style={[styles.questActionBtnSubtle, { backgroundColor: withAlpha(colors.bg, 0.35), borderColor: withAlpha(colors.border, 0.28) }, editPressed && styles.btnPressed]}
+              style={[
+                styles.questActionToolBtn,
+                { backgroundColor: withAlpha(colors.bg, 0.35), borderColor: withAlpha(colors.border, 0.28) },
+                editPressed && styles.btnPressed,
+              ]}
               onPress={handleEdit}
               onPressIn={() => setEditPressed(true)}
               onPressOut={() => setEditPressed(false)}
               accessibilityRole="button"
               accessibilityLabel={`Edit ${quest.title}`}
             >
-              <Text style={[styles.questActionTextSubtle, { color: colors.textSecondary }]}>Edit</Text>
+              <IconSymbol name="pencil" size={17} color={colors.textSecondary} />
             </Pressable>
 
             <Pressable
               style={[
-                styles.questActionBtnSubtle,
+                styles.questActionToolBtn,
                 quest.pinned
-                  ? { backgroundColor: withAlpha(colors.accentPrimary, 0.1), borderColor: withAlpha(colors.accentPrimary, 0.38) }
+                  ? { backgroundColor: withAlpha(HOME_GOLD, 0.1), borderColor: withAlpha(HOME_GOLD, 0.38) }
                   : { backgroundColor: withAlpha(colors.bg, 0.35), borderColor: withAlpha(colors.border, 0.28) },
                 pinPressed && styles.btnPressed,
               ]}
@@ -326,16 +332,14 @@ export const QuestCard = React.memo(function QuestCard({
               accessibilityRole="button"
               accessibilityLabel={`${quest.pinned ? "Unpin" : "Pin"} ${quest.title}`}
             >
-              <Text style={[styles.questActionTextSubtle, { color: quest.pinned ? colors.accentPrimary : colors.textSecondary }]}>
-                {quest.pinned ? "Pinned" : "Pin"}
-              </Text>
+              <IconSymbol name="pin.fill" size={17} color={quest.pinned ? HOME_GOLD : colors.textSecondary} />
             </Pressable>
 
             <Pressable
               style={[
-                styles.questActionBtnSubtle,
+                styles.questActionToolBtn,
                 quest.contract
-                  ? { backgroundColor: withAlpha(colors.accentPrimary, 0.1), borderColor: withAlpha(colors.accentPrimary, 0.38) }
+                  ? { backgroundColor: withAlpha(HOME_GOLD, 0.1), borderColor: withAlpha(HOME_GOLD, 0.38) }
                   : { backgroundColor: withAlpha(colors.bg, 0.35), borderColor: withAlpha(colors.border, 0.28) },
                 contractPressed && styles.btnPressed,
               ]}
@@ -343,22 +347,24 @@ export const QuestCard = React.memo(function QuestCard({
               onPressIn={() => setContractPressed(true)}
               onPressOut={() => setContractPressed(false)}
               accessibilityRole="button"
-              accessibilityLabel={`${quest.contract ? "Remove contract from" : "Pledge"} ${quest.title}`}
+              accessibilityLabel={`${quest.contract ? "Remove contract from" : "Make contract"} ${quest.title}`}
             >
-              <Text style={[styles.questActionTextSubtle, { color: quest.contract ? colors.accentPrimary : colors.textSecondary }]}>
-                {quest.contract ? "Contract" : "Pledge"}
-              </Text>
+              <IconSymbol name="shield.fill" size={17} color={quest.contract ? HOME_GOLD : colors.textSecondary} />
             </Pressable>
 
             <Pressable
-              style={[styles.questActionBtnSubtle, { backgroundColor: withAlpha(colors.bg, 0.35), borderColor: withAlpha(colors.accentPrimary, 0.35) }, deletePressed && styles.btnPressed]}
+              style={[
+                styles.questActionToolBtn,
+                { backgroundColor: withAlpha(colors.bg, 0.35), borderColor: withAlpha(HOME_GOLD, 0.35) },
+                deletePressed && styles.btnPressed,
+              ]}
               onPress={handleDelete}
               onPressIn={() => setDeletePressed(true)}
               onPressOut={() => setDeletePressed(false)}
               accessibilityRole="button"
               accessibilityLabel={`Archive ${quest.title}`}
             >
-              <Text style={[styles.questActionTextSubtle, { color: colors.accentPrimary }]}>Archive</Text>
+              <IconSymbol name="archivebox.fill" size={17} color={HOME_GOLD} />
             </Pressable>
           </View>
         </>

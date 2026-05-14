@@ -4,10 +4,10 @@ import * as Haptics from 'expo-haptics';
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { useTheme } from '@/app/(tabs)/_utils/themeContext';
+import { HOME_GOLD } from '@/app/(tabs)/_styles';
+import { withAlpha } from '@/app/(tabs)/_utils/designSystem';
 
 export function HapticTab(props: BottomTabBarButtonProps) {
-  const { colors } = useTheme();
   const isActive = !!props.accessibilityState?.selected;
 
   return (
@@ -17,10 +17,10 @@ export function HapticTab(props: BottomTabBarButtonProps) {
         props.style,
         styles.button,
         {
-          backgroundColor: isActive ? `${colors.accentPrimary}0A` : 'transparent',
-          borderColor: isActive ? `${colors.accentPrimary}1F` : 'transparent',
+          backgroundColor: isActive ? withAlpha(HOME_GOLD, 0.05) : 'transparent',
+          borderColor: isActive ? withAlpha(HOME_GOLD, 0.16) : 'transparent',
           borderWidth: isActive ? 0.8 : 0,
-          shadowColor: colors.accentPrimary,
+          shadowColor: HOME_GOLD,
           shadowOpacity: isActive ? 0.06 : 0,
           shadowRadius: isActive ? 8 : 0,
           elevation: isActive ? 1 : 0,
@@ -34,7 +34,7 @@ export function HapticTab(props: BottomTabBarButtonProps) {
         }
         props.onPressIn?.(ev);
       }}>
-      {isActive ? <View pointerEvents="none" style={[styles.activeIndicator, { backgroundColor: colors.accentPrimary }]} /> : null}
+      {isActive ? <View pointerEvents="none" style={[styles.activeIndicator, { backgroundColor: HOME_GOLD }]} /> : null}
       {props.children}
     </PlatformPressable>
   );

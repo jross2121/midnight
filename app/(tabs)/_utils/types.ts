@@ -68,6 +68,7 @@ export type StoredState = {
   drHistory: DrHistoryEntry[];
   lastResetDate: string;
   achievements: Achievement[];
+  equippedBadgeIds?: (string | null)[];
   lifetimeCompletedQuestCount: number;
   archivedQuests: ArchivedQuest[];
 };

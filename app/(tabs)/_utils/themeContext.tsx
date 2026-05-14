@@ -77,7 +77,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
           setTheme(saved);
         }
       } catch (e) {
-        console.log("Failed to load theme:", e);
+        if (__DEV__) console.warn("Failed to load theme:", e);
       } finally {
         setHydrated(true);
       }
@@ -90,7 +90,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     try {
       await AsyncStorage.setItem("app:theme", newTheme);
     } catch (e) {
-      console.log("Failed to save theme:", e);
+      if (__DEV__) console.warn("Failed to save theme:", e);
     }
   };
 

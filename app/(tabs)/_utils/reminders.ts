@@ -221,7 +221,7 @@ export async function syncReminderSchedule(
         hour: normalized.contractHour,
         minute: normalized.contractMinute,
         title: "Contract check",
-        body: "Protect your pledged quests before midnight.",
+        body: "Protect your contract quests before midnight.",
       }),
       scheduleDailyReminder({
         enabled: normalized.nextMoveEnabled,

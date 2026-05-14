@@ -1,7 +1,7 @@
 import * as Haptics from "expo-haptics";
 import React, { useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
-import { createStyles } from "../_styles";
+import { HOME_GOLD, createStyles } from "../_styles";
 import { getCategoryDisplayName } from "../_utils/categoryLabels";
 import { withAlpha } from "../_utils/designSystem";
 import { getQuestXpForDifficulty } from "../_utils/questXp";
@@ -78,19 +78,19 @@ export function AddQuestForm({
     <View style={[styles.addBox, { backgroundColor: withAlpha(colors.surface2, 0.68), borderColor: withAlpha(colors.border, 0.22) }]}>
       <View style={styles.addFormHeader}>
         <View style={styles.addFormTitleWrap}>
-          <Text style={[styles.addFormKicker, { color: colors.accentPrimary }]}>New Quest</Text>
+          <Text style={[styles.addFormKicker, { color: HOME_GOLD }]}>New Quest</Text>
           <Text style={[styles.addFormTitle, { color: colors.textPrimary }]}>Build today&apos;s move</Text>
         </View>
         <View
           style={[
             styles.addFormBadge,
             {
-              backgroundColor: withAlpha(colors.accentPrimary, 0.1),
-              borderColor: withAlpha(colors.accentPrimary, 0.26),
+              backgroundColor: withAlpha(HOME_GOLD, 0.1),
+              borderColor: withAlpha(HOME_GOLD, 0.26),
             },
           ]}
         >
-          <Text style={[styles.addFormBadgeText, { color: colors.accentPrimary }]}>
+          <Text style={[styles.addFormBadgeText, { color: HOME_GOLD }]}>
             {automaticXp} XP
           </Text>
         </View>
@@ -113,7 +113,7 @@ export function AddQuestForm({
               color: colors.textPrimary,
               borderColor: withAlpha(colors.border, 0.26),
             },
-            focusedInput === "title" && { borderColor: withAlpha(colors.accentPrimary, 0.55) },
+            focusedInput === "title" && { borderColor: withAlpha(HOME_GOLD, 0.55) },
           ]}
         />
       </View>
@@ -135,10 +135,10 @@ export function AddQuestForm({
                 styles.pillPick,
                 {
                   backgroundColor: active
-                    ? withAlpha(colors.accentPrimary, 0.14)
+                    ? withAlpha(HOME_GOLD, 0.14)
                     : withAlpha(colors.bg, 0.34),
                   borderColor: active
-                    ? withAlpha(colors.accentPrimary, 0.42)
+                    ? withAlpha(HOME_GOLD, 0.42)
                     : withAlpha(colors.border, 0.22),
                 },
               ]}
@@ -178,10 +178,10 @@ export function AddQuestForm({
                 styles.pillPick,
                 {
                   backgroundColor: active
-                    ? withAlpha(colors.accentPrimary, 0.14)
+                    ? withAlpha(HOME_GOLD, 0.14)
                     : withAlpha(colors.bg, 0.34),
                   borderColor: active
-                    ? withAlpha(colors.accentPrimary, 0.42)
+                    ? withAlpha(HOME_GOLD, 0.42)
                     : withAlpha(colors.border, 0.22),
                 },
               ]}
@@ -219,10 +219,10 @@ export function AddQuestForm({
                 styles.pillPick,
                 {
                   backgroundColor: active
-                    ? withAlpha(colors.accentPrimary, 0.14)
+                    ? withAlpha(HOME_GOLD, 0.14)
                     : withAlpha(colors.bg, 0.34),
                   borderColor: active
-                    ? withAlpha(colors.accentPrimary, 0.42)
+                    ? withAlpha(HOME_GOLD, 0.42)
                     : withAlpha(colors.border, 0.22),
                 },
               ]}
@@ -255,10 +255,10 @@ export function AddQuestForm({
                   styles.weekdayPick,
                   {
                     backgroundColor: active
-                      ? withAlpha(colors.accentPrimary, 0.14)
+                      ? withAlpha(HOME_GOLD, 0.14)
                       : withAlpha(colors.bg, 0.34),
                     borderColor: active
-                      ? withAlpha(colors.accentPrimary, 0.42)
+                      ? withAlpha(HOME_GOLD, 0.42)
                       : withAlpha(colors.border, 0.22),
                   },
                 ]}
@@ -281,7 +281,7 @@ export function AddQuestForm({
         accessibilityLabel="Add quest"
         style={[
           styles.addBtn,
-          { backgroundColor: colors.accentPrimary, borderColor: withAlpha(colors.accentPrimary, 0.4) },
+          { backgroundColor: HOME_GOLD, borderColor: withAlpha(HOME_GOLD, 0.4) },
           !canAdd && { opacity: 0.5 },
           addPressed && styles.btnPressed,
         ]}

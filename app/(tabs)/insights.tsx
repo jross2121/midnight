@@ -11,9 +11,11 @@ import { getMainCategoryDisplayEntries } from "./_utils/categoryLabels";
 import {
     defaultCategories,
     defaultDisciplineRating,
+    defaultDrHistory,
     defaultQuests,
 } from "./_utils/defaultData";
 import { createCardSurface, createTileSurface, ui, withAlpha } from "./_utils/designSystem";
+import { formatDelta } from "./_utils/discipline";
 import { buildCoachResponse, COACH_PROMPTS, type CoachPromptId } from "./_utils/coach";
 import {
     buildCalendarFromHistory,
@@ -31,7 +33,7 @@ import { localDateKey } from "./_utils/dateHelpers";
 import { getScheduledQuestsForDate } from "./_utils/recurrence";
 import { getRankFromDR, getRankMeta } from "./_utils/rank";
 import { useTheme } from "./_utils/themeContext";
-import type { Category, Quest, StoredState } from "./_utils/types";
+import type { Category, DrHistoryEntry, Quest, StoredState } from "./_utils/types";
 import { STORAGE_KEY } from "./_utils/types";
 
 const MAIN_CATEGORIES = getMainCategoryDisplayEntries();
@@ -60,6 +62,34 @@ type CategoryInsight = {
   completed: number;
   total: number;
 };
+
+function isDrHistoryEntry(value: unknown): value is DrHistoryEntry {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Partial<DrHistoryEntry>;
+  return (
+    typeof candidate.date === "string" &&
+    typeof candidate.dr === "number" &&
+    typeof candidate.delta === "number" &&
+    typeof candidate.pct === "number"
+  );
+}
+
+function getJudgmentTitle(entry: DrHistoryEntry): string {
+  if (entry.title) return entry.title;
+  if (entry.pct >= 100) return "Perfect Day";
+  if (entry.pct >= 85) return "Clean Victory";
+  if (entry.pct < 30) return "Midnight Claimed";
+  return "Daily Judgment";
+}
+
+function getContractSummary(entry: DrHistoryEntry): string | null {
+  if (typeof entry.contractCompletedCount !== "number" || typeof entry.contractTotalCount !== "number") {
+    return null;
+  }
+  if (entry.contractTotalCount <= 0) return "No contract";
+  return `${entry.contractCompletedCount}/${entry.contractTotalCount} contract`;
+}
+
 function formatWeekChange(delta: number, hasSufficientHistory: boolean): string {
   if (!hasSufficientHistory) return "Need 2+ evaluations";
   if (delta > 0) return `+${delta} vs 7d ago`;
@@ -113,6 +143,7 @@ export default function InsightsScreen() {
   const styles = useMemo(() => createInsightsStyles(colors), [colors]);
   const [disciplineRating, setDisciplineRating] = useState<number>(defaultDisciplineRating);
   const [evaluationHistory, setEvaluationHistory] = useState<DailyEvaluationHistoryItem[]>([]);
+  const [drHistory, setDrHistory] = useState<DrHistoryEntry[]>(defaultDrHistory);
   const [categories, setCategories] = useState<Category[]>(defaultCategories);
   const [quests, setQuests] = useState<Quest[]>(defaultQuests);
   const [hydrated, setHydrated] = useState(false);
@@ -141,10 +172,15 @@ export default function InsightsScreen() {
       setQuests(
         Array.isArray(parsed.quests) && parsed.quests.length ? parsed.quests : defaultQuests
       );
+      setDrHistory(
+        Array.isArray(parsed.drHistory)
+          ? parsed.drHistory.filter((entry): entry is DrHistoryEntry => isDrHistoryEntry(entry)).slice(-30)
+          : defaultDrHistory
+      );
       const loadedHistory = await readEvaluationHistory();
       setEvaluationHistory(sortEvaluationHistory(loadedHistory));
     } catch (e) {
-      console.log("Failed to load storage:", e);
+      if (__DEV__) console.warn("Failed to load storage:", e);
     } finally {
       setHydrated(true);
     }
@@ -227,6 +263,7 @@ export default function InsightsScreen() {
   const riskCategory = categoryBreakdown[categoryBreakdown.length - 1];
   const latestEvaluation = latest7History[latest7History.length - 1] ?? null;
   const latestCompletion = latestEvaluation?.completionRate ?? todayRate;
+  const recentJudgments = drHistory.slice(-8).reverse();
   const recoverySignal =
     latest7History.length >= 3
       ? latest7History
@@ -355,20 +392,24 @@ export default function InsightsScreen() {
             </View>
             <View style={styles.commandCopy}>
               <View style={styles.commandEyebrowRow}>
-                <Text style={styles.eyebrow}>Pattern Readout</Text>
+                <Text style={styles.eyebrow}>Current Read</Text>
                 <Pressable
                   onPress={() => setReadoutExpanded((current) => !current)}
                   style={({ pressed }) => [styles.detailsButton, pressed && styles.detailsButtonPressed]}
                 >
-                  <Text style={styles.detailsButtonText}>{readoutExpanded ? "Hide" : "Details"}</Text>
+                  <Text style={styles.detailsButtonText}>{readoutExpanded ? "Hide" : "Pattern"}</Text>
                 </Pressable>
               </View>
-              <Text style={styles.commandTitle}>{compactInsightMessage}</Text>
+              <Text style={styles.commandTitle}>{weeklyReviewTitle}</Text>
+              <Text style={styles.commandAction}>{weeklyNextAction}</Text>
             </View>
           </View>
 
           {readoutExpanded ? (
-            <Text style={styles.commandDetails}>{insightMessage}</Text>
+            <View style={styles.commandDetailsStack}>
+              <Text style={styles.commandDetails}>{compactInsightMessage}</Text>
+              <Text style={styles.commandDetails}>{insightMessage}</Text>
+            </View>
           ) : null}
 
           <View style={styles.commandDivider} />
@@ -551,6 +592,47 @@ export default function InsightsScreen() {
         <View style={styles.card}>
           <View style={styles.cardHeaderRow}>
             <View>
+              <Text style={styles.eyebrow}>Rank History</Text>
+              <Text style={styles.cardTitle}>Recent Judgments</Text>
+            </View>
+            <Text style={styles.mutedMeta}>Latest {Math.min(8, recentJudgments.length)}</Text>
+          </View>
+          {recentJudgments.length ? (
+            recentJudgments.map((entry, index) => {
+              const deltaColor =
+                entry.delta > 0 ? colors.positive : entry.delta < 0 ? colors.negative : colors.textSecondary;
+              const contractSummary = getContractSummary(entry);
+
+              return (
+                <View key={`${entry.date}-${index}`} style={styles.judgmentRow}>
+                  <View style={[styles.judgmentRail, { backgroundColor: deltaColor }]} />
+                  <View style={styles.judgmentCopy}>
+                    <Text style={styles.judgmentDate}>{entry.date.slice(5)}</Text>
+                    <Text style={styles.judgmentTitle} numberOfLines={1}>
+                      {getJudgmentTitle(entry)}
+                    </Text>
+                    {contractSummary ? (
+                      <Text style={styles.judgmentMeta} numberOfLines={1}>
+                        {contractSummary}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <View style={styles.judgmentStats}>
+                    <Text style={styles.judgmentPct}>{entry.pct}%</Text>
+                    <Text style={[styles.judgmentDelta, { color: deltaColor }]}>{formatDelta(entry.delta)}</Text>
+                    <Text style={styles.judgmentDr}>{entry.dr} DR</Text>
+                  </View>
+                </View>
+              );
+            })
+          ) : (
+            <Text style={styles.mutedMeta}>No midnight judgments yet.</Text>
+          )}
+        </View>
+
+        <View style={styles.card}>
+          <View style={styles.cardHeaderRow}>
+            <View>
               <Text style={styles.eyebrow}>Consistency Heat</Text>
               <Text style={styles.cardTitle}>Discipline Calendar</Text>
             </View>
@@ -724,6 +806,13 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       fontWeight: "800",
       marginTop: 4,
     },
+    commandAction: {
+      color: withAlpha(colors.textSecondary, 0.86),
+      fontSize: 12,
+      lineHeight: 18,
+      fontWeight: "800",
+      marginTop: 4,
+    },
     detailsButton: {
       borderWidth: 1,
       borderColor: withAlpha(colors.accentPrimary, 0.22),
@@ -748,6 +837,9 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       fontSize: 12,
       lineHeight: 18,
       fontWeight: "700",
+    },
+    commandDetailsStack: {
+      gap: 4,
       paddingTop: 2,
     },
     commandDivider: {
@@ -1156,6 +1248,70 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       fontWeight: "800",
       letterSpacing: 0.25,
       textTransform: "uppercase",
+    },
+    judgmentRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: ui.spacing.xs,
+      minHeight: 58,
+      borderTopWidth: 1,
+      borderTopColor: withAlpha(colors.border, 0.2),
+      paddingTop: ui.spacing.xs,
+      marginTop: ui.spacing.xs,
+    },
+    judgmentRail: {
+      width: 4,
+      alignSelf: "stretch",
+      borderRadius: 999,
+    },
+    judgmentCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+    judgmentDate: {
+      color: withAlpha(colors.textSecondary, 0.74),
+      fontSize: 10,
+      lineHeight: 13,
+      fontWeight: "900",
+      letterSpacing: 0.45,
+      textTransform: "uppercase",
+    },
+    judgmentTitle: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      lineHeight: 18,
+      fontWeight: "900",
+      marginTop: 1,
+    },
+    judgmentMeta: {
+      color: withAlpha(colors.textSecondary, 0.72),
+      fontSize: 10,
+      lineHeight: 13,
+      fontWeight: "700",
+      marginTop: 1,
+    },
+    judgmentStats: {
+      alignItems: "flex-end",
+      minWidth: 72,
+    },
+    judgmentPct: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      lineHeight: 18,
+      fontWeight: "900",
+    },
+    judgmentDelta: {
+      fontSize: 12,
+      lineHeight: 15,
+      fontWeight: "900",
+      marginTop: 1,
+    },
+    judgmentDr: {
+      color: withAlpha(colors.textSecondary, 0.74),
+      fontSize: 10,
+      lineHeight: 13,
+      fontWeight: "800",
+      marginTop: 1,
     },
     weeklyBody: {
       color: withAlpha(colors.textSecondary, 0.9),

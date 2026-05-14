@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, StyleSheet, Text, View } from "react-native";
 import Svg, { Circle, G } from "react-native-svg";
+import { HOME_GOLD } from "../_styles";
 import { ui, withAlpha } from "../_utils/designSystem";
 import type { ThemeColors } from "../_utils/themeContext";
 
@@ -70,7 +71,7 @@ export function DayScoreRing({
               cx={size / 2}
               cy={size / 2}
               r={radius}
-              stroke={withAlpha(colors.accentPrimary, 0.98)}
+              stroke={withAlpha(HOME_GOLD, 0.98)}
               strokeWidth={strokeWidth}
               strokeLinecap="round"
               strokeDasharray={`${circumference} ${circumference}`}
@@ -107,7 +108,7 @@ function createStyles(colors: ThemeColors) {
       height: 172,
       alignItems: "center",
       justifyContent: "center",
-      shadowColor: colors.accentPrimary,
+      shadowColor: HOME_GOLD,
       shadowOffset: { width: 0, height: 0 },
       shadowOpacity: 0.14,
       shadowRadius: 10,
@@ -130,7 +131,7 @@ function createStyles(colors: ThemeColors) {
     },
     percent: {
       ...ui.typography.drHero,
-      color: colors.textPrimary,
+      color: HOME_GOLD,
       fontSize: 36,
       lineHeight: 40,
       fontWeight: "900",

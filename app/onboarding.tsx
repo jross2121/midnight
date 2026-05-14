@@ -5,6 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { HOME_GOLD } from "./(tabs)/_styles";
 import { createCardSurface, ui, withAlpha } from "./(tabs)/_utils/designSystem";
 import { useTheme } from "./(tabs)/_utils/themeContext";
 import { ONBOARDING_STORAGE_KEY } from "./(tabs)/_utils/types";
@@ -21,7 +22,7 @@ const slides: Slide[] = [
   },
   {
     title: "Protect Your Contracts",
-    text: "Mark up to three promises as contracts.\nThey become the quests you do not casually drop.",
+    text: "Mark up to three quests as contracts.\nThey become the work you do not casually drop.",
   },
   {
     title: "Midnight Scores The Day",
@@ -83,7 +84,7 @@ export default function OnboardingScreen() {
           backgroundColor: colors.border,
         },
         dotActive: {
-          backgroundColor: colors.accentPrimary,
+          backgroundColor: HOME_GOLD,
           width: 20,
         },
         card: {
@@ -104,7 +105,7 @@ export default function OnboardingScreen() {
           ...ui.typography.title,
           fontSize: 34,
           lineHeight: 38,
-          color: colors.accentPrimary,
+          color: HOME_GOLD,
           textAlign: "center",
           marginBottom: ui.spacing.md,
         },
@@ -168,7 +169,7 @@ export default function OnboardingScreen() {
     try {
       await AsyncStorage.setItem(ONBOARDING_STORAGE_KEY, "true");
     } catch (error) {
-      console.log("Failed to persist onboarding status:", error);
+      if (__DEV__) console.warn("Failed to persist onboarding status:", error);
     } finally {
       router.replace("/(tabs)");
     }

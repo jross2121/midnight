@@ -1,27 +1,45 @@
 import React from "react";
-import { Text, View } from "react-native";
+import { Image, Text, View } from "react-native";
+import { HOME_GOLD } from "../_styles";
+import { withAlpha } from "../_utils/designSystem";
 import { useTheme } from "../_utils/themeContext";
+
+const MIDNIGHT_ICON = require("../../../assets/images/midnight-icon.png");
 
 export function Footer() {
   const { colors } = useTheme();
-  
+
   return (
     <View
       style={{
-        paddingVertical: 16,
-        paddingHorizontal: 16,
+        paddingVertical: 12,
+        paddingHorizontal: 12,
         alignItems: "center",
-        marginTop: 24,
+        marginTop: 10,
         borderTopWidth: 1.5,
-        borderTopColor: colors.border,
+        borderTopColor: withAlpha(HOME_GOLD, 0.22),
       }}
     >
-      <Text style={{ fontSize: 24, fontWeight: "900", color: colors.accentPrimary, marginBottom: 4 }}>
-        Midnight
-      </Text>
-      <Text style={{ fontSize: 11, color: colors.textSecondary, fontWeight: "600" }}>
-        Daily Discipline Tracker
-      </Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+        <Image
+          source={MIDNIGHT_ICON}
+          accessibilityIgnoresInvertColors
+          resizeMode="cover"
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: 10,
+          }}
+        />
+        <View>
+          <Text style={{ fontSize: 15, lineHeight: 18, color: HOME_GOLD, fontWeight: "900", letterSpacing: 1 }}>
+            MIDNIGHT
+          </Text>
+          <Text style={{ fontSize: 10, lineHeight: 13, color: colors.textSecondary, fontWeight: "700" }}>
+            Daily discipline tracker
+          </Text>
+        </View>
+      </View>
     </View>
   );
 }

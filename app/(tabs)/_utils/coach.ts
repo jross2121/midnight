@@ -98,7 +98,7 @@ function buildNextMoveResponse(input: CoachInput): CoachResponse {
   if (openContracts.length > 0) {
     return {
       title: "Protect the contract",
-      body: `${openContracts[0].title} is the highest-leverage move because it protects both the day and the pledge.`,
+      body: `${openContracts[0].title} is the highest-leverage move because it protects the day's contract floor.`,
       bullets: ["Open the contract first", "Make the next step tiny", "Ignore bonus work until it is safe"],
       metricLabel: "Open contracts",
       metricValue: `${openContracts.length}`,

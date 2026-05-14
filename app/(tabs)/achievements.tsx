@@ -29,8 +29,7 @@ type AchievementProgress = {
   label: string;
 };
 
-type AwardCollectionId =
-  | "all"
+type AwardCollection =
   | "quests"
   | "contracts"
   | "streaks"
@@ -38,10 +37,12 @@ type AwardCollectionId =
   | "mastery"
   | "rare";
 
+type AwardTrackId = "all" | "quest" | "consistency" | "legacy";
+
 type AwardRarity = "Core" | "Advanced" | "Elite";
 
 type AwardMeta = {
-  collection: Exclude<AwardCollectionId, "all">;
+  collection: AwardCollection;
   rarity: AwardRarity;
   hint: string;
 };
@@ -54,6 +55,8 @@ type AwardVisual = {
   label: string;
 };
 
+type AwardTrack = (typeof AWARD_TRACKS)[number];
+
 type EnrichedAchievement = {
   achievement: Achievement;
   progress: AchievementProgress;
@@ -63,14 +66,46 @@ type EnrichedAchievement = {
   meta: AwardMeta;
 };
 
-const COLLECTIONS: { id: AwardCollectionId; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "quests", label: "Quests" },
-  { id: "contracts", label: "Contracts" },
-  { id: "streaks", label: "Streaks" },
-  { id: "rank", label: "Rank" },
-  { id: "mastery", label: "Mastery" },
-  { id: "rare", label: "Rare" },
+const AWARD_TRACKS: {
+  id: AwardTrackId;
+  label: string;
+  body: string;
+  collections: AwardCollection[];
+  icon: IconSymbolName;
+  primary: string;
+}[] = [
+  {
+    id: "all",
+    label: "All",
+    body: "Every earned and locked badge.",
+    collections: ["quests", "contracts", "streaks", "rank", "mastery", "rare"],
+    icon: "trophy.fill",
+    primary: "#F5B84B",
+  },
+  {
+    id: "quest",
+    label: "Quest",
+    body: "Quest clears, XP pushes, hard reps, and perfect days.",
+    collections: ["quests"],
+    icon: "flag.fill",
+    primary: "#34D399",
+  },
+  {
+    id: "consistency",
+    label: "Consistency",
+    body: "Contract protection and streaks that prove the routine holds.",
+    collections: ["contracts", "streaks"],
+    icon: "shield.fill",
+    primary: "#F5B84B",
+  },
+  {
+    id: "legacy",
+    label: "Legacy",
+    body: "Rank climbs, category mastery, rare feats, and long-run badges.",
+    collections: ["rank", "mastery", "rare"],
+    icon: "trophy.fill",
+    primary: "#F472B6",
+  },
 ];
 
 const AWARD_META: Record<string, AwardMeta> = {
@@ -89,10 +124,15 @@ const AWARD_META: Record<string, AwardMeta> = {
     rarity: "Advanced",
     hint: "Clear quests across several days.",
   },
+  quest_50: {
+    collection: "quests",
+    rarity: "Advanced",
+    hint: "Keep building lifetime quest clears.",
+  },
   quest_100: {
     collection: "quests",
     rarity: "Elite",
-    hint: "This is a long-run consistency trophy.",
+    hint: "This is a long-run consistency badge.",
   },
   hard_mode: {
     collection: "quests",
@@ -174,6 +214,11 @@ const AWARD_META: Record<string, AwardMeta> = {
     rarity: "Elite",
     hint: "Protect contracts for fourteen judgment days.",
   },
+  contract_21: {
+    collection: "contracts",
+    rarity: "Elite",
+    hint: "Protect contracts for twenty-one judgment days.",
+  },
   three_solid_days: {
     collection: "streaks",
     rarity: "Core",
@@ -188,6 +233,11 @@ const AWARD_META: Record<string, AwardMeta> = {
     collection: "streaks",
     rarity: "Elite",
     hint: "Reach 60%+ for fourteen judgments in a row.",
+  },
+  solid_21: {
+    collection: "streaks",
+    rarity: "Elite",
+    hint: "Reach 60%+ for twenty-one judgments in a row.",
   },
   comeback_day: {
     collection: "rare",
@@ -229,43 +279,81 @@ const AWARD_META: Record<string, AwardMeta> = {
 const FALLBACK_AWARD_META: AwardMeta = {
   collection: "quests",
   rarity: "Core",
-  hint: "Keep completing quests to reveal this trophy.",
+  hint: "Keep completing quests to reveal this badge.",
 };
 
-const RARITY_VISUALS: Record<AwardRarity, AwardVisual> = {
-  Core: {
-    icon: "checkmark.circle.fill",
-    primary: "#34D399",
-    soft: "#123D33",
-    deep: "#0B241F",
-    label: "Tier 1 Core",
-  },
-  Advanced: {
-    icon: "star.fill",
-    primary: "#F5B84B",
+const AWARD_PAGE_ACCENT = "#F5B84B";
+const EQUIPPED_BADGE_SLOT_COUNT = 3;
+const PLAYER_CARD_TRACK_IDS: AwardTrackId[] = ["quest", "consistency", "legacy"];
+
+function getAwardTrack(meta: AwardMeta) {
+  return AWARD_TRACKS.find(
+    (track) => track.id !== "all" && track.collections.includes(meta.collection)
+  ) ?? AWARD_TRACKS[1];
+}
+
+function getAwardTrackVisual(track: AwardTrack): AwardVisual {
+  if (track.id === "quest") {
+    return {
+      icon: track.icon,
+      primary: track.primary,
+      soft: "#123D33",
+      deep: "#0B241F",
+      label: "Quest Badge",
+    };
+  }
+
+  if (track.id === "legacy") {
+    return {
+      icon: track.icon,
+      primary: track.primary,
+      soft: "#4A1835",
+      deep: "#2A1020",
+      label: "Legacy Badge",
+    };
+  }
+
+  return {
+    icon: track.icon,
+    primary: track.primary,
     soft: "#493414",
     deep: "#281D0B",
-    label: "Tier 2 Advanced",
-  },
-  Elite: {
-    icon: "trophy.fill",
-    primary: "#F472B6",
-    soft: "#4A1835",
-    deep: "#2A1020",
-    label: "Tier 3 Elite",
-  },
-};
+    label: "Consistency Badge",
+  };
+}
 
-const AWARD_PAGE_ACCENT = RARITY_VISUALS.Advanced.primary;
+function createEquippedBadgeSlots(ids: (string | null)[]): (string | null)[] {
+  return Array.from({ length: EQUIPPED_BADGE_SLOT_COUNT }, (_, index) => ids[index] ?? null);
+}
 
-const COLLECTION_ICONS: Record<Exclude<AwardCollectionId, "all">, IconSymbolName> = {
-  quests: "checkmark.circle.fill",
-  contracts: "pin.fill",
-  streaks: "chart.bar.fill",
-  rank: "trophy.fill",
-  mastery: "star.fill",
-  rare: "trophy.fill",
-};
+function getEquippedBadgeSlotIndex(meta: AwardMeta): number {
+  return PLAYER_CARD_TRACK_IDS.indexOf(getAwardTrack(meta).id);
+}
+
+function normalizeEquippedBadgeIds(value: unknown, achievements: Achievement[]): (string | null)[] {
+  if (!Array.isArray(value)) return createEquippedBadgeSlots([]);
+
+  const unlockedIds = new Set(
+    achievements.filter((achievement) => achievement.unlockedAt).map((achievement) => achievement.id)
+  );
+  const usedIds = new Set<string>();
+  const slots = createEquippedBadgeSlots([]);
+
+  value.slice(0, EQUIPPED_BADGE_SLOT_COUNT).forEach((candidate) => {
+    if (typeof candidate !== "string") return;
+    if (!unlockedIds.has(candidate)) return;
+    if (usedIds.has(candidate)) return;
+
+    const meta = AWARD_META[candidate] ?? FALLBACK_AWARD_META;
+    const slotIndex = getEquippedBadgeSlotIndex(meta);
+    if (slotIndex < 0 || slots[slotIndex]) return;
+
+    usedIds.add(candidate);
+    slots[slotIndex] = candidate;
+  });
+
+  return slots;
+}
 
 function isAchievement(value: unknown): value is Achievement {
   if (typeof value !== "object" || value === null) return false;
@@ -360,6 +448,8 @@ function getAchievementProgress({
       return clampProgress(lifetimeCompletedQuestCount, 10);
     case "30_quests":
       return clampProgress(lifetimeCompletedQuestCount, 30);
+    case "quest_50":
+      return clampProgress(lifetimeCompletedQuestCount, 50);
     case "quest_100":
       return clampProgress(lifetimeCompletedQuestCount, 100);
     case "hard_mode":
@@ -400,12 +490,16 @@ function getAchievementProgress({
       return clampProgress(streakSummary.contractStreak, 7);
     case "contract_14":
       return clampProgress(streakSummary.contractStreak, 14);
+    case "contract_21":
+      return clampProgress(streakSummary.contractStreak, 21);
     case "three_solid_days":
       return clampProgress(streakSummary.solidDayStreak, 3);
     case "solid_7":
       return clampProgress(streakSummary.solidDayStreak, 7);
     case "solid_14":
       return clampProgress(streakSummary.solidDayStreak, 14);
+    case "solid_21":
+      return clampProgress(streakSummary.solidDayStreak, 21);
     case "comeback_day":
       return clampProgress(drHistory.some((entry) => (entry.comebackBonus ?? 0) > 0) ? 1 : 0, 1);
     case "rank_climber":
@@ -432,14 +526,11 @@ function getRarityWeight(rarity: AwardRarity): number {
 }
 
 function getAwardVisual(meta: AwardMeta): AwardVisual {
-  return {
-    ...RARITY_VISUALS[meta.rarity],
-    icon: COLLECTION_ICONS[meta.collection],
-  };
+  return getAwardTrackVisual(getAwardTrack(meta));
 }
 
 function getAwardStatusLabel(item: EnrichedAchievement): string {
-  if (item.unlocked) return "Unlocked";
+  if (item.unlocked) return "Equip";
   if (item.ready) return "Ready";
   return item.progress.label;
 }
@@ -624,9 +715,26 @@ export default function AchievementsScreen() {
   const [drHistory, setDrHistory] = useState<DrHistoryEntry[]>(defaultDrHistory);
   const [disciplineRating, setDisciplineRating] = useState(defaultDisciplineRating);
   const [lifetimeCompletedQuestCount, setLifetimeCompletedQuestCount] = useState(0);
-  const [selectedCollection, setSelectedCollection] = useState<AwardCollectionId>("all");
+  const [selectedCollection, setSelectedCollection] = useState<AwardTrackId>("all");
   const [selectedAwardId, setSelectedAwardId] = useState<string | null>(null);
+  const [equippedBadgeIds, setEquippedBadgeIds] = useState<(string | null)[]>(createEquippedBadgeSlots([]));
   const [hydrated, setHydrated] = useState(false);
+
+  const persistEquippedBadgeIds = useCallback(async (nextEquippedBadgeIds: (string | null)[]) => {
+    try {
+      const raw = await AsyncStorage.getItem(STORAGE_KEY);
+      const parsed = raw ? (JSON.parse(raw) as Partial<StoredState>) : {};
+      await AsyncStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          ...parsed,
+          equippedBadgeIds: nextEquippedBadgeIds,
+        })
+      );
+    } catch (error) {
+      if (__DEV__) console.warn("Failed to equip badge:", error);
+    }
+  }, []);
 
   const loadData = useCallback(async () => {
     try {
@@ -637,7 +745,9 @@ export default function AchievementsScreen() {
       }
 
       const parsed = JSON.parse(raw) as Partial<StoredState>;
-      setAchievements(mergeAchievements(parsed.achievements));
+      const loadedAchievements = mergeAchievements(parsed.achievements);
+      setAchievements(loadedAchievements);
+      setEquippedBadgeIds(normalizeEquippedBadgeIds(parsed.equippedBadgeIds, loadedAchievements));
       setCategories(
         Array.isArray(parsed.categories) && parsed.categories.length
           ? parsed.categories
@@ -656,7 +766,7 @@ export default function AchievementsScreen() {
           : 0
       );
     } catch (error) {
-      console.log("Failed to load achievements:", error);
+      if (__DEV__) console.warn("Failed to load achievements:", error);
     } finally {
       setHydrated(true);
     }
@@ -714,13 +824,13 @@ export default function AchievementsScreen() {
     })
     .slice(0, 3);
   const filteredAchievements = enrichedAchievements.filter(
-    (item) => selectedCollection === "all" || item.meta.collection === selectedCollection
+    (item) => selectedCollection === "all" || getAwardTrack(item.meta).id === selectedCollection
   );
-  const collectionStats = COLLECTIONS.map((collection) => {
+  const collectionStats = AWARD_TRACKS.map((collection) => {
     const items =
       collection.id === "all"
         ? enrichedAchievements
-        : enrichedAchievements.filter((item) => item.meta.collection === collection.id);
+        : enrichedAchievements.filter((item) => getAwardTrack(item.meta).id === collection.id);
     const unlocked = items.filter((item) => item.unlocked).length;
     return {
       ...collection,
@@ -734,6 +844,29 @@ export default function AchievementsScreen() {
     nextUnlocks[0] ??
     enrichedAchievements[0];
   const featuredAward = latestUnlocked[0] ?? nextUnlocks[0] ?? enrichedAchievements[0];
+  const selectedAwardEquipped = selectedAward
+    ? equippedBadgeIds.includes(selectedAward.achievement.id)
+    : false;
+  const featuredAwardEquipped = featuredAward
+    ? equippedBadgeIds.includes(featuredAward.achievement.id)
+    : false;
+
+  const equipAward = (item: EnrichedAchievement) => {
+    if (!item.unlocked) {
+      setSelectedAwardId(item.achievement.id);
+      return;
+    }
+
+    const slotIndex = getEquippedBadgeSlotIndex(item.meta);
+    if (slotIndex < 0) return;
+
+    const nextEquippedBadgeIds = createEquippedBadgeSlots(equippedBadgeIds);
+    nextEquippedBadgeIds[slotIndex] = item.achievement.id;
+
+    setSelectedAwardId(item.achievement.id);
+    setEquippedBadgeIds(nextEquippedBadgeIds);
+    void persistEquippedBadgeIds(nextEquippedBadgeIds);
+  };
 
   return (
     <SafeAreaView edges={["top"]} style={styles.safe}>
@@ -744,14 +877,14 @@ export default function AchievementsScreen() {
           </View>
           <View style={styles.headerCopy}>
             <Text style={styles.title}>Awards</Text>
-            <Text style={styles.subtitle}>Trophy room, collection progress, and next unlocks</Text>
+            <Text style={styles.subtitle}>Quest, Consistency, and Legacy badge collection</Text>
           </View>
         </View>
 
         <View style={styles.heroPanel}>
           <View style={styles.heroTopRow}>
             <View style={styles.heroCopy}>
-              <Text style={styles.eyebrow}>Trophy Room</Text>
+              <Text style={styles.eyebrow}>Badge Vault</Text>
               <Text style={styles.heroTitle}>{unlockedCount}/{totalCount} unlocked</Text>
             </View>
             <View style={styles.heroPercentBadge}>
@@ -773,16 +906,15 @@ export default function AchievementsScreen() {
             </View>
             <View style={styles.heroStatTile}>
               <Text style={styles.heroStatValue}>{getContractProtectedDayCount(drHistory)}</Text>
-              <Text style={styles.heroStatLabel}>oath days</Text>
+              <Text style={styles.heroStatLabel}>protected days</Text>
             </View>
           </View>
           <View style={styles.rarityLegend}>
-            {(["Core", "Advanced", "Elite"] as const).map((rarity) => {
-              const visual = RARITY_VISUALS[rarity];
+            {AWARD_TRACKS.filter((track) => track.id !== "all").map((track) => {
               return (
-                <View key={rarity} style={styles.rarityLegendItem}>
-                  <View style={[styles.rarityLegendDot, { backgroundColor: visual.primary }]} />
-                  <Text style={styles.rarityLegendText}>{visual.label}</Text>
+                <View key={track.id} style={styles.rarityLegendItem}>
+                  <IconSymbol name={track.icon} size={13} color={track.primary} />
+                  <Text style={styles.rarityLegendText}>{track.label}</Text>
                 </View>
               );
             })}
@@ -790,11 +922,20 @@ export default function AchievementsScreen() {
         </View>
 
         {featuredAward ? (
-          <View style={styles.featuredPanel}>
+          <Pressable
+            onPress={() => equipAward(featuredAward)}
+            accessibilityRole="button"
+            accessibilityLabel={
+              featuredAward.unlocked
+                ? `Equip badge ${featuredAward.achievement.name}`
+                : `View award ${featuredAward.achievement.name}`
+            }
+            style={({ pressed }) => [styles.featuredPanel, pressed && styles.pressed]}
+          >
             <AwardEmblem item={featuredAward} size="large" />
             <View style={styles.featuredCopy}>
               <Text style={styles.eyebrow}>
-                {featuredAward.unlocked ? "Latest Trophy" : "Closest Trophy"}
+                {featuredAward.unlocked ? "Latest Badge" : "Closest Badge"}
               </Text>
               <Text style={styles.featuredTitle}>{featuredAward.achievement.name}</Text>
               <Text style={styles.featuredText}>
@@ -811,36 +952,50 @@ export default function AchievementsScreen() {
                 { color: getAwardVisual(featuredAward.meta).primary },
               ]}
             >
-              {getAwardVisual(featuredAward.meta).label}
+              {featuredAwardEquipped
+                ? "Equipped"
+                : featuredAward.unlocked
+                  ? "Equip"
+                  : getAwardVisual(featuredAward.meta).label}
             </Text>
-          </View>
+          </Pressable>
         ) : null}
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.collectionRail}
-        >
+        <View style={styles.collectionGrid}>
           {collectionStats.map((collection) => {
             const active = collection.id === selectedCollection;
+            const activeTone = collection.primary;
             return (
               <Pressable
                 key={collection.id}
                 onPress={() => setSelectedCollection(collection.id)}
                 accessibilityRole="button"
                 accessibilityLabel={`Show ${collection.label} awards`}
-                style={[styles.collectionChip, active && styles.collectionChipActive]}
+                style={[
+                  styles.collectionChip,
+                  active && {
+                    borderColor: withAlpha(activeTone, 0.48),
+                    backgroundColor: withAlpha(activeTone, 0.12),
+                  },
+                ]}
               >
-                <Text style={[styles.collectionLabel, active && styles.collectionLabelActive]}>
-                  {collection.label}
-                </Text>
+                <View style={styles.collectionTopLine}>
+                  <IconSymbol
+                    name={collection.icon}
+                    size={14}
+                    color={active ? activeTone : colors.textSecondary}
+                  />
+                  <Text style={[styles.collectionLabel, active && { color: activeTone }]}>
+                    {collection.label}
+                  </Text>
+                </View>
                 <Text style={[styles.collectionMeta, active && styles.collectionMetaActive]}>
                   {collection.unlocked}/{collection.total}
                 </Text>
               </Pressable>
             );
           })}
-        </ScrollView>
+        </View>
 
         {nextUnlocks.length > 0 ? (
           <View style={styles.nextPanel}>
@@ -862,7 +1017,7 @@ export default function AchievementsScreen() {
                 <View style={styles.nextMain}>
                   <Text style={styles.nextName}>{item.achievement.name}</Text>
                   <Text style={styles.nextMeta}>
-                    {getAwardVisual(item.meta).label} - {item.meta.hint}
+                    {getAwardTrack(item.meta).label} - {item.meta.hint}
                   </Text>
                   <View style={styles.smallProgressTrack}>
                     <View
@@ -901,15 +1056,17 @@ export default function AchievementsScreen() {
             <AwardEmblem item={selectedAward} size="large" />
             <View style={styles.detailCopy}>
               <View style={styles.detailTopLine}>
-                <Text style={styles.eyebrow}>{getAwardVisual(selectedAward.meta).label} Trophy</Text>
+                <Text style={styles.eyebrow}>{getAwardTrack(selectedAward.meta).label} Badge</Text>
                 <Text
                   style={[
                     styles.detailStatus,
                     { color: getAwardVisual(selectedAward.meta).primary },
                   ]}
                 >
-                  {selectedAward.unlocked
-                    ? "Unlocked"
+                  {selectedAwardEquipped
+                    ? "Equipped"
+                    : selectedAward.unlocked
+                      ? "Equip"
                     : selectedAward.ready
                       ? "Ready"
                       : selectedAward.progress.label}
@@ -923,9 +1080,40 @@ export default function AchievementsScreen() {
                     ? `Earned ${formatDate(selectedAward.achievement.unlockedAt)}`
                     : "Earned"
                   : selectedAward.ready
-                    ? "Requirement met. Complete one matching action to stamp this trophy."
+                    ? "Requirement met. Complete one matching action to stamp this badge."
                   : selectedAward.meta.hint}
               </Text>
+              {selectedAward.unlocked ? (
+                <Pressable
+                  onPress={() => equipAward(selectedAward)}
+                  disabled={selectedAwardEquipped}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    selectedAwardEquipped
+                      ? `${selectedAward.achievement.name} is equipped to your player card`
+                      : `Equip ${selectedAward.achievement.name} to your player card`
+                  }
+                  style={({ pressed }) => [
+                    styles.detailActionButton,
+                    {
+                      borderColor: withAlpha(getAwardVisual(selectedAward.meta).primary, 0.46),
+                      backgroundColor: selectedAwardEquipped
+                        ? withAlpha(getAwardVisual(selectedAward.meta).primary, 0.16)
+                        : withAlpha(getAwardVisual(selectedAward.meta).primary, 0.1),
+                    },
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.detailActionButtonText,
+                      { color: getAwardVisual(selectedAward.meta).primary },
+                    ]}
+                  >
+                    {selectedAwardEquipped ? "Equipped To Card" : "Equip To Card"}
+                  </Text>
+                </Pressable>
+              ) : null}
             </View>
           </View>
         ) : null}
@@ -933,12 +1121,18 @@ export default function AchievementsScreen() {
         <View style={styles.awardGrid}>
           {filteredAchievements.map((item) => {
             const visual = getAwardVisual(item.meta);
+            const track = getAwardTrack(item.meta);
+            const isEquipped = equippedBadgeIds.includes(item.achievement.id);
             return (
               <Pressable
                 key={item.achievement.id}
-                onPress={() => setSelectedAwardId(item.achievement.id)}
+                onPress={() => equipAward(item)}
                 accessibilityRole="button"
-                accessibilityLabel={`View award ${item.achievement.name}`}
+                accessibilityLabel={
+                  item.unlocked
+                    ? `Equip badge ${item.achievement.name}`
+                    : `View award ${item.achievement.name}`
+                }
                 style={({ pressed }) => [
                   styles.awardCard,
                   item.unlocked || item.ready
@@ -947,6 +1141,10 @@ export default function AchievementsScreen() {
                         backgroundColor: withAlpha(visual.primary, item.unlocked ? 0.1 : 0.05),
                       }
                     : styles.awardCardLocked,
+                  isEquipped && {
+                    borderColor: withAlpha(visual.primary, 0.78),
+                    backgroundColor: withAlpha(visual.primary, 0.16),
+                  },
                   selectedAward?.achievement.id === item.achievement.id && {
                     borderColor: withAlpha(visual.primary, 0.72),
                   },
@@ -965,7 +1163,7 @@ export default function AchievementsScreen() {
                       },
                     ]}
                   >
-                    {visual.label}
+                    {track.label}
                   </Text>
                 </View>
                 <Text style={styles.awardName}>{item.achievement.name}</Text>
@@ -983,14 +1181,16 @@ export default function AchievementsScreen() {
                 </View>
                 <View style={styles.awardFooter}>
                   <Text style={styles.awardDate}>
-                    {item.achievement.unlockedAt
+                    {isEquipped
+                      ? "Equipped"
+                      : item.achievement.unlockedAt
                       ? formatDate(item.achievement.unlockedAt)
                       : item.ready
                         ? "Ready"
                         : "In progress"}
                   </Text>
                   <Text style={[styles.awardRarity, { color: visual.primary }]}>
-                    {getAwardStatusLabel(item)}
+                    {isEquipped ? "On card" : getAwardStatusLabel(item)}
                   </Text>
                 </View>
               </Pressable>
@@ -1217,34 +1417,33 @@ function createAchievementStyles(colors: ThemeColors) {
       letterSpacing: 0.45,
       textTransform: "uppercase",
     },
-    collectionRail: {
+    collectionGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
       gap: ui.spacing.xs,
-      paddingRight: ui.spacing.screen,
     },
     collectionChip: {
-      minWidth: 86,
-      minHeight: 44,
+      width: "48.7%",
+      minHeight: 50,
       borderRadius: ui.radius.md,
       borderWidth: 1,
       borderColor: withAlpha(colors.border, 0.24),
       backgroundColor: withAlpha(colors.surface2, 0.52),
-      paddingHorizontal: ui.spacing.sm,
-      paddingVertical: 7,
+      paddingHorizontal: ui.spacing.xs,
+      paddingVertical: ui.spacing.xs,
       justifyContent: "center",
-      gap: 2,
+      gap: 4,
     },
-    collectionChipActive: {
-      borderColor: withAlpha(AWARD_PAGE_ACCENT, 0.46),
-      backgroundColor: withAlpha(AWARD_PAGE_ACCENT, 0.12),
+    collectionTopLine: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
     },
     collectionLabel: {
       color: colors.textPrimary,
       fontSize: 12,
       lineHeight: 15,
       fontWeight: "900",
-    },
-    collectionLabelActive: {
-      color: AWARD_PAGE_ACCENT,
     },
     collectionMeta: {
       color: withAlpha(colors.textSecondary, 0.76),
@@ -1345,6 +1544,23 @@ function createAchievementStyles(colors: ThemeColors) {
       color: withAlpha(colors.textSecondary, 0.76),
       fontSize: 10,
       lineHeight: 13,
+      fontWeight: "900",
+      letterSpacing: 0.3,
+      textTransform: "uppercase",
+    },
+    detailActionButton: {
+      alignSelf: "flex-start",
+      minHeight: 34,
+      borderRadius: ui.radius.button,
+      borderWidth: 1,
+      paddingHorizontal: ui.spacing.sm,
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 4,
+    },
+    detailActionButtonText: {
+      fontSize: 11,
+      lineHeight: 14,
       fontWeight: "900",
       letterSpacing: 0.3,
       textTransform: "uppercase",

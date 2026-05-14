@@ -174,6 +174,15 @@ function normalizeDrHistory(value: unknown): DrHistoryEntry[] {
   return normalizedHistory.slice(-90);
 }
 
+function normalizeEquippedBadgeIds(value: unknown): (string | null)[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+
+  return Array.from({ length: 3 }, (_, index) => {
+    const badgeId = value[index];
+    return typeof badgeId === "string" || badgeId === null ? badgeId : null;
+  });
+}
+
 export function buildStoredStateFromImport(value: Partial<StoredState>): StoredState {
   const today = localDateKey();
   const importedCategories = Array.isArray(value.categories)
@@ -197,6 +206,8 @@ export function buildStoredStateFromImport(value: Partial<StoredState>): StoredS
         .slice(0, 100)
     : [];
 
+  const equippedBadgeIds = normalizeEquippedBadgeIds(value.equippedBadgeIds);
+
   return {
     categories,
     quests,
@@ -211,6 +222,7 @@ export function buildStoredStateFromImport(value: Partial<StoredState>): StoredS
     drHistory: normalizeDrHistory(value.drHistory),
     lastResetDate: safeDateKey(value.lastResetDate, today),
     achievements: normalizeAchievements(value.achievements),
+    ...(equippedBadgeIds ? { equippedBadgeIds } : {}),
     lifetimeCompletedQuestCount: safeNumber(value.lifetimeCompletedQuestCount, 0),
     archivedQuests,
   };

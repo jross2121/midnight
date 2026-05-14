@@ -13,7 +13,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { createStyles } from "../_styles";
+import { HOME_GOLD, createStyles } from "../_styles";
 import { getCategoryDisplayName } from "../_utils/categoryLabels";
 import { withAlpha } from "../_utils/designSystem";
 import { getQuestXpForDifficulty } from "../_utils/questXp";
@@ -66,15 +66,12 @@ function CategoryChips({
             accessibilityLabel={`Set quest area to ${getCategoryDisplayName(category)}`}
             style={[
               styles.editSheetChip,
-              isSelected
-                ? { backgroundColor: colors.accentPrimary }
-                : { backgroundColor: colors.surface, borderColor: "transparent" },
               {
                 backgroundColor: isSelected
-                  ? withAlpha(colors.accentPrimary, 0.14)
+                  ? withAlpha(HOME_GOLD, 0.14)
                   : withAlpha(colors.bg, 0.36),
                 borderColor: isSelected
-                  ? withAlpha(colors.accentPrimary, 0.42)
+                  ? withAlpha(HOME_GOLD, 0.42)
                   : withAlpha(colors.border, 0.24),
               },
             ]}
@@ -119,15 +116,12 @@ function DifficultyChips({
             accessibilityLabel={`Set quest intensity to ${difficulty}`}
             style={[
               styles.editSheetDifficultyChip,
-              isSelected
-                ? { backgroundColor: colors.accentPrimary }
-                : { backgroundColor: colors.surface, borderColor: "transparent" },
               {
                 backgroundColor: isSelected
-                  ? withAlpha(colors.accentPrimary, 0.14)
+                  ? withAlpha(HOME_GOLD, 0.14)
                   : withAlpha(colors.bg, 0.36),
                 borderColor: isSelected
-                  ? withAlpha(colors.accentPrimary, 0.42)
+                  ? withAlpha(HOME_GOLD, 0.42)
                   : withAlpha(colors.border, 0.24),
               },
             ]}
@@ -186,15 +180,12 @@ function RepeatChips({
               accessibilityLabel={`Set quest repeat to ${label}`}
               style={[
                 styles.editSheetDifficultyChip,
-                isSelected
-                  ? { backgroundColor: colors.accentPrimary }
-                  : { backgroundColor: colors.surface, borderColor: "transparent" },
                 {
                   backgroundColor: isSelected
-                    ? withAlpha(colors.accentPrimary, 0.14)
+                    ? withAlpha(HOME_GOLD, 0.14)
                     : withAlpha(colors.bg, 0.36),
                   borderColor: isSelected
-                    ? withAlpha(colors.accentPrimary, 0.42)
+                    ? withAlpha(HOME_GOLD, 0.42)
                     : withAlpha(colors.border, 0.24),
                 },
               ]}
@@ -227,15 +218,12 @@ function RepeatChips({
                 accessibilityLabel={`Schedule quest on ${label}`}
                 style={[
                   styles.editSheetWeekdayChip,
-                  isSelected
-                    ? { backgroundColor: colors.accentPrimary }
-                    : { backgroundColor: colors.surface, borderColor: "transparent" },
                   {
                     backgroundColor: isSelected
-                      ? withAlpha(colors.accentPrimary, 0.14)
+                      ? withAlpha(HOME_GOLD, 0.14)
                       : withAlpha(colors.bg, 0.36),
                     borderColor: isSelected
-                      ? withAlpha(colors.accentPrimary, 0.42)
+                      ? withAlpha(HOME_GOLD, 0.42)
                       : withAlpha(colors.border, 0.24),
                   },
                 ]}
@@ -376,7 +364,7 @@ export function EditQuestSheet({ quest, categories, onSave, onCancel }: EditQues
               ]}
             >
               <View style={styles.editSheetTitleGroup}>
-                <Text style={[styles.editSheetKicker, { color: colors.accentPrimary }]}>Quest Editor</Text>
+                <Text style={[styles.editSheetKicker, { color: HOME_GOLD }]}>Quest Editor</Text>
                 <Text
                   style={[styles.editSheetTitle, { color: colors.textPrimary }]}
                   numberOfLines={1}
@@ -433,13 +421,13 @@ export function EditQuestSheet({ quest, categories, onSave, onCancel }: EditQues
                   style={[
                     styles.editSheetMetaPill,
                     {
-                      backgroundColor: withAlpha(colors.accentPrimary, 0.12),
-                      borderColor: withAlpha(colors.accentPrimary, 0.32),
+                      backgroundColor: withAlpha(HOME_GOLD, 0.12),
+                      borderColor: withAlpha(HOME_GOLD, 0.32),
                     },
                   ]}
                 >
                   <Text
-                    style={[styles.editSheetMetaPillText, { color: colors.accentPrimary }]}
+                    style={[styles.editSheetMetaPillText, { color: HOME_GOLD }]}
                     numberOfLines={1}
                   >
                     Contract
@@ -486,7 +474,7 @@ export function EditQuestSheet({ quest, categories, onSave, onCancel }: EditQues
                         color: colors.textPrimary,
                       },
                       focusedInput === "title" && {
-                        borderColor: withAlpha(colors.accentPrimary, 0.6),
+                        borderColor: withAlpha(HOME_GOLD, 0.6),
                         borderWidth: 1,
                       },
                     ]}
@@ -532,7 +520,7 @@ export function EditQuestSheet({ quest, categories, onSave, onCancel }: EditQues
                         color: colors.textPrimary,
                       },
                       focusedInput === "target" && {
-                        borderColor: withAlpha(colors.accentPrimary, 0.6),
+                        borderColor: withAlpha(HOME_GOLD, 0.6),
                         borderWidth: 1,
                       },
                     ]}
@@ -588,7 +576,7 @@ export function EditQuestSheet({ quest, categories, onSave, onCancel }: EditQues
                 accessibilityLabel="Save quest changes"
                 style={[
                   styles.editSheetPrimaryButton,
-                  { backgroundColor: colors.accentPrimary },
+                  { backgroundColor: HOME_GOLD },
                   !canSave && { opacity: 0.48 },
                   savePressed && styles.btnPressed,
                 ]}

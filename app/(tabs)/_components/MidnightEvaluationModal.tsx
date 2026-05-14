@@ -5,6 +5,7 @@ import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { HOME_GOLD } from "../_styles";
 import type { MidnightEvaluationData } from "../_utils/midnightEvaluation";
 import type { NextDayPlan } from "../_utils/planning";
 
@@ -176,8 +177,8 @@ function makeStyles(
   colors: ThemeColors,
   isPositiveDelta: boolean
 ) {
-  const accentPrimary = colors.accentPrimary;
-  const judgmentColor = isPositiveDelta ? colors.accentPrimary : colors.negative;
+  const accentPrimary = HOME_GOLD;
+  const judgmentColor = isPositiveDelta ? HOME_GOLD : colors.negative;
   const sectionGap = isCompact ? 14 : 16;
 
   return StyleSheet.create({

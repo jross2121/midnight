@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { HOME_GOLD } from './_styles';
 import { withAlpha } from './_utils/designSystem';
 import { useTheme } from './_utils/themeContext';
 
@@ -20,7 +21,7 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: colors.accentPrimary,
+        tabBarActiveTintColor: HOME_GOLD,
         tabBarInactiveTintColor: colors.textSecondary,
         headerShown: false,
         tabBarButton: HapticTab,
@@ -38,7 +39,7 @@ export default function TabLayout() {
           backgroundColor: colors.surface,
           borderTopWidth: 0,
           borderWidth: 1,
-          borderColor: withAlpha(colors.accentPrimary, 0.16),
+          borderColor: withAlpha(HOME_GOLD, 0.18),
           borderRadius: 12,
           paddingBottom: navBottomPadding,
           paddingTop: 2,
@@ -94,22 +95,38 @@ export default function TabLayout() {
       <Tabs.Screen
         name="achievements"
         options={{
-          title: 'Awards',
-          tabBarIcon: ({ color }) => <IconSymbol size={22} name="trophy.fill" color={color} />,
+          href: null,
         }}
       />
       <Tabs.Screen
         name="insights"
         options={{
-          title: 'Insights',
-          tabBarIcon: ({ color }) => <IconSymbol size={22} name="chart.bar.fill" color={color} />,
+          href: null,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'Settings',
-          tabBarIcon: ({ color }) => <IconSymbol size={22} name="gearshape.fill" color={color} />,
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="focus"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="guide"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="more"
+        options={{
+          title: 'More',
+          tabBarIcon: ({ color }) => <IconSymbol size={22} name="ellipsis.circle.fill" color={color} />,
         }}
       />
     </Tabs>

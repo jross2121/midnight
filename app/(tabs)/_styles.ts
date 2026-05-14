@@ -2,6 +2,12 @@ import { StyleSheet } from "react-native";
 import { createCardSurface, createTileSurface, ui, withAlpha } from "./_utils/designSystem";
 import type { ThemeColors } from "./_utils/themeContext";
 
+export const HOME_GOLD = "#F5B84B";
+export const HOME_BLUE_HINT = HOME_GOLD;
+const HOME_NAVY = "#07111F";
+const HOME_NAVY_SOFT = "#101D30";
+const HOME_BLUE_BORDER = "#5B421B";
+
 export const createStyles = (colors: ThemeColors) => {
   const cardSurface = createCardSurface(colors, {
     padding: ui.spacing.card,
@@ -22,8 +28,8 @@ export const createStyles = (colors: ThemeColors) => {
     borderOpacity: 0.2,
     backgroundOpacity: 0.2,
   });
-  const homeSectionRule = withAlpha(colors.divider, 0.78);
-  const homeSectionRuleSoft = withAlpha(colors.border, 0.62);
+  const homeSectionRule = withAlpha(HOME_BLUE_BORDER, 0.62);
+  const homeSectionRuleSoft = withAlpha(HOME_BLUE_BORDER, 0.46);
 
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.bg },
@@ -94,12 +100,12 @@ export const createStyles = (colors: ThemeColors) => {
     },
     homeMetaPill: {
       borderWidth: 1,
-      borderColor: withAlpha(colors.accentPrimary, 0.28),
-      backgroundColor: withAlpha(colors.accentPrimary, 0.08),
+      borderColor: withAlpha(HOME_GOLD, 0.34),
+      backgroundColor: withAlpha(HOME_GOLD, 0.1),
       borderRadius: 999,
       paddingHorizontal: ui.spacing.sm,
       paddingVertical: 6,
-      shadowColor: colors.accentPrimary,
+      shadowColor: HOME_GOLD,
       shadowOffset: { width: 0, height: 0 },
       shadowOpacity: 0.08,
       shadowRadius: 8,
@@ -143,7 +149,7 @@ export const createStyles = (colors: ThemeColors) => {
       borderRadius: 0,
       padding: 0,
       gap: ui.spacing.md,
-      shadowColor: colors.accentPrimary,
+      shadowColor: HOME_GOLD,
       shadowOffset: { width: 0, height: 0 },
       shadowOpacity: 0,
       shadowRadius: 0,
@@ -172,8 +178,8 @@ export const createStyles = (colors: ThemeColors) => {
     },
     missionCountdownPill: {
       borderWidth: 1,
-      borderColor: withAlpha(colors.accentPrimary, 0.28),
-      backgroundColor: withAlpha(colors.accentPrimary, 0.08),
+      borderColor: withAlpha(HOME_GOLD, 0.3),
+      backgroundColor: withAlpha(HOME_GOLD, 0.09),
       borderRadius: 999,
       paddingHorizontal: ui.spacing.sm,
       paddingVertical: 7,
@@ -215,6 +221,8 @@ export const createStyles = (colors: ThemeColors) => {
       paddingVertical: ui.spacing.sm,
       gap: 7,
       minWidth: 0,
+      borderColor: withAlpha(HOME_GOLD, 0.24),
+      backgroundColor: withAlpha(HOME_NAVY_SOFT, 0.74),
     },
     missionStatRow: {
       flexDirection: "row",
@@ -234,7 +242,7 @@ export const createStyles = (colors: ThemeColors) => {
     },
     missionDrValue: {
       ...ui.typography.drHero,
-      color: colors.textPrimary,
+      color: HOME_GOLD,
       fontSize: 48,
       lineHeight: 52,
       fontWeight: "900",
@@ -376,12 +384,12 @@ export const createStyles = (colors: ThemeColors) => {
     statusRankBadge: {
       marginTop: 3,
       borderWidth: 1,
-      borderColor: withAlpha(colors.accentPrimary, 0.52),
-      backgroundColor: withAlpha(colors.accentPrimary, 0.14),
+      borderColor: withAlpha(HOME_GOLD, 0.5),
+      backgroundColor: withAlpha(HOME_GOLD, 0.14),
       borderRadius: 999,
       paddingHorizontal: ui.spacing.xs,
       paddingVertical: 3,
-      shadowColor: colors.accentPrimary,
+      shadowColor: HOME_GOLD,
       shadowOffset: { width: 0, height: 0 },
       shadowOpacity: 0.12,
       shadowRadius: 8,
@@ -394,7 +402,7 @@ export const createStyles = (colors: ThemeColors) => {
       fontSize: 11,
       fontWeight: "900",
       letterSpacing: 0.2,
-      color: "#E6EDF3",
+      color: HOME_GOLD,
       textTransform: "uppercase",
       textAlign: "center",
     },
@@ -442,7 +450,7 @@ export const createStyles = (colors: ThemeColors) => {
       borderRadius: 999,
       backgroundColor: withAlpha(colors.bg, 0.9),
       borderWidth: 1,
-      borderColor: withAlpha(colors.cardBorder, 0.5),
+      borderColor: withAlpha(HOME_BLUE_BORDER, 0.52),
       overflow: "hidden",
     },
     rankProgressFill: {
@@ -778,7 +786,7 @@ export const createStyles = (colors: ThemeColors) => {
       marginBottom: 0,
       marginTop: 0,
     },
-    link: { color: colors.accentPrimary, fontWeight: "900", fontSize: 13, letterSpacing: 0.3 },
+    link: { color: HOME_GOLD, fontWeight: "900", fontSize: 13, letterSpacing: 0.3 },
     dailySection: {
       marginTop: ui.spacing.lg,
       paddingTop: ui.spacing.lg,
@@ -825,15 +833,11 @@ export const createStyles = (colors: ThemeColors) => {
       height: 34,
       borderRadius: 12,
       borderWidth: 1,
-      borderColor: withAlpha(colors.accentPrimary, 0.28),
-      backgroundColor: withAlpha(colors.accentPrimary, 0.09),
+      borderColor: withAlpha(HOME_GOLD, 0.32),
+      backgroundColor: withAlpha(HOME_GOLD, 0.1),
       alignItems: "center",
       justifyContent: "center",
       flexShrink: 0,
-    },
-    contractArtGlyph: {
-      fontSize: 18,
-      lineHeight: 22,
     },
     contractEyebrow: {
       ...ui.typography.caption,
@@ -851,8 +855,8 @@ export const createStyles = (colors: ThemeColors) => {
     },
     contractCounterPill: {
       borderWidth: 1,
-      borderColor: withAlpha(colors.accentPrimary, 0.48),
-      backgroundColor: withAlpha(colors.accentPrimary, 0.16),
+      borderColor: withAlpha(HOME_GOLD, 0.5),
+      backgroundColor: withAlpha(HOME_GOLD, 0.14),
       borderRadius: 999,
       paddingHorizontal: ui.spacing.sm,
       paddingVertical: 5,
@@ -869,7 +873,7 @@ export const createStyles = (colors: ThemeColors) => {
       backgroundColor: withAlpha(colors.bg, 0.8),
       overflow: "hidden",
       borderWidth: 1,
-      borderColor: withAlpha(colors.border, 0.36),
+      borderColor: withAlpha(HOME_BLUE_BORDER, 0.46),
     },
     contractProgressFill: {
       height: "100%",
@@ -910,15 +914,11 @@ export const createStyles = (colors: ThemeColors) => {
       height: 34,
       borderRadius: 12,
       borderWidth: 1,
-      borderColor: withAlpha(colors.accentPrimary, 0.24),
-      backgroundColor: withAlpha(colors.accentPrimary, 0.08),
+      borderColor: withAlpha(HOME_GOLD, 0.3),
+      backgroundColor: withAlpha(HOME_GOLD, 0.1),
       alignItems: "center",
       justifyContent: "center",
       flexShrink: 0,
-    },
-    morningPlanArtGlyph: {
-      fontSize: 18,
-      lineHeight: 22,
     },
     morningPlanTitle: {
       color: colors.textPrimary,
@@ -929,8 +929,8 @@ export const createStyles = (colors: ThemeColors) => {
     },
     morningPlanDeltaPill: {
       borderWidth: 1,
-      borderColor: withAlpha(colors.accentPrimary, 0.28),
-      backgroundColor: withAlpha(colors.accentPrimary, 0.08),
+      borderColor: withAlpha(HOME_GOLD, 0.3),
+      backgroundColor: withAlpha(HOME_GOLD, 0.09),
       borderRadius: 999,
       paddingHorizontal: ui.spacing.sm,
       paddingVertical: 6,
@@ -986,8 +986,8 @@ export const createStyles = (colors: ThemeColors) => {
     },
     nextMoveCard: {
       ...cardSurface,
-      borderColor: withAlpha(colors.accentPrimary, 0.22),
-      backgroundColor: withAlpha(colors.surface2, 0.82),
+      borderColor: withAlpha(HOME_GOLD, 0.24),
+      backgroundColor: withAlpha(HOME_NAVY_SOFT, 0.68),
       borderRadius: ui.radius.card,
       paddingHorizontal: ui.spacing.md,
       paddingVertical: ui.spacing.md,
@@ -1020,13 +1020,9 @@ export const createStyles = (colors: ThemeColors) => {
       justifyContent: "center",
       flexShrink: 0,
     },
-    nextMoveArtGlyph: {
-      fontSize: 22,
-      lineHeight: 26,
-    },
     nextMoveEyebrow: {
       ...ui.typography.caption,
-      color: colors.accentPrimary,
+      color: HOME_GOLD,
       fontSize: 10,
       lineHeight: 13,
       fontWeight: "900",
@@ -1042,28 +1038,28 @@ export const createStyles = (colors: ThemeColors) => {
     },
     nextMoveButton: {
       borderRadius: ui.radius.button,
-      backgroundColor: colors.accentPrimary,
+      backgroundColor: HOME_GOLD,
       paddingHorizontal: ui.spacing.md,
       paddingVertical: 11,
       minWidth: 96,
       alignItems: "center",
       justifyContent: "center",
-      shadowColor: colors.accentPrimary,
+      shadowColor: HOME_GOLD,
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.18,
       shadowRadius: 8,
       elevation: 2,
     },
     nextMoveButtonText: {
-      color: colors.textPrimary,
+      color: HOME_NAVY,
       fontSize: 12,
       fontWeight: "900",
       letterSpacing: 0.25,
     },
     nextMoveCompletePill: {
       borderWidth: 1,
-      borderColor: withAlpha(colors.accentPrimary, 0.38),
-      backgroundColor: withAlpha(colors.accentPrimary, 0.12),
+      borderColor: withAlpha(HOME_GOLD, 0.42),
+      backgroundColor: withAlpha(HOME_GOLD, 0.12),
       borderRadius: 999,
       paddingHorizontal: ui.spacing.sm,
       paddingVertical: 7,
@@ -1071,7 +1067,7 @@ export const createStyles = (colors: ThemeColors) => {
       justifyContent: "center",
     },
     nextMoveCompleteText: {
-      color: colors.accentPrimary,
+      color: HOME_GOLD,
       fontSize: 11,
       fontWeight: "900",
       letterSpacing: 0.45,
@@ -1083,18 +1079,14 @@ export const createStyles = (colors: ThemeColors) => {
       alignItems: "center",
       gap: 5,
       borderWidth: 1,
-      borderColor: withAlpha(colors.accentPrimary, 0.34),
-      backgroundColor: withAlpha(colors.accentPrimary, 0.1),
+      borderColor: withAlpha(HOME_GOLD, 0.36),
+      backgroundColor: withAlpha(HOME_GOLD, 0.1),
       borderRadius: 999,
       paddingHorizontal: 9,
       paddingVertical: 4,
     },
-    nextMoveBadgeArt: {
-      fontSize: 11,
-      lineHeight: 13,
-    },
     nextMoveBadgeText: {
-      color: colors.accentPrimary,
+      color: HOME_GOLD,
       fontSize: 10,
       lineHeight: 13,
       fontWeight: "900",
@@ -1119,8 +1111,8 @@ export const createStyles = (colors: ThemeColors) => {
       position: "relative",
       overflow: "hidden",
       borderWidth: 1,
-      borderColor: withAlpha(colors.accentPrimary, 0.24),
-      backgroundColor: withAlpha(colors.bg, 0.22),
+      borderColor: withAlpha(HOME_GOLD, 0.24),
+      backgroundColor: withAlpha(HOME_NAVY, 0.34),
       borderRadius: ui.radius.card,
       paddingHorizontal: ui.spacing.md,
       paddingVertical: ui.spacing.md,
@@ -1133,7 +1125,7 @@ export const createStyles = (colors: ThemeColors) => {
       top: 0,
       bottom: 0,
       width: 4,
-      backgroundColor: colors.accentPrimary,
+      backgroundColor: HOME_GOLD,
       opacity: 0.86,
     },
     focusSprintTopRow: {
@@ -1148,7 +1140,7 @@ export const createStyles = (colors: ThemeColors) => {
     },
     focusSprintEyebrow: {
       ...ui.typography.caption,
-      color: colors.accentPrimary,
+      color: HOME_GOLD,
       fontSize: 10,
       lineHeight: 13,
       fontWeight: "900",
@@ -1174,8 +1166,8 @@ export const createStyles = (colors: ThemeColors) => {
       maxWidth: 132,
     },
     focusStatusPillRunning: {
-      borderColor: withAlpha(colors.accentPrimary, 0.5),
-      backgroundColor: withAlpha(colors.accentPrimary, 0.14),
+      borderColor: withAlpha(HOME_GOLD, 0.5),
+      backgroundColor: withAlpha(HOME_GOLD, 0.14),
     },
     focusStatusPillComplete: {
       borderColor: withAlpha(colors.positive, 0.46),
@@ -1191,7 +1183,7 @@ export const createStyles = (colors: ThemeColors) => {
       textAlign: "center",
     },
     focusStatusTextRunning: {
-      color: colors.accentPrimary,
+      color: HOME_GOLD,
     },
     focusStatusTextComplete: {
       color: colors.positive,
@@ -1200,8 +1192,8 @@ export const createStyles = (colors: ThemeColors) => {
       minHeight: 98,
       borderRadius: ui.radius.md,
       borderWidth: 1,
-      borderColor: withAlpha(colors.accentPrimary, 0.28),
-      backgroundColor: withAlpha(colors.surface, 0.88),
+      borderColor: withAlpha(HOME_GOLD, 0.28),
+      backgroundColor: withAlpha(HOME_NAVY_SOFT, 0.72),
       alignItems: "center",
       justifyContent: "center",
       paddingHorizontal: ui.spacing.md,
@@ -1215,7 +1207,7 @@ export const createStyles = (colors: ThemeColors) => {
       marginTop: 2,
     },
     focusSprintTimer: {
-      color: colors.textPrimary,
+      color: HOME_GOLD,
       fontSize: 44,
       lineHeight: 50,
       fontWeight: "900",
@@ -1256,9 +1248,9 @@ export const createStyles = (colors: ThemeColors) => {
       width: 9,
       height: 9,
       borderRadius: 999,
-      backgroundColor: colors.accentPrimary,
+      backgroundColor: HOME_GOLD,
       marginTop: 5,
-      shadowColor: colors.accentPrimary,
+      shadowColor: HOME_GOLD,
       shadowOffset: { width: 0, height: 0 },
       shadowOpacity: 0.36,
       shadowRadius: 6,
@@ -1301,8 +1293,8 @@ export const createStyles = (colors: ThemeColors) => {
       paddingVertical: 7,
     },
     focusDurationChipActive: {
-      borderColor: withAlpha(colors.accentPrimary, 0.44),
-      backgroundColor: withAlpha(colors.accentPrimary, 0.12),
+      borderColor: withAlpha(HOME_GOLD, 0.44),
+      backgroundColor: withAlpha(HOME_GOLD, 0.12),
     },
     focusDurationChipDisabled: {
       opacity: 0.58,
@@ -1325,7 +1317,7 @@ export const createStyles = (colors: ThemeColors) => {
       flex: 1.1,
       minHeight: 40,
       borderRadius: ui.radius.button,
-      backgroundColor: colors.accentPrimary,
+      backgroundColor: HOME_GOLD,
       alignItems: "center",
       justifyContent: "center",
       paddingHorizontal: ui.spacing.sm,
@@ -1418,13 +1410,9 @@ export const createStyles = (colors: ThemeColors) => {
       borderRadius: 12,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: withAlpha(colors.accentPrimary, 0.1),
+      backgroundColor: withAlpha(HOME_GOLD, 0.1),
       borderWidth: 1,
-      borderColor: withAlpha(colors.accentPrimary, 0.24),
-    },
-    templateContractGlyph: {
-      fontSize: 12,
-      lineHeight: 15,
+      borderColor: withAlpha(HOME_GOLD, 0.26),
     },
     templateTitle: {
       color: colors.textPrimary,
@@ -1812,8 +1800,8 @@ export const createStyles = (colors: ThemeColors) => {
       overflow: "hidden",
     },
     questContract: {
-      backgroundColor: withAlpha(colors.accentPrimary, 0.045),
-      borderBottomColor: withAlpha(colors.accentPrimary, 0.28),
+      backgroundColor: withAlpha(HOME_GOLD, 0.045),
+      borderBottomColor: withAlpha(HOME_GOLD, 0.28),
     },
     questContractRail: {
       position: "absolute",
@@ -1822,7 +1810,7 @@ export const createStyles = (colors: ThemeColors) => {
       bottom: 8,
       width: 3,
       borderRadius: 999,
-      backgroundColor: withAlpha(colors.accentPrimary, 0.78),
+      backgroundColor: withAlpha(HOME_GOLD, 0.78),
     },
     questCompletionFlashOverlay: {
       ...StyleSheet.absoluteFillObject,
@@ -1943,9 +1931,9 @@ export const createStyles = (colors: ThemeColors) => {
     },
     questActionsRow: {
       flexDirection: "row",
-      flexWrap: "wrap",
-      gap: ui.spacing.xs,
+      gap: 7,
       alignItems: "center",
+      justifyContent: "space-between",
       paddingTop: 6,
     },
     questActionBtnSubtle: {
@@ -1957,12 +1945,23 @@ export const createStyles = (colors: ThemeColors) => {
       alignItems: "center",
       justifyContent: "center",
     },
+    questActionToolBtn: {
+      width: 42,
+      height: 36,
+      borderRadius: 999,
+      borderWidth: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      flexShrink: 0,
+    },
     questActionBtnPrimary: {
+      flex: 1,
+      height: 36,
       paddingVertical: 5,
       paddingHorizontal: 12,
       borderRadius: 999,
       borderWidth: 1,
-      minWidth: 86,
+      minWidth: 104,
       alignItems: "center",
       justifyContent: "center",
     },

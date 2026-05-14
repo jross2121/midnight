@@ -112,7 +112,7 @@ function getEvaluationInsight(
   comebackBonus: number
 ): string {
   if (contractTotalCount > 0 && contractCompletedCount === contractTotalCount) {
-    return "Your Midnight Contract held. Choose tomorrow's promises carefully.";
+    return "Your Midnight Contract held. Choose tomorrow's contracts carefully.";
   }
 
   if (contractTotalCount > 0 && contractCompletedCount < contractTotalCount) {

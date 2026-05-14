@@ -1,5 +1,6 @@
 import React from "react";
 import Svg, { Circle, Line, Path, Polygon, Rect } from "react-native-svg";
+import { HOME_GOLD } from "../_styles";
 import { getRankFromDR, type DisciplineRank } from "../_utils/rank";
 import { useTheme } from "../_utils/themeContext";
 
@@ -35,7 +36,7 @@ function rankFromTier(rankTier: number): DisciplineRank {
 export function RankBadge({ rank, rankTier, size = 24, color, active = true }: RankBadgeProps) {
   const { colors } = useTheme();
   const resolvedRank = rank ?? rankFromTier(rankTier ?? 1);
-  const strokeColor = color ?? (active ? colors.accentPrimary : colors.border);
+  const strokeColor = color ?? (active ? HOME_GOLD : colors.border);
   const strokeWidth = Math.max(1.45, size * 0.07);
   const thinStrokeWidth = Math.max(1, size * 0.045);
   const markOpacity = active ? 1 : 0.56;

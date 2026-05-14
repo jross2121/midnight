@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { HOME_GOLD } from './(tabs)/_styles';
 import { configureNotificationHandler } from './(tabs)/_utils/reminders';
 import { ThemeProvider as CustomThemeProvider, useTheme } from './(tabs)/_utils/themeContext';
 import { ONBOARDING_STORAGE_KEY } from './(tabs)/_utils/types';
@@ -27,12 +28,12 @@ function NavigationThemeBridge({ children }: { children: ReactNode }) {
       dark: theme === 'dark',
       colors: {
         ...baseTheme.colors,
-        primary: colors.accentPrimary,
+        primary: HOME_GOLD,
         background: colors.bg,
         card: colors.surface,
         text: colors.textPrimary,
         border: colors.border,
-        notification: colors.accentPrimary,
+        notification: HOME_GOLD,
       },
     };
   }, [colors, theme]);
@@ -53,7 +54,7 @@ export default function RootLayout() {
           setHasSeenOnboarding(saved === 'true');
         }
       } catch (error) {
-        console.log('Failed to load onboarding status:', error);
+        if (__DEV__) console.warn('Failed to load onboarding status:', error);
         if (isMounted) {
           setHasSeenOnboarding(false);
         }

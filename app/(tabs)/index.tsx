@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -6,7 +7,6 @@ import {
   Animated,
   Alert,
   Easing,
-  LayoutAnimation,
   Platform,
   Pressable,
   ScrollView,
@@ -22,8 +22,7 @@ import { DayScoreRing } from "./_components/DayScoreRing";
 import { EditQuestForm } from "./_components/EditQuestForm";
 import { MidnightEvaluationModal } from "./_components/MidnightEvaluationModal";
 import { QuestCard } from "./_components/QuestCard";
-import { createStyles } from "./_styles";
-import { getCategoryArtById } from "./_utils/categoryArt";
+import { HOME_GOLD, createStyles } from "./_styles";
 import { getCategoryDisplayName } from "./_utils/categoryLabels";
 import { diffDays, localDateKey, parseDateKey } from "./_utils/dateHelpers";
 import { withAlpha } from "./_utils/designSystem";
@@ -36,7 +35,6 @@ import {
   defaultLastDrDelta,
   defaultLastDrUpdateDate,
   defaultQuests,
-  questTemplates,
 } from "./_utils/defaultData";
 import {
   DAILY_STANDARD,
@@ -58,7 +56,7 @@ import {
   shouldShowMidnightEvaluation,
   type MidnightEvaluationData,
 } from "./_utils/midnightEvaluation";
-import { buildNextDayPlan, buildPlanSummary, buildStreakSummary } from "./_utils/planning";
+import { buildNextDayPlan, buildStreakSummary } from "./_utils/planning";
 import {
   findDailyQuestLimitConflict,
   formatQuestLimitDate,
@@ -89,21 +87,6 @@ import type {
   StoredState,
 } from "./_utils/types";
 import { STORAGE_KEY } from "./_utils/types";
-
-const FAST_TEMPLATE_VISIBLE_COUNT = 3;
-const FOCUS_DURATION_OPTIONS = [
-  { label: "5m", seconds: 5 * 60 },
-  { label: "15m", seconds: 15 * 60 },
-  { label: "25m", seconds: 25 * 60 },
-];
-const DEFAULT_FOCUS_SECONDS = 15 * 60;
-
-function formatFocusTime(totalSeconds: number): string {
-  const safeSeconds = Math.max(0, Math.floor(totalSeconds));
-  const minutes = Math.floor(safeSeconds / 60);
-  const seconds = safeSeconds % 60;
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
-}
 
 function applyDrChange(current: number, delta: number): number {
   return Math.max(0, current + delta);
@@ -238,10 +221,6 @@ export default function HomeScreen() {
   // Edit quest state
   const [editingQuestId, setEditingQuestId] = useState<string | null>(null);
   const [openQuestId, setOpenQuestId] = useState<string | null>(null);
-  const [focusQuestId, setFocusQuestId] = useState<string | null>(null);
-  const [focusDurationSeconds, setFocusDurationSeconds] = useState(DEFAULT_FOCUS_SECONDS);
-  const [focusRemainingSeconds, setFocusRemainingSeconds] = useState(DEFAULT_FOCUS_SECONDS);
-  const [focusRunning, setFocusRunning] = useState(false);
 
   const normalizeDifficulty = React.useCallback((d: unknown): "easy" | "medium" | "hard" => {
     if (d === "medium" || d === "hard") return d;
@@ -350,6 +329,13 @@ export default function HomeScreen() {
       !achievements.find((a) => a.id === "30_quests")?.unlockedAt
     ) {
       unlockAchievement("30_quests");
+    }
+
+    if (
+      nextLifetimeCompletedCount >= 50 &&
+      !achievements.find((a) => a.id === "quest_50")?.unlockedAt
+    ) {
+      unlockAchievement("quest_50");
     }
 
     if (
@@ -574,7 +560,7 @@ export default function HomeScreen() {
         setArchivedQuests(nextArchivedQuests);
         setLastResetDate(shouldGateForEvaluation ? savedResetDate : today);
       } catch (e) {
-        console.log("Failed to load storage:", e);
+        if (__DEV__) console.warn("Failed to load storage:", e);
         setLastResetDate(today);
       } finally {
         setHydrated(true);
@@ -588,6 +574,11 @@ export default function HomeScreen() {
 
     (async () => {
       try {
+        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        const persisted = raw ? (JSON.parse(raw) as Partial<StoredState>) : {};
+        const persistedEquippedBadgeIds = Array.isArray(persisted.equippedBadgeIds)
+          ? persisted.equippedBadgeIds.slice(0, 3)
+          : undefined;
         const state: StoredState = {
           categories,
           quests,
@@ -601,9 +592,12 @@ export default function HomeScreen() {
           lifetimeCompletedQuestCount,
           archivedQuests,
         };
+        if (persistedEquippedBadgeIds) {
+          state.equippedBadgeIds = persistedEquippedBadgeIds;
+        }
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       } catch (e) {
-        console.log("Failed to save storage:", e);
+        if (__DEV__) console.warn("Failed to save storage:", e);
       }
     })();
   }, [
@@ -720,6 +714,9 @@ export default function HomeScreen() {
       if (nextStreakSummary.solidDayStreak >= 14) {
         unlockAchievement("solid_14");
       }
+      if (nextStreakSummary.solidDayStreak >= 21) {
+        unlockAchievement("solid_21");
+      }
       if (nextStreakSummary.contractStreak >= 3) {
         unlockAchievement("contract_3");
       }
@@ -728,6 +725,9 @@ export default function HomeScreen() {
       }
       if (nextStreakSummary.contractStreak >= 14) {
         unlockAchievement("contract_14");
+      }
+      if (nextStreakSummary.contractStreak >= 21) {
+        unlockAchievement("contract_21");
       }
       if (nextHistory.filter((entry) => entry.pct >= 100).length >= 3) {
         unlockAchievement("perfect_3");
@@ -755,7 +755,7 @@ export default function HomeScreen() {
         unlockAchievement("rank_grand");
       }
     } catch (error) {
-      console.log("Failed to commit midnight evaluation:", error);
+      if (__DEV__) console.warn("Failed to commit midnight evaluation:", error);
     } finally {
       setIsSavingEvaluation(false);
     }
@@ -779,9 +779,13 @@ export default function HomeScreen() {
 
           const parsed = JSON.parse(raw) as Partial<StoredState>;
           const savedResetDate =
-            typeof parsed.lastResetDate === "string" ? parsed.lastResetDate : lastResetDate;
+            typeof parsed.lastResetDate === "string" ? parsed.lastResetDate : today;
+          const savedCategories =
+            Array.isArray(parsed.categories) && parsed.categories.length
+              ? parsed.categories
+              : defaultCategories;
           const savedQuests =
-            Array.isArray(parsed.quests) && parsed.quests.length ? parsed.quests : quests;
+            Array.isArray(parsed.quests) && parsed.quests.length ? parsed.quests : defaultQuests;
           const normalizedSavedQuests = savedQuests.map((quest) =>
             normalizeQuestSchedule(
               {
@@ -795,28 +799,56 @@ export default function HomeScreen() {
               savedResetDate
             )
           );
+          const normalizedFinalQuests = normalizedSavedQuests.map(normalizeQuest);
+          const savedAchievements = mergeAchievements(parsed.achievements);
+          const savedDR =
+            typeof parsed.disciplineRating === "number" ? parsed.disciplineRating : defaultDisciplineRating;
+          const savedLastDrDelta =
+            typeof parsed.lastDrDelta === "number" ? parsed.lastDrDelta : defaultLastDrDelta;
           const savedLastCompletionPct =
-            typeof parsed.lastCompletionPct === "number" ? parsed.lastCompletionPct : lastCompletionPct;
+            typeof parsed.lastCompletionPct === "number"
+              ? Math.max(0, Math.min(100, Math.round(parsed.lastCompletionPct)))
+              : defaultLastCompletionPct;
+          const savedLastDrUpdateDate =
+            typeof parsed.lastDrUpdateDate === "string" ? parsed.lastDrUpdateDate : defaultLastDrUpdateDate;
           const savedHistory = loadDrHistory(parsed.drHistory);
           const previousCompletionForBonus = savedHistory.length > 0 ? savedLastCompletionPct : null;
+          const savedLifetimeCompletedQuestCount =
+            typeof parsed.lifetimeCompletedQuestCount === "number"
+              ? Math.max(0, Math.floor(parsed.lifetimeCompletedQuestCount))
+              : 0;
+          const savedArchivedQuests = loadArchivedQuests(parsed.archivedQuests);
 
           const lastEvaluatedDate = await AsyncStorage.getItem(MIDNIGHT_EVALUATION_STORAGE_KEY);
           const shouldGate = shouldShowMidnightEvaluation(savedResetDate, today, lastEvaluatedDate);
 
-          if (active && shouldGate) {
-            setQuests(normalizedSavedQuests);
+          if (!active) return;
+
+          setCategories(savedCategories);
+          setQuests(normalizedFinalQuests);
+          setAchievements(savedAchievements);
+          setDisciplineRating(savedDR);
+          setLastDrDelta(savedLastDrDelta);
+          setLastCompletionPct(savedLastCompletionPct);
+          setLastDrUpdateDate(savedLastDrUpdateDate);
+          setDrHistory(savedHistory);
+          setLifetimeCompletedQuestCount(savedLifetimeCompletedQuestCount);
+          setArchivedQuests(savedArchivedQuests);
+          setLastResetDate(savedResetDate);
+
+          if (shouldGate) {
             setLastResetDate(savedResetDate);
-            setPendingEvaluation(buildMidnightEvaluation(savedResetDate, normalizedSavedQuests, previousCompletionForBonus));
+            setPendingEvaluation(buildMidnightEvaluation(savedResetDate, normalizedFinalQuests, previousCompletionForBonus));
           }
         } catch (error) {
-          console.log("Failed to re-check midnight evaluation:", error);
+          if (__DEV__) console.warn("Failed to re-check midnight evaluation:", error);
         }
       })();
 
       return () => {
         active = false;
       };
-    }, [hydrated, isSavingEvaluation, lastCompletionPct, lastResetDate, normalizeDifficulty, pendingEvaluation, quests])
+    }, [hydrated, isSavingEvaluation, normalizeDifficulty, normalizeQuest, pendingEvaluation])
   );
 
   useEffect(() => {
@@ -864,16 +896,14 @@ export default function HomeScreen() {
     [contractQuests]
   );
   const contractStatusText = useMemo(() => {
-    if (contractQuests.length === 0) return "Choose up to 3 promises before midnight.";
+    if (contractQuests.length === 0) return "Choose up to 3 contracts before midnight.";
     if (contractDoneCount === contractQuests.length) return "Contract protected. Midnight has less to take.";
-    return `${contractQuests.length - contractDoneCount} promise${contractQuests.length - contractDoneCount === 1 ? "" : "s"} still exposed.`;
+    return `${contractQuests.length - contractDoneCount} contract${contractQuests.length - contractDoneCount === 1 ? "" : "s"} still exposed.`;
   }, [contractDoneCount, contractQuests.length]);
   const dayScorePercent = useMemo(
     () => getCompletionPercent(doneCount, dayScoreTarget),
     [dayScoreTarget, doneCount]
   );
-  const planSummary = useMemo(() => buildPlanSummary(todaysQuests), [todaysQuests]);
-  const streakSummary = useMemo(() => buildStreakSummary(drHistory), [drHistory]);
   const rankName = useMemo(() => getRankFromDR(disciplineRating), [disciplineRating]);
   const rankLabel = rankName.toUpperCase();
   const nextRank = useMemo(() => getNextRank(disciplineRating), [disciplineRating]);
@@ -925,10 +955,6 @@ export default function HomeScreen() {
   );
 
   const nextMove = useMemo(() => sortedQuests.find((quest) => !quest.done) ?? null, [sortedQuests]);
-  const nextMoveArt = useMemo(
-    () => (nextMove ? getCategoryArtById(nextMove.categoryId) : null),
-    [nextMove]
-  );
   const nextMoveReason = useMemo(() => {
     if (!nextMove) return "All quests cleared. Hold the line until midnight.";
     if (nextMove.contract) return "Contract quest. Protect this before anything else.";
@@ -936,64 +962,6 @@ export default function HomeScreen() {
     if (nextMove.difficulty === "hard") return "Hard quest. Taking it now lowers tonight's pressure.";
     return "Fastest useful move for the current run.";
   }, [nextMove]);
-  const focusQuest = useMemo(
-    () => sortedQuests.find((quest) => quest.id === focusQuestId && !quest.done) ?? nextMove,
-    [focusQuestId, nextMove, sortedQuests]
-  );
-  const focusProgress = useMemo(() => {
-    if (focusDurationSeconds <= 0) return 0;
-    return Math.max(
-      0,
-      Math.min(1, (focusDurationSeconds - focusRemainingSeconds) / focusDurationSeconds)
-    );
-  }, [focusDurationSeconds, focusRemainingSeconds]);
-  const focusProgressWidth = `${Math.round(focusProgress * 100)}%` as `${number}%`;
-  const focusTimeLabel = formatFocusTime(focusRemainingSeconds);
-  const focusComplete = focusRemainingSeconds === 0 && Boolean(focusQuest);
-  const focusStatusLabel = !focusQuest
-    ? "Idle"
-    : focusComplete
-      ? "Ready to complete"
-      : focusRunning
-        ? "Running"
-        : focusRemainingSeconds < focusDurationSeconds
-          ? "Paused"
-          : "Ready";
-  const focusDurationLabel = `${Math.round(focusDurationSeconds / 60)} minute sprint`;
-
-  useEffect(() => {
-    setFocusRunning(false);
-    setFocusRemainingSeconds(focusDurationSeconds);
-  }, [focusDurationSeconds, focusQuest?.id]);
-
-  useEffect(() => {
-    if (!focusRunning) return;
-
-    const interval = setInterval(() => {
-      setFocusRemainingSeconds((current) => Math.max(0, current - 1));
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [focusRunning]);
-
-  useEffect(() => {
-    if (focusRunning && focusRemainingSeconds === 0) {
-      setFocusRunning(false);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
-  }, [focusRemainingSeconds, focusRunning]);
-
-  const availableQuestTemplates = useMemo(
-    () =>
-      questTemplates.filter(
-        (template) => !quests.some((quest) => quest.id.endsWith(`-${template.id}`))
-      ),
-    [quests]
-  );
-  const displayedFastTemplates = useMemo(
-    () => availableQuestTemplates.slice(0, FAST_TEMPLATE_VISIBLE_COUNT),
-    [availableQuestTemplates]
-  );
   const nextDayPlan = useMemo(
     () => buildNextDayPlan(getScheduledQuestsForDate(rollQuestsForNewDay(quests), todayDateKey), drHistory),
     [drHistory, quests, todayDateKey]
@@ -1022,42 +990,6 @@ export default function HomeScreen() {
     setLifetimeCompletedQuestCount(nextLifetimeCompletedCount);
     checkAchievements(updatedQuests, updatedCategories, nextLifetimeCompletedCount);
     setOpenQuestId(null);
-    if (focusQuest?.id === questId) {
-      setFocusRunning(false);
-      setFocusQuestId(null);
-    }
-  };
-
-  const selectFocusDuration = (seconds: number) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setFocusDurationSeconds(seconds);
-  };
-
-  const startFocusSprint = () => {
-    if (!focusQuest) return;
-
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (focusRemainingSeconds === 0) {
-      setFocusRemainingSeconds(focusDurationSeconds);
-    }
-    setFocusQuestId(focusQuest.id);
-    setFocusRunning(true);
-  };
-
-  const pauseFocusSprint = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setFocusRunning(false);
-  };
-
-  const resetFocusSprint = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setFocusRunning(false);
-    setFocusRemainingSeconds(focusDurationSeconds);
-  };
-
-  const completeFocusedQuest = () => {
-    if (!focusQuest) return;
-    completeQuest(focusQuest.id);
   };
 
   const deleteQuest = (questId: string) => {
@@ -1270,51 +1202,6 @@ export default function HomeScreen() {
     );
   };
 
-  const addQuestFromTemplate = (templateId: string) => {
-    const template = questTemplates.find((item) => item.id === templateId);
-    if (!template) return;
-
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-
-    setQuests((prev) => {
-      if (prev.some((quest) => quest.id.endsWith(`-${template.id}`))) {
-        return prev;
-      }
-
-      const activeContracts = prev.filter((quest) => quest.contract && !quest.paused).length;
-      const shouldContract = Boolean(template.contract) && activeContracts < 3;
-      const repeat = normalizeQuestRepeat(template.repeat);
-      const nextQuest: Quest = {
-        id: `q${Date.now()}-${template.id}`,
-        title: template.title,
-        categoryId: template.categoryId,
-        xp: getQuestXpForDifficulty(template.difficulty),
-        target: template.target,
-        difficulty: template.difficulty,
-        repeat,
-        scheduledWeekday:
-          repeat === "weekly"
-            ? normalizeScheduledWeekday(template.scheduledWeekday, getTodayWeekday())
-            : undefined,
-        done: false,
-        pinned: shouldContract,
-        contract: shouldContract,
-        paused: false,
-      };
-      const conflict = findDailyQuestLimitConflict([...prev, nextQuest], questLimitDateKeys);
-      if (conflict) {
-        showQuestLimitAlert(conflict);
-        return prev;
-      }
-
-      return [
-        ...prev,
-        nextQuest,
-      ];
-    });
-  };
-
   if (pendingEvaluation) {
     return (
       <MidnightEvaluationModal
@@ -1340,7 +1227,7 @@ export default function HomeScreen() {
                 accessibilityLabel="Midnight performance log"
               >
                 <View style={styles.brandTitleRow}>
-                  <MoonMark size={16} color={colors.accentPrimary} cutoutColor={colors.bg} />
+                  <MoonMark size={16} color={HOME_GOLD} cutoutColor={colors.bg} />
                   <Text style={[styles.title, { color: colors.textPrimary }]}>MIDNIGHT</Text>
                 </View>
                 <Text style={styles.homeSubtitle}>Performance Log</Text>
@@ -1417,7 +1304,7 @@ export default function HomeScreen() {
                       <Animated.View
                         style={[
                           styles.rankProgressFill,
-                          { width: animatedRankProgressWidth, backgroundColor: colors.accentPrimary },
+                          { width: animatedRankProgressWidth, backgroundColor: HOME_GOLD },
                         ]}
                       />
                     </View>
@@ -1425,11 +1312,11 @@ export default function HomeScreen() {
                 </View>
               </View>
 
-            <View style={styles.contractPanel}>
+              <View style={styles.contractPanel}>
                 <View style={styles.contractHeaderRow}>
                   <View style={styles.contractTitleRow}>
                     <View style={styles.contractArtBadge}>
-                      <Text style={styles.contractArtGlyph}>🛡</Text>
+                      <IconSymbol name="pin.fill" size={18} color={HOME_GOLD} />
                     </View>
                     <View>
                       <Text style={styles.contractEyebrow}>Midnight Contract</Text>
@@ -1448,7 +1335,7 @@ export default function HomeScreen() {
                       styles.contractProgressFill,
                       {
                         width: `${contractQuests.length > 0 ? Math.round((contractDoneCount / contractQuests.length) * 100) : 0}%`,
-                        backgroundColor: colors.accentPrimary,
+                        backgroundColor: HOME_GOLD,
                       },
                     ]}
                   />
@@ -1456,42 +1343,6 @@ export default function HomeScreen() {
                 <Text style={styles.contractStatusText}>{contractStatusText}</Text>
               </View>
 
-              <View style={styles.morningPlanPanel}>
-                <View style={styles.morningPlanHeader}>
-                  <View style={styles.morningPlanTitleRow}>
-                    <View style={styles.morningPlanArtBadge}>
-                      <Text style={styles.morningPlanArtGlyph}>📋</Text>
-                    </View>
-                    <View style={styles.morningPlanTitleText}>
-                      <Text style={styles.contractEyebrow}>Morning Plan</Text>
-                      <Text style={styles.morningPlanTitle}>{planSummary.title}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.morningPlanDeltaPill}>
-                    <Text style={styles.morningPlanDeltaLabel}>Now</Text>
-                    <Text style={styles.morningPlanDeltaValue}>
-                      {planSummary.projectedDelta >= 0 ? `+${planSummary.projectedDelta}` : planSummary.projectedDelta}
-                    </Text>
-                  </View>
-                </View>
-                <Text style={styles.morningPlanBody}>{planSummary.body}</Text>
-                <View style={styles.morningPlanMetricRow}>
-                  <View style={styles.morningPlanMetric}>
-                    <Text style={styles.morningPlanMetricValue}>
-                      {planSummary.completedCount}/{planSummary.targetQuestCount}
-                    </Text>
-                    <Text style={styles.morningPlanMetricLabel}>standard</Text>
-                  </View>
-                  <View style={styles.morningPlanMetric}>
-                    <Text style={styles.morningPlanMetricValue}>{streakSummary.solidDayStreak}</Text>
-                    <Text style={styles.morningPlanMetricLabel}>solid streak</Text>
-                  </View>
-                  <View style={styles.morningPlanMetric}>
-                    <Text style={styles.morningPlanMetricValue}>{streakSummary.contractStreak}</Text>
-                    <Text style={styles.morningPlanMetricLabel}>contract streak</Text>
-                  </View>
-                </View>
-              </View>
             </View>
 
             {__DEV__ && showDevActions ? (
@@ -1525,7 +1376,7 @@ export default function HomeScreen() {
                   accessibilityRole="button"
                   accessibilityLabel={showAdd ? "Cancel adding quest" : "Add a new quest"}
                 >
-                  <Text style={[styles.link, { color: colors.accentPrimary }]}>{showAdd ? "Cancel" : "+ Add"}</Text>
+                  <Text style={[styles.link, { color: HOME_GOLD }]}>{showAdd ? "Cancel" : "+ Add"}</Text>
                 </Pressable>
               </View>
               <Text style={styles.sectionSubtext}>
@@ -1549,18 +1400,17 @@ export default function HomeScreen() {
                   <View
                     style={[
                       styles.nextMoveArtBadge,
-                      nextMoveArt
-                        ? {
-                            backgroundColor: withAlpha(nextMoveArt.color, 0.12),
-                            borderColor: withAlpha(nextMoveArt.color, 0.32),
-                          }
-                        : {
-                            backgroundColor: withAlpha(colors.accentPrimary, 0.12),
-                            borderColor: withAlpha(colors.accentPrimary, 0.32),
-                          },
+                      {
+                        backgroundColor: withAlpha(HOME_GOLD, 0.11),
+                        borderColor: withAlpha(HOME_GOLD, 0.32),
+                      },
                     ]}
                   >
-                    <Text style={styles.nextMoveArtGlyph}>{nextMoveArt?.glyph ?? "✓"}</Text>
+                    <IconSymbol
+                      name={nextMove?.contract ? "pin.fill" : "checkmark.circle.fill"}
+                      size={22}
+                      color={HOME_GOLD}
+                    />
                   </View>
                   <View style={styles.nextMoveTextWrap}>
                     <Text style={styles.nextMoveEyebrow}>Next Move</Text>
@@ -1586,7 +1436,7 @@ export default function HomeScreen() {
               </View>
               {nextMove?.contract ? (
                 <View style={styles.nextMoveBadge}>
-                  <Text style={styles.nextMoveBadgeArt}>🛡</Text>
+                  <IconSymbol name="pin.fill" size={12} color={HOME_GOLD} />
                   <Text style={styles.nextMoveBadgeText}>Contract Target</Text>
                 </View>
               ) : null}
@@ -1597,198 +1447,6 @@ export default function HomeScreen() {
               </Text>
               <Text style={styles.nextMoveReason}>{nextMoveReason}</Text>
             </View>
-
-            <View style={styles.focusSprintCard}>
-              <View pointerEvents="none" style={styles.focusSprintAccentRail} />
-              <View style={styles.focusSprintTopRow}>
-                <View style={styles.focusSprintTitleWrap}>
-                  <Text style={styles.focusSprintEyebrow}>Focus Sprint</Text>
-                  <Text style={styles.focusSprintSubtitle}>Single-task timer for the current move</Text>
-                </View>
-                <View
-                  style={[
-                    styles.focusStatusPill,
-                    focusRunning && styles.focusStatusPillRunning,
-                    focusComplete && styles.focusStatusPillComplete,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.focusStatusText,
-                      focusRunning && styles.focusStatusTextRunning,
-                      focusComplete && styles.focusStatusTextComplete,
-                    ]}
-                  >
-                    {focusStatusLabel}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.focusTimerConsole}>
-                <Text style={styles.focusSprintTimer}>{focusTimeLabel}</Text>
-                <Text style={styles.focusSprintTimerLabel}>{focusDurationLabel}</Text>
-              </View>
-
-              <View style={styles.focusProgressTrack}>
-                <View
-                  style={[
-                    styles.focusProgressFill,
-                    {
-                      width: focusProgressWidth,
-                      backgroundColor: focusComplete ? colors.positive : colors.accentPrimary,
-                    },
-                  ]}
-                />
-              </View>
-
-              <View style={styles.focusTargetStrip}>
-                <View style={styles.focusTargetDot} />
-                <View style={styles.focusTargetTextWrap}>
-                  <Text style={styles.focusTargetLabel}>Locked Target</Text>
-                  <Text style={styles.focusSprintTitle} numberOfLines={1}>
-                    {focusQuest ? focusQuest.title : "No active target"}
-                  </Text>
-                  <Text style={styles.focusSprintMeta}>
-                    {focusQuest
-                      ? `${categoryName(focusQuest.categoryId)} - ${focusQuest.difficulty.toUpperCase()} - ${focusQuest.xp} XP`
-                      : "Clear or add a quest to start a focused run."}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.focusDurationRow}>
-                {FOCUS_DURATION_OPTIONS.map((option) => {
-                  const active = option.seconds === focusDurationSeconds;
-                  return (
-                    <Pressable
-                      key={option.seconds}
-                      onPress={() => selectFocusDuration(option.seconds)}
-                      disabled={focusRunning}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Set focus sprint to ${option.label}`}
-                      style={[
-                        styles.focusDurationChip,
-                        active && styles.focusDurationChipActive,
-                        focusRunning && styles.focusDurationChipDisabled,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.focusDurationText,
-                          active && styles.focusDurationTextActive,
-                        ]}
-                      >
-                        {option.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
-              <View style={styles.focusActionRow}>
-                <Pressable
-                  onPress={focusRunning ? pauseFocusSprint : startFocusSprint}
-                  disabled={!focusQuest}
-                  accessibilityRole="button"
-                  accessibilityLabel={focusRunning ? "Pause focus sprint" : "Start focus sprint"}
-                  style={[
-                    styles.focusPrimaryButton,
-                    !focusQuest && styles.focusButtonDisabled,
-                  ]}
-                >
-                  <Text style={styles.focusPrimaryButtonText}>
-                    {focusRunning ? "Pause" : focusRemainingSeconds === 0 ? "Restart" : "Start"}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  onPress={resetFocusSprint}
-                  disabled={!focusQuest || focusRemainingSeconds === focusDurationSeconds}
-                  accessibilityRole="button"
-                  accessibilityLabel="Reset focus sprint"
-                  style={[
-                    styles.focusSecondaryButton,
-                    (!focusQuest || focusRemainingSeconds === focusDurationSeconds) &&
-                      styles.focusButtonDisabled,
-                  ]}
-                >
-                  <Text style={styles.focusSecondaryButtonText}>Reset</Text>
-                </Pressable>
-                <Pressable
-                  onPress={completeFocusedQuest}
-                  disabled={!focusQuest}
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    focusQuest ? `Complete focused quest: ${focusQuest.title}` : "No focused quest"
-                  }
-                  style={[
-                    styles.focusSecondaryButton,
-                    focusComplete && styles.focusCompleteButton,
-                    !focusQuest && styles.focusButtonDisabled,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.focusSecondaryButtonText,
-                      focusComplete && styles.focusCompleteButtonText,
-                    ]}
-                  >
-                    Complete
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-
-            {displayedFastTemplates.length > 0 ? (
-              <View style={styles.templatePanel}>
-                <View style={styles.sectionRow}>
-                  <Text style={[styles.sectionSecondary, { marginBottom: 0 }]}>Fast Templates</Text>
-                  <Text style={styles.templateHint}>Tap to add</Text>
-                </View>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.templateRail}
-                >
-                  {displayedFastTemplates.map((template) => {
-                    const templateArt = getCategoryArtById(template.categoryId);
-                    return (
-                      <Pressable
-                        key={template.id}
-                        style={styles.templateChip}
-                        onPress={() => addQuestFromTemplate(template.id)}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Add quest template: ${template.title}`}
-                      >
-                        <View style={styles.templateTopRow}>
-                          <View
-                            style={[
-                              styles.templateArtBadge,
-                              {
-                                backgroundColor: withAlpha(templateArt.color, 0.11),
-                                borderColor: withAlpha(templateArt.color, 0.28),
-                              },
-                            ]}
-                          >
-                            <Text style={styles.templateArtGlyph}>{templateArt.glyph}</Text>
-                          </View>
-                          {template.contract ? (
-                            <View style={styles.templateContractMark}>
-                              <Text style={styles.templateContractGlyph}>🛡</Text>
-                            </View>
-                          ) : null}
-                        </View>
-                        <Text style={styles.templateTitle} numberOfLines={2}>
-                          {template.title}
-                        </Text>
-                        <Text style={styles.templateMeta} numberOfLines={1}>
-                          {categoryName(template.categoryId)} - {template.xp} XP
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-            ) : null}
 
             {/* ADD/EDIT QUEST FORM */}
             {showAdd && (

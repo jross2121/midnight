@@ -1,3 +1,4 @@
+import { HOME_GOLD } from "@/app/(tabs)/_styles";
 import { withAlpha } from "@/app/(tabs)/_utils/designSystem";
 import { useTheme } from "@/app/(tabs)/_utils/themeContext";
 import { AppThemeTokens } from "@/constants/theme";
@@ -20,8 +21,8 @@ function BaseButton({ label, style, disabled, ...props }: AppButtonProps & { var
         styles.base,
         props.variant === "primary"
           ? {
-              backgroundColor: withAlpha(colors.accentCyan, 0.14),
-              borderColor: withAlpha(colors.accentCyan, 0.45),
+              backgroundColor: withAlpha(HOME_GOLD, 0.14),
+              borderColor: withAlpha(HOME_GOLD, 0.45),
             }
           : {
               backgroundColor: colors.surface2,
@@ -37,7 +38,7 @@ function BaseButton({ label, style, disabled, ...props }: AppButtonProps & { var
         style={[
           styles.label,
           {
-            color: props.variant === "primary" ? colors.accentCyan : colors.text,
+            color: props.variant === "primary" ? HOME_GOLD : colors.text,
           },
         ]}
       >

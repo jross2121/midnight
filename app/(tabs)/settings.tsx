@@ -7,9 +7,10 @@ import React, { useCallback, useState } from "react";
 import { Alert, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Footer } from "./_components/Footer";
-import { createStyles } from "./_styles";
+import { HOME_GOLD, createStyles } from "./_styles";
 import { localDateKey } from "./_utils/dateHelpers";
 import { defaultLastCompletionPct, defaultLastDrDelta, defaultLastDrUpdateDate } from "./_utils/defaultData";
+import { withAlpha } from "./_utils/designSystem";
 import { DAILY_EVALUATION_HISTORY_STORAGE_KEY } from "./_utils/evaluationHistory";
 import { MIDNIGHT_EVALUATION_STORAGE_KEY } from "./_utils/midnightEvaluation";
 import { getQuestXpForDifficulty } from "./_utils/questXp";
@@ -27,6 +28,9 @@ import {
 import { parseImportPayload, type DataExportPayload } from "./_utils/storageImport";
 import { useTheme } from "./_utils/themeContext";
 import { STORAGE_KEY, type ArchivedQuest, type Quest, type StoredState } from "./_utils/types";
+
+const SETTINGS_ACCENT = HOME_GOLD;
+const SETTINGS_BUTTON_TEXT = "#15131A";
 
 function getYesterdayDateKey() {
   const d = new Date();
@@ -60,11 +64,28 @@ export default function SettingsScreen() {
   const [archivedQuests, setArchivedQuests] = useState<ArchivedQuest[]>([]);
   const [exportPayload, setExportPayload] = useState("");
   const [importPayload, setImportPayload] = useState("");
+  const [showImportBox, setShowImportBox] = useState(false);
   const [reminderSettings, setReminderSettings] =
     useState<ReminderSettings>(DEFAULT_REMINDER_SETTINGS);
   const [reminderPermission, setReminderPermission] =
     useState<ReminderPermissionStatus>("undetermined");
   const [remindersSaving, setRemindersSaving] = useState(false);
+  const isLightTheme = theme === "light";
+  const settingsDividerColor = isLightTheme ? "#E2E8F0" : "#1A2633";
+  const settingsGoldBorder = isLightTheme ? "#F0C96E" : "#5B421B";
+  const settingsGoldSoftSurface = isLightTheme ? "#FFF7E6" : "#1C1710";
+  const settingsCardSurface = {
+    backgroundColor: isLightTheme ? colors.surface : colors.surface2,
+    borderColor: isLightTheme ? "#E2E8F0" : colors.border,
+  };
+  const settingsFeatureSurface = {
+    backgroundColor: isLightTheme ? colors.surface : "#11100D",
+    borderColor: settingsGoldBorder,
+  };
+  const settingsInputSurface = {
+    backgroundColor: isLightTheme ? "#F8FAFC" : "#0B1117",
+    borderColor: isLightTheme ? "#E2E8F0" : "#1B2634",
+  };
 
   const loadArchive = useCallback(async () => {
     try {
@@ -77,7 +98,7 @@ export default function SettingsScreen() {
       const parsed = JSON.parse(raw) as Partial<StoredState>;
       setArchivedQuests(Array.isArray(parsed.archivedQuests) ? parsed.archivedQuests : []);
     } catch (error) {
-      console.log("Failed to load quest archive:", error);
+      if (__DEV__) console.warn("Failed to load quest archive:", error);
       setArchivedQuests([]);
     }
   }, []);
@@ -127,7 +148,7 @@ export default function SettingsScreen() {
       const syncedPermission = await syncReminderSchedule(nextSettings);
       setReminderPermission(syncedPermission);
     } catch (error) {
-      console.log("Failed to save reminders:", error);
+      if (__DEV__) console.warn("Failed to save reminders:", error);
       const savedSettings = await loadReminderSettings();
       setReminderSettings(savedSettings);
       Alert.alert("Reminder update failed", "Could not update your notification schedule.");
@@ -174,7 +195,7 @@ export default function SettingsScreen() {
       <View
         style={{
           borderTopWidth: 1,
-          borderTopColor: colors.border,
+          borderTopColor: settingsDividerColor,
           paddingTop: 12,
           marginTop: 12,
           gap: 10,
@@ -197,9 +218,9 @@ export default function SettingsScreen() {
             style={({ pressed }) => [
               {
                 alignSelf: "flex-start",
-                backgroundColor: enabled ? colors.accentPrimary : colors.surface2,
+                backgroundColor: enabled ? SETTINGS_ACCENT : settingsInputSurface.backgroundColor,
                 borderWidth: enabled ? 0 : 1,
-                borderColor: colors.border,
+                borderColor: settingsInputSurface.borderColor,
                 borderRadius: 8,
                 paddingVertical: 7,
                 paddingHorizontal: 10,
@@ -209,7 +230,7 @@ export default function SettingsScreen() {
           >
             <Text
               style={{
-                color: enabled ? colors.textPrimary : colors.textSecondary,
+                color: enabled ? SETTINGS_BUTTON_TEXT : colors.textSecondary,
                 fontWeight: "900",
                 fontSize: 11,
               }}
@@ -233,8 +254,8 @@ export default function SettingsScreen() {
                 justifyContent: "center",
                 borderRadius: 8,
                 borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.surface2,
+                borderColor: settingsInputSurface.borderColor,
+                backgroundColor: settingsInputSurface.backgroundColor,
                 opacity: controlsDisabled ? 0.42 : pressed ? 0.75 : 1,
               },
             ]}
@@ -251,8 +272,8 @@ export default function SettingsScreen() {
               justifyContent: "center",
               borderRadius: 8,
               borderWidth: 1,
-              borderColor: colors.border,
-              backgroundColor: colors.surface2,
+              borderColor: settingsInputSurface.borderColor,
+              backgroundColor: settingsInputSurface.backgroundColor,
             }}
           >
             <Text style={{ color: colors.textPrimary, fontWeight: "900", fontSize: 13 }}>
@@ -272,8 +293,8 @@ export default function SettingsScreen() {
                 justifyContent: "center",
                 borderRadius: 8,
                 borderWidth: 1,
-                borderColor: colors.border,
-                backgroundColor: colors.surface2,
+                borderColor: settingsInputSurface.borderColor,
+                backgroundColor: settingsInputSurface.backgroundColor,
                 opacity: controlsDisabled ? 0.42 : pressed ? 0.75 : 1,
               },
             ]}
@@ -328,7 +349,7 @@ export default function SettingsScreen() {
         };
       });
     } catch (error) {
-      console.log("Failed to restore archived quest:", error);
+      if (__DEV__) console.warn("Failed to restore archived quest:", error);
       Alert.alert("Restore failed", "Could not move that quest back to today's queue.");
     }
   };
@@ -346,7 +367,7 @@ export default function SettingsScreen() {
             try {
               await saveArchiveState((state) => ({ ...state, archivedQuests: [] }));
             } catch (error) {
-              console.log("Failed to clear archive:", error);
+              if (__DEV__) console.warn("Failed to clear archive:", error);
               Alert.alert("Clear failed", "Could not clear the archive.");
             }
           },
@@ -377,7 +398,7 @@ export default function SettingsScreen() {
       setExportPayload(JSON.stringify(payload, null, 2));
       Alert.alert("Export ready", "Your backup JSON is ready in the export box.");
     } catch (error) {
-      console.log("Failed to generate export payload:", error);
+      if (__DEV__) console.warn("Failed to generate export payload:", error);
       Alert.alert("Export failed", "Could not build a clean backup from saved app data.");
     }
   };
@@ -414,6 +435,7 @@ export default function SettingsScreen() {
       }
 
       setImportPayload("");
+      setShowImportBox(false);
       setExportPayload("");
       await loadArchive();
       Alert.alert(
@@ -423,7 +445,7 @@ export default function SettingsScreen() {
           : "Your saved quests, stats, archive, and history were restored."
       );
     } catch (error) {
-      console.log("Failed to import data:", error);
+      if (__DEV__) console.warn("Failed to import data:", error);
       Alert.alert("Import failed", "Could not read that JSON backup.");
     }
   };
@@ -462,7 +484,7 @@ export default function SettingsScreen() {
       Alert.alert("Simulation armed", "Returning to Home will show Midnight Evaluation.");
       router.replace("/(tabs)");
     } catch (error) {
-      console.log("Failed to simulate midnight evaluation:", error);
+      if (__DEV__) console.warn("Failed to simulate midnight evaluation:", error);
       Alert.alert("Simulation failed", "Could not prepare pending evaluation state.");
     }
   };
@@ -473,24 +495,67 @@ export default function SettingsScreen() {
       : reminderPermission === "denied"
         ? colors.negative
         : colors.textSecondary;
+  const importFieldVisible = showImportBox || importPayload.trim().length > 0;
+  const importButtonDisabled = importFieldVisible && importPayload.trim().length === 0;
+  const renderSettingsSectionLabel = (label: string, marginTop = 16) => (
+    <Text
+      style={{
+        color: withAlpha(colors.textSecondary, 0.78),
+        fontSize: 10,
+        lineHeight: 13,
+        fontWeight: "900",
+        letterSpacing: 0.75,
+        textTransform: "uppercase",
+        marginTop,
+        marginBottom: -4,
+      }}
+    >
+      {label}
+    </Text>
+  );
 
   return (
     <SafeAreaView edges={["top"]} style={[styles.safe, { backgroundColor: colors.bg }]}>
       <ScrollView contentContainerStyle={styles.container}>
         {/* Header */}
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 24 }}>
-          <IconSymbol name="gearshape.fill" size={36} color={colors.accentPrimary} />
-          <Text style={styles.title}>Settings</Text>
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 12,
+            marginBottom: 18,
+            paddingBottom: 18,
+            borderBottomWidth: 1,
+            borderBottomColor: settingsDividerColor,
+          }}
+        >
+          <View
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 12,
+              alignItems: "center",
+              justifyContent: "center",
+              borderWidth: 1,
+              borderColor: settingsGoldBorder,
+              backgroundColor: settingsGoldSoftSurface,
+            }}
+          >
+            <IconSymbol name="gearshape.fill" size={21} color={SETTINGS_ACCENT} />
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.title}>Settings</Text>
+            <Text style={[styles.questMeta, { color: withAlpha(colors.textSecondary, 0.82), marginTop: 3 }]}>
+              Controls and backups
+            </Text>
+          </View>
         </View>
 
-        {/* Theme Section */}
+        {renderSettingsSectionLabel("Appearance", 0)}
         <View
           style={[
             styles.card,
-            {
-              backgroundColor: colors.surface,
-              borderColor: colors.border,
-            },
+            settingsFeatureSurface,
           ]}
         >
           <View style={styles.cardTop}>
@@ -503,7 +568,7 @@ export default function SettingsScreen() {
               accessibilityLabel={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
               style={({ pressed }) => [
                 {
-                  backgroundColor: colors.accentPrimary,
+                  backgroundColor: SETTINGS_ACCENT,
                   paddingVertical: 8,
                   paddingHorizontal: 14,
                   borderRadius: 8,
@@ -511,7 +576,7 @@ export default function SettingsScreen() {
                 },
               ]}
             >
-              <Text style={{ color: colors.textPrimary, fontWeight: "900", fontSize: 12 }}>
+              <Text style={{ color: SETTINGS_BUTTON_TEXT, fontWeight: "900", fontSize: 12 }}>
                 {theme === "dark" ? "Light" : "Dark"}
               </Text>
             </Pressable>
@@ -524,11 +589,8 @@ export default function SettingsScreen() {
         <View
           style={[
             styles.card,
-            {
-              backgroundColor: colors.surface,
-              borderColor: colors.border,
-              marginTop: 16,
-            },
+            settingsFeatureSurface,
+            { marginTop: 16 },
           ]}
         >
           <View style={styles.cardTop}>
@@ -551,10 +613,10 @@ export default function SettingsScreen() {
               style={({ pressed }) => [
                 {
                   backgroundColor: reminderSettings.enabled
-                    ? colors.accentPrimary
-                    : colors.surface2,
+                    ? SETTINGS_ACCENT
+                    : settingsInputSurface.backgroundColor,
                   borderWidth: reminderSettings.enabled ? 0 : 1,
-                  borderColor: colors.border,
+                  borderColor: settingsInputSurface.borderColor,
                   paddingVertical: 8,
                   paddingHorizontal: 12,
                   borderRadius: 8,
@@ -564,7 +626,7 @@ export default function SettingsScreen() {
             >
               <Text
                 style={{
-                  color: reminderSettings.enabled ? colors.textPrimary : colors.textSecondary,
+                  color: reminderSettings.enabled ? SETTINGS_BUTTON_TEXT : colors.textSecondary,
                   fontWeight: "900",
                   fontSize: 12,
                 }}
@@ -591,7 +653,7 @@ export default function SettingsScreen() {
           )}
           {renderReminderRow(
             "Contract Warning",
-            "Catch pledged quests before the day resets.",
+            "Catch contract quests before the day resets.",
             "contractEnabled",
             "contractHour",
             "contractMinute"
@@ -605,15 +667,12 @@ export default function SettingsScreen() {
           )}
         </View>
 
-        {/* About Section */}
+        {renderSettingsSectionLabel("Info")}
         <View
           style={[
             styles.card,
-            {
-              backgroundColor: colors.surface,
-              borderColor: colors.border,
-              marginTop: 16,
-            },
+            settingsCardSurface,
+            { marginTop: 16 },
           ]}
         >
           <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
@@ -627,14 +686,12 @@ export default function SettingsScreen() {
           </Text>
         </View>
 
+        {renderSettingsSectionLabel("Device Data")}
         <View
           style={[
             styles.card,
-            {
-              backgroundColor: colors.surface,
-              borderColor: colors.border,
-              marginTop: 16,
-            },
+            settingsCardSurface,
+            { marginTop: 16 },
           ]}
         >
           <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
@@ -654,11 +711,8 @@ export default function SettingsScreen() {
         <View
           style={[
             styles.card,
-            {
-              backgroundColor: colors.surface,
-              borderColor: colors.border,
-              marginTop: 16,
-            },
+            settingsCardSurface,
+            { marginTop: 16 },
           ]}
         >
           <View style={styles.cardTop}>
@@ -678,7 +732,7 @@ export default function SettingsScreen() {
                 style={({ pressed }) => [
                   {
                     borderWidth: 1,
-                    borderColor: colors.accentPrimary,
+                    borderColor: settingsGoldBorder,
                     borderRadius: 8,
                     paddingVertical: 7,
                     paddingHorizontal: 10,
@@ -686,7 +740,7 @@ export default function SettingsScreen() {
                   },
                 ]}
               >
-                <Text style={{ color: colors.accentPrimary, fontWeight: "900", fontSize: 11 }}>
+                <Text style={{ color: SETTINGS_ACCENT, fontWeight: "900", fontSize: 11 }}>
                   Clear
                 </Text>
               </Pressable>
@@ -703,7 +757,7 @@ export default function SettingsScreen() {
                 key={`${quest.id}-${quest.archivedAt}`}
                 style={{
                   borderTopWidth: 1,
-                  borderTopColor: colors.border,
+                  borderTopColor: settingsDividerColor,
                   paddingTop: 10,
                   marginTop: 10,
                   gap: 6,
@@ -724,7 +778,7 @@ export default function SettingsScreen() {
                     accessibilityLabel={`Restore ${quest.title}`}
                     style={({ pressed }) => [
                       {
-                        backgroundColor: colors.accentPrimary,
+                        backgroundColor: SETTINGS_ACCENT,
                         borderRadius: 8,
                         paddingVertical: 8,
                         paddingHorizontal: 10,
@@ -733,7 +787,7 @@ export default function SettingsScreen() {
                       },
                     ]}
                   >
-                    <Text style={{ color: colors.textPrimary, fontWeight: "900", fontSize: 11 }}>
+                    <Text style={{ color: SETTINGS_BUTTON_TEXT, fontWeight: "900", fontSize: 11 }}>
                       Restore
                     </Text>
                   </Pressable>
@@ -746,11 +800,8 @@ export default function SettingsScreen() {
         <View
           style={[
             styles.card,
-            {
-              backgroundColor: colors.surface,
-              borderColor: colors.border,
-              marginTop: 16,
-            },
+            settingsCardSurface,
+            { marginTop: 16 },
           ]}
         >
           <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
@@ -766,7 +817,7 @@ export default function SettingsScreen() {
               accessibilityLabel="Generate export backup"
               style={({ pressed }) => [
                 {
-                  backgroundColor: colors.accentPrimary,
+                  backgroundColor: SETTINGS_ACCENT,
                   borderRadius: 8,
                   paddingVertical: 10,
                   paddingHorizontal: 14,
@@ -774,116 +825,126 @@ export default function SettingsScreen() {
                 },
               ]}
             >
-              <Text style={{ color: colors.textPrimary, fontWeight: "900", fontSize: 12 }}>
+              <Text style={{ color: SETTINGS_BUTTON_TEXT, fontWeight: "900", fontSize: 12 }}>
                 Generate Export
               </Text>
             </Pressable>
             <Pressable
-              onPress={importData}
-              disabled={importPayload.trim().length === 0}
+              onPress={() => {
+                if (!importFieldVisible) {
+                  setShowImportBox(true);
+                  return;
+                }
+                importData();
+              }}
+              disabled={importButtonDisabled}
               accessibilityRole="button"
               accessibilityLabel="Import backup"
               style={({ pressed }) => [
                 {
                   borderWidth: 1,
-                  borderColor: colors.accentPrimary,
+                  borderColor: settingsGoldBorder,
                   borderRadius: 8,
                   paddingVertical: 10,
                   paddingHorizontal: 14,
-                  opacity: importPayload.trim().length === 0 ? 0.46 : pressed ? 0.75 : 1,
+                  opacity: importButtonDisabled ? 0.46 : pressed ? 0.75 : 1,
                 },
               ]}
             >
-              <Text style={{ color: colors.accentPrimary, fontWeight: "900", fontSize: 12 }}>
-                Import Backup
+              <Text style={{ color: SETTINGS_ACCENT, fontWeight: "900", fontSize: 12 }}>
+                {importFieldVisible ? "Import Backup" : "Paste Import"}
               </Text>
             </Pressable>
           </View>
-          <TextInput
-            value={exportPayload}
-            onChangeText={setExportPayload}
-            placeholder="Generated export appears here"
-            placeholderTextColor={colors.textSecondary}
-            multiline
-            textAlignVertical="top"
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={{
-              minHeight: 118,
-              marginTop: 12,
-              borderWidth: 1,
-              borderColor: colors.border,
-              borderRadius: 8,
-              paddingHorizontal: 10,
-              paddingVertical: 9,
-              color: colors.textPrimary,
-              backgroundColor: colors.surface2,
-              fontSize: 12,
-              lineHeight: 16,
-              fontFamily: "monospace",
-            }}
-          />
-          <TextInput
-            value={importPayload}
-            onChangeText={setImportPayload}
-            placeholder="Paste backup JSON to import"
-            placeholderTextColor={colors.textSecondary}
-            multiline
-            textAlignVertical="top"
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={{
-              minHeight: 118,
-              marginTop: 10,
-              borderWidth: 1,
-              borderColor: colors.border,
-              borderRadius: 8,
-              paddingHorizontal: 10,
-              paddingVertical: 9,
-              color: colors.textPrimary,
-              backgroundColor: colors.surface2,
-              fontSize: 12,
-              lineHeight: 16,
-              fontFamily: "monospace",
-            }}
-          />
+          {exportPayload ? (
+            <TextInput
+              value={exportPayload}
+              onChangeText={setExportPayload}
+              placeholder="Generated export appears here"
+              placeholderTextColor={colors.textSecondary}
+              multiline
+              textAlignVertical="top"
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={{
+                minHeight: 118,
+                marginTop: 12,
+                borderWidth: 1,
+                borderColor: settingsInputSurface.borderColor,
+                borderRadius: 8,
+                paddingHorizontal: 10,
+                paddingVertical: 9,
+                color: colors.textPrimary,
+                backgroundColor: settingsInputSurface.backgroundColor,
+                fontSize: 12,
+                lineHeight: 16,
+                fontFamily: "monospace",
+              }}
+            />
+          ) : null}
+          {importFieldVisible ? (
+            <TextInput
+              value={importPayload}
+              onChangeText={setImportPayload}
+              placeholder="Paste backup JSON to import"
+              placeholderTextColor={colors.textSecondary}
+              multiline
+              textAlignVertical="top"
+              autoCapitalize="none"
+              autoCorrect={false}
+              style={{
+                minHeight: 118,
+                marginTop: 10,
+                borderWidth: 1,
+                borderColor: settingsInputSurface.borderColor,
+                borderRadius: 8,
+                paddingHorizontal: 10,
+                paddingVertical: 9,
+                color: colors.textPrimary,
+                backgroundColor: settingsInputSurface.backgroundColor,
+                fontSize: 12,
+                lineHeight: 16,
+                fontFamily: "monospace",
+              }}
+            />
+          ) : null}
         </View>
 
         {__DEV__ ? (
-          <View
-            style={[
-              styles.card,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-                marginTop: 16,
-              },
-            ]}
-          >
-            <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Developer Tools</Text>
-            <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 8 }]}>Run Midnight Evaluation without changing device date.</Text>
-            <Pressable
-              onPress={simulateMidnightEvaluation}
-              accessibilityRole="button"
-              accessibilityLabel="Simulate midnight evaluation"
-              style={({ pressed }) => [
-                {
-                  marginTop: 12,
-                  backgroundColor: colors.accentPrimary,
-                  borderRadius: 8,
-                  paddingVertical: 10,
-                  paddingHorizontal: 14,
-                  opacity: pressed ? 0.82 : 1,
-                  alignSelf: "flex-start",
-                },
+          <>
+            {renderSettingsSectionLabel("Developer")}
+            <View
+              style={[
+                styles.card,
+                settingsCardSurface,
+                { marginTop: 16 },
               ]}
             >
-              <Text style={{ color: colors.textPrimary, fontWeight: "900", fontSize: 12 }}>
-                Simulate Midnight Evaluation
-              </Text>
-            </Pressable>
-            <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 8 }]}>Today: {localDateKey()} | Simulated day: {getYesterdayDateKey()}</Text>
-          </View>
+              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Developer Tools</Text>
+              <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 8 }]}>Run Midnight Evaluation without changing device date.</Text>
+              <Pressable
+                onPress={simulateMidnightEvaluation}
+                accessibilityRole="button"
+                accessibilityLabel="Simulate midnight evaluation"
+                style={({ pressed }) => [
+                  {
+                    marginTop: 12,
+                    backgroundColor: SETTINGS_ACCENT,
+                    borderRadius: 8,
+                    paddingVertical: 10,
+                    paddingHorizontal: 14,
+                    opacity: pressed ? 0.82 : 1,
+                    alignSelf: "flex-start",
+                  },
+                ]}
+              >
+                <Text style={{ color: SETTINGS_BUTTON_TEXT, fontWeight: "900", fontSize: 12 }}>
+                  Simulate Midnight Evaluation
+                </Text>
+              </Pressable>
+              <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 8 }]}>Today: {localDateKey()} | Simulated day: {getYesterdayDateKey()}</Text>
+            </View>
+          </>
         ) : null}
         <Footer />
       </ScrollView>
