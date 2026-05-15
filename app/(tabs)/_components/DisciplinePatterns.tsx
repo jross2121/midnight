@@ -165,7 +165,7 @@ function createStyles(colors: ThemeColors) {
       fontSize: 13,
       lineHeight: 19,
       fontWeight: "700",
-      letterSpacing: 0.1,
+      letterSpacing: 0,
     },
   });
 }

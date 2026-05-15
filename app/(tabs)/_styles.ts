@@ -61,7 +61,7 @@ export const createStyles = (colors: ThemeColors) => {
       fontSize: 24,
       lineHeight: 28,
       fontWeight: "900",
-      letterSpacing: 1,
+      letterSpacing: 0,
     },
     homeSubtitle: {
       color: colors.textTertiary,
@@ -69,8 +69,8 @@ export const createStyles = (colors: ThemeColors) => {
       fontWeight: "600",
       marginTop: 4,
       marginBottom: 0,
-      lineHeight: 15,
-      letterSpacing: 0.55,
+      lineHeight: 16,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     homeTopBar: {
@@ -95,7 +95,7 @@ export const createStyles = (colors: ThemeColors) => {
       color: colors.textPrimary,
       fontSize: 11,
       fontWeight: "900",
-      letterSpacing: 0.6,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     homeMetaPill: {
@@ -165,8 +165,9 @@ export const createStyles = (colors: ThemeColors) => {
       ...ui.typography.caption,
       color: withAlpha(colors.textSecondary, 0.82),
       fontSize: 10,
+      lineHeight: 15,
       fontWeight: "800",
-      letterSpacing: 0.75,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     missionTitle: {
@@ -192,7 +193,7 @@ export const createStyles = (colors: ThemeColors) => {
       fontSize: 9,
       lineHeight: 12,
       fontWeight: "800",
-      letterSpacing: 0.7,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     missionCountdownValue: {
@@ -234,9 +235,9 @@ export const createStyles = (colors: ThemeColors) => {
       ...ui.typography.caption,
       color: withAlpha(colors.textSecondary, 0.82),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "800",
-      letterSpacing: 0.7,
+      letterSpacing: 0,
       textTransform: "uppercase",
       paddingBottom: 7,
     },
@@ -246,7 +247,7 @@ export const createStyles = (colors: ThemeColors) => {
       fontSize: 48,
       lineHeight: 52,
       fontWeight: "900",
-      letterSpacing: -0.4,
+      letterSpacing: 0,
     },
     missionScorePanel: {
       ...cardSurface,
@@ -267,9 +268,9 @@ export const createStyles = (colors: ThemeColors) => {
       ...ui.typography.caption,
       color: withAlpha(colors.textSecondary, 0.82),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "800",
-      letterSpacing: 0.75,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     missionScoreValue: {
@@ -284,7 +285,7 @@ export const createStyles = (colors: ThemeColors) => {
       fontSize: 12,
       lineHeight: 16,
       fontWeight: "800",
-      letterSpacing: 0.2,
+      letterSpacing: 0,
       paddingBottom: 6,
       textTransform: "uppercase",
     },
@@ -316,9 +317,9 @@ export const createStyles = (colors: ThemeColors) => {
       ...ui.typography.caption,
       color: withAlpha(colors.textSecondary, 0.82),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "800",
-      letterSpacing: 0.65,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     missionMetricValueRow: {
@@ -369,7 +370,7 @@ export const createStyles = (colors: ThemeColors) => {
       ...ui.typography.caption,
       color: "#8B98A5",
       fontSize: 12,
-      letterSpacing: 0.8,
+      letterSpacing: 0,
     },
     statusDrValue: {
       ...ui.typography.drHero,
@@ -379,7 +380,7 @@ export const createStyles = (colors: ThemeColors) => {
       fontWeight: "900",
       marginTop: 0,
       textAlign: "center",
-      letterSpacing: -1,
+      letterSpacing: 0,
     },
     statusRankBadge: {
       marginTop: 3,
@@ -401,7 +402,7 @@ export const createStyles = (colors: ThemeColors) => {
     statusRankBadgeText: {
       fontSize: 11,
       fontWeight: "900",
-      letterSpacing: 0.2,
+      letterSpacing: 0,
       color: HOME_GOLD,
       textTransform: "uppercase",
       textAlign: "center",
@@ -410,7 +411,7 @@ export const createStyles = (colors: ThemeColors) => {
       marginTop: 3,
       fontSize: 11,
       fontWeight: "900",
-      letterSpacing: 0.6,
+      letterSpacing: 0,
       color: "#E6EDF3",
       textTransform: "uppercase",
     },
@@ -419,7 +420,7 @@ export const createStyles = (colors: ThemeColors) => {
       ...ui.typography.caption,
       color: "#8B98A5",
       fontSize: 11,
-      letterSpacing: 0.45,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     rankProgressBlock: {
@@ -432,7 +433,7 @@ export const createStyles = (colors: ThemeColors) => {
       color: "#E6EDF3",
       fontSize: 12,
       fontWeight: "800",
-      letterSpacing: 0.45,
+      letterSpacing: 0,
       textTransform: "uppercase",
       textAlign: "left",
     },
@@ -441,7 +442,7 @@ export const createStyles = (colors: ThemeColors) => {
       color: "#8B98A5",
       fontSize: 11,
       fontWeight: "700",
-      letterSpacing: 0.3,
+      letterSpacing: 0,
       textAlign: "left",
     },
     rankProgressTrack: {
@@ -463,7 +464,7 @@ export const createStyles = (colors: ThemeColors) => {
       color: "#E6EDF3",
       fontSize: 11,
       fontWeight: "600",
-      letterSpacing: 0.2,
+      letterSpacing: 0,
       textAlign: "left",
     },
     statusProgressBlock: {
@@ -480,14 +481,14 @@ export const createStyles = (colors: ThemeColors) => {
       color: "#8B98A5",
       fontSize: 10,
       fontWeight: "700",
-      letterSpacing: 0.3,
+      letterSpacing: 0,
     },
     statusProgressValue: {
       ...ui.typography.caption,
       color: "#E6EDF3",
       fontSize: 11,
       fontWeight: "700",
-      letterSpacing: 0.25,
+      letterSpacing: 0,
     },
     statusProgressTrack: {
       height: 9,
@@ -525,7 +526,7 @@ export const createStyles = (colors: ThemeColors) => {
       ...ui.typography.caption,
       color: "#8B98A5",
       fontSize: 9,
-      letterSpacing: 0.5,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     statusStatValue: {
@@ -559,7 +560,7 @@ export const createStyles = (colors: ThemeColors) => {
       ...ui.typography.caption,
       color: colors.negative,
       fontSize: 11,
-      letterSpacing: 0.6,
+      letterSpacing: 0,
     },
 
     topRow: { flexDirection: "row", gap: 10, marginBottom: ui.spacing.md, flexWrap: "wrap" },
@@ -586,8 +587,8 @@ export const createStyles = (colors: ThemeColors) => {
       shadowOpacity: 0.12,
       shadowRadius: 10,
     },
-    pillLabel: { color: colors.textSecondary, fontSize: 11, fontWeight: "600", letterSpacing: 0.3, textTransform: "uppercase" },
-    pillValue: { color: colors.accentPrimary, fontSize: 15, fontWeight: "900", marginTop: 3, letterSpacing: 0.3 },
+    pillLabel: { color: colors.textSecondary, fontSize: 11, fontWeight: "600", letterSpacing: 0, textTransform: "uppercase" },
+    pillValue: { color: colors.accentPrimary, fontSize: 15, fontWeight: "900", marginTop: 3, letterSpacing: 0 },
     drPrimaryPill: {
       width: "100%",
       flexBasis: "100%",
@@ -617,7 +618,7 @@ export const createStyles = (colors: ThemeColors) => {
       marginTop: ui.spacing.xs,
       fontSize: 14,
       fontWeight: "800",
-      letterSpacing: 0.2,
+      letterSpacing: 0,
       textAlign: "center",
     },
     drSupportText: {
@@ -647,12 +648,12 @@ export const createStyles = (colors: ThemeColors) => {
       marginTop: 6,
       fontSize: 11,
       fontWeight: "700",
-      letterSpacing: 0.2,
+      letterSpacing: 0,
     },
     drLabelText: {
       fontSize: 13,
       fontWeight: "800",
-      letterSpacing: 0.35,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     secondaryPillLabel: {
@@ -696,7 +697,7 @@ export const createStyles = (colors: ThemeColors) => {
       fontSize: 12,
       fontWeight: "700",
       textTransform: "uppercase",
-      letterSpacing: 0.3,
+      letterSpacing: 0,
     },
     todaySummaryValue: {
       fontSize: 13,
@@ -760,7 +761,7 @@ export const createStyles = (colors: ThemeColors) => {
       shadowOpacity: 0.08,
       shadowRadius: 4,
     },
-    homeActionText: { color: colors.textPrimary, fontWeight: "900", fontSize: 12, letterSpacing: 0.2 },
+    homeActionText: { color: colors.textPrimary, fontWeight: "900", fontSize: 12, letterSpacing: 0 },
 
     sectionRow: {
       flexDirection: "row",
@@ -776,7 +777,7 @@ export const createStyles = (colors: ThemeColors) => {
       fontSize: 12,
       lineHeight: 15,
       textTransform: "uppercase",
-      letterSpacing: 0.6,
+      letterSpacing: 0,
       marginBottom: ui.spacing.sm,
     },
     sectionSubtext: {
@@ -786,7 +787,7 @@ export const createStyles = (colors: ThemeColors) => {
       marginBottom: 0,
       marginTop: 0,
     },
-    link: { color: HOME_GOLD, fontWeight: "900", fontSize: 13, letterSpacing: 0.3 },
+    link: { color: HOME_GOLD, fontWeight: "900", fontSize: 13, letterSpacing: 0 },
     dailySection: {
       marginTop: ui.spacing.lg,
       paddingTop: ui.spacing.lg,
@@ -843,7 +844,7 @@ export const createStyles = (colors: ThemeColors) => {
       ...ui.typography.caption,
       color: colors.textSecondary,
       fontSize: 10,
-      letterSpacing: 0.75,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     contractTitle: {
@@ -865,7 +866,7 @@ export const createStyles = (colors: ThemeColors) => {
       color: colors.textPrimary,
       fontSize: 11,
       fontWeight: "900",
-      letterSpacing: 0.35,
+      letterSpacing: 0,
     },
     contractProgressTrack: {
       height: 9,
@@ -942,7 +943,7 @@ export const createStyles = (colors: ThemeColors) => {
       fontSize: 9,
       lineHeight: 11,
       fontWeight: "800",
-      letterSpacing: 0.5,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     morningPlanDeltaValue: {
@@ -980,7 +981,7 @@ export const createStyles = (colors: ThemeColors) => {
       fontSize: 9,
       lineHeight: 12,
       fontWeight: "800",
-      letterSpacing: 0.35,
+      letterSpacing: 0,
       textTransform: "uppercase",
       marginTop: 1,
     },
@@ -1024,9 +1025,9 @@ export const createStyles = (colors: ThemeColors) => {
       ...ui.typography.caption,
       color: HOME_GOLD,
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "900",
-      letterSpacing: 0.75,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     nextMoveTitle: {
@@ -1054,7 +1055,7 @@ export const createStyles = (colors: ThemeColors) => {
       color: HOME_NAVY,
       fontSize: 12,
       fontWeight: "900",
-      letterSpacing: 0.25,
+      letterSpacing: 0,
     },
     nextMoveCompletePill: {
       borderWidth: 1,
@@ -1070,7 +1071,7 @@ export const createStyles = (colors: ThemeColors) => {
       color: HOME_GOLD,
       fontSize: 11,
       fontWeight: "900",
-      letterSpacing: 0.45,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     nextMoveBadge: {
@@ -1088,9 +1089,9 @@ export const createStyles = (colors: ThemeColors) => {
     nextMoveBadgeText: {
       color: HOME_GOLD,
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "900",
-      letterSpacing: 0.55,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     nextMoveMeta: {
@@ -1098,7 +1099,7 @@ export const createStyles = (colors: ThemeColors) => {
       fontSize: 11,
       lineHeight: 15,
       fontWeight: "800",
-      letterSpacing: 0.35,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     nextMoveReason: {
@@ -1142,9 +1143,9 @@ export const createStyles = (colors: ThemeColors) => {
       ...ui.typography.caption,
       color: HOME_GOLD,
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "900",
-      letterSpacing: 0.75,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     focusSprintSubtitle: {
@@ -1178,7 +1179,7 @@ export const createStyles = (colors: ThemeColors) => {
       fontSize: 9,
       lineHeight: 11,
       fontWeight: "900",
-      letterSpacing: 0.35,
+      letterSpacing: 0,
       textTransform: "uppercase",
       textAlign: "center",
     },
@@ -1217,9 +1218,9 @@ export const createStyles = (colors: ThemeColors) => {
     focusSprintTimerLabel: {
       color: withAlpha(colors.textSecondary, 0.76),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "900",
-      letterSpacing: 0.45,
+      letterSpacing: 0,
       textTransform: "uppercase",
       marginTop: 2,
     },
@@ -1265,15 +1266,15 @@ export const createStyles = (colors: ThemeColors) => {
       fontSize: 9,
       lineHeight: 11,
       fontWeight: "900",
-      letterSpacing: 0.45,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     focusSprintMeta: {
       color: withAlpha(colors.textSecondary, 0.82),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "900",
-      letterSpacing: 0.45,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     focusDurationRow: {
@@ -1304,7 +1305,7 @@ export const createStyles = (colors: ThemeColors) => {
       fontSize: 11,
       lineHeight: 14,
       fontWeight: "900",
-      letterSpacing: 0.2,
+      letterSpacing: 0,
     },
     focusDurationTextActive: {
       color: colors.textPrimary,
@@ -1328,7 +1329,7 @@ export const createStyles = (colors: ThemeColors) => {
       fontSize: 12,
       lineHeight: 15,
       fontWeight: "900",
-      letterSpacing: 0.2,
+      letterSpacing: 0,
     },
     focusSecondaryButton: {
       flex: 1,
@@ -1347,7 +1348,7 @@ export const createStyles = (colors: ThemeColors) => {
       fontSize: 12,
       lineHeight: 15,
       fontWeight: "900",
-      letterSpacing: 0.2,
+      letterSpacing: 0,
     },
     focusCompleteButton: {
       borderColor: withAlpha(colors.positive, 0.38),
@@ -1370,7 +1371,7 @@ export const createStyles = (colors: ThemeColors) => {
       color: withAlpha(colors.textSecondary, 0.72),
       fontSize: 11,
       fontWeight: "800",
-      letterSpacing: 0.35,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     templateRail: {
@@ -1423,9 +1424,9 @@ export const createStyles = (colors: ThemeColors) => {
     templateMeta: {
       color: withAlpha(colors.textSecondary, 0.78),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "800",
-      letterSpacing: 0.25,
+      letterSpacing: 0,
       textTransform: "uppercase",
       marginTop: ui.spacing.xs,
     },
@@ -1451,16 +1452,16 @@ export const createStyles = (colors: ThemeColors) => {
     },
     addFormKicker: {
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "900",
-      letterSpacing: 0.7,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     addFormTitle: {
       fontSize: 18,
       lineHeight: 22,
       fontWeight: "900",
-      letterSpacing: 0.15,
+      letterSpacing: 0,
     },
     addFormBadge: {
       borderWidth: 1,
@@ -1474,7 +1475,7 @@ export const createStyles = (colors: ThemeColors) => {
       fontSize: 11,
       lineHeight: 14,
       fontWeight: "900",
-      letterSpacing: 0.45,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     addFormField: {
@@ -1518,7 +1519,7 @@ export const createStyles = (colors: ThemeColors) => {
       fontWeight: "900",
       fontSize: 11,
       lineHeight: 14,
-      letterSpacing: 0.55,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
 
@@ -1567,7 +1568,7 @@ export const createStyles = (colors: ThemeColors) => {
       fontWeight: "900",
       fontSize: 15,
       lineHeight: 19,
-      letterSpacing: 0.2,
+      letterSpacing: 0,
     },
 
     editSheetModalRoot: {
@@ -1617,16 +1618,16 @@ export const createStyles = (colors: ThemeColors) => {
     },
     editSheetKicker: {
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "900",
-      letterSpacing: 0.7,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     editSheetTitle: {
       fontSize: 24,
       lineHeight: 29,
       fontWeight: "900",
-      letterSpacing: 0.3,
+      letterSpacing: 0,
     },
     editSheetCloseButton: {
       width: 40,
@@ -1640,7 +1641,7 @@ export const createStyles = (colors: ThemeColors) => {
       fontSize: 22,
       lineHeight: 22,
       fontWeight: "500",
-      marginTop: -2,
+      marginTop: 0,
     },
     editSheetSummaryRow: {
       flexDirection: "row",
@@ -1661,9 +1662,9 @@ export const createStyles = (colors: ThemeColors) => {
     },
     editSheetMetaPillText: {
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "900",
-      letterSpacing: 0.45,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     editSheetScroll: {
@@ -1686,7 +1687,7 @@ export const createStyles = (colors: ThemeColors) => {
       fontSize: 12,
       lineHeight: 15,
       fontWeight: "900",
-      letterSpacing: 0.7,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     editSheetFieldBlock: {
@@ -1696,7 +1697,7 @@ export const createStyles = (colors: ThemeColors) => {
       fontSize: 11,
       lineHeight: 14,
       fontWeight: "900",
-      letterSpacing: 0.55,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     editSheetInput: {
@@ -1778,7 +1779,7 @@ export const createStyles = (colors: ThemeColors) => {
       fontSize: 14,
       lineHeight: 18,
       fontWeight: "900",
-      letterSpacing: 0.25,
+      letterSpacing: 0,
     },
 
     list: {
@@ -1863,7 +1864,7 @@ export const createStyles = (colors: ThemeColors) => {
     questMetaDifficulty: {
       fontSize: 10,
       fontWeight: "700",
-      letterSpacing: 0.6,
+      letterSpacing: 0,
       textTransform: "uppercase",
       opacity: 0.82,
     },
@@ -1919,7 +1920,7 @@ export const createStyles = (colors: ThemeColors) => {
       borderRadius: 999,
       fontSize: 9,
       fontWeight: "900",
-      letterSpacing: 0.3,
+      letterSpacing: 0,
       overflow: "hidden",
     },
     statusPillIcon: {
@@ -1965,8 +1966,8 @@ export const createStyles = (colors: ThemeColors) => {
       alignItems: "center",
       justifyContent: "center",
     },
-    questActionTextSubtle: { fontWeight: "800", fontSize: 11, letterSpacing: 0.2 },
-    questActionTextPrimary: { fontWeight: "800", fontSize: 11, letterSpacing: 0.15 },
+    questActionTextSubtle: { fontWeight: "800", fontSize: 11, letterSpacing: 0 },
+    questActionTextPrimary: { fontWeight: "800", fontSize: 11, letterSpacing: 0 },
     questActionBtn: {
       paddingVertical: 8,
       paddingHorizontal: 12,
@@ -2090,7 +2091,7 @@ export const createStyles = (colors: ThemeColors) => {
     cardTop: {
       flexDirection: "row",
       justifyContent: "space-between",
-      alignItems: "baseline",
+      alignItems: "center",
       marginBottom: 9,
     },
     cardTitle: { ...ui.typography.heading, color: colors.textPrimary, fontSize: 18 },
@@ -2098,7 +2099,7 @@ export const createStyles = (colors: ThemeColors) => {
       color: colors.textSecondary,
       fontSize: 11,
       fontWeight: "800",
-      letterSpacing: 0.3,
+      letterSpacing: 0,
       textTransform: "uppercase",
       marginTop: 14,
       marginBottom: 8,
@@ -2151,7 +2152,7 @@ export const createStyles = (colors: ThemeColors) => {
       ...ui.typography.caption,
       color: colors.textSecondary,
       fontSize: 9,
-      letterSpacing: 0.65,
+      letterSpacing: 0,
     },
     analyticsValue: {
       ...ui.typography.mono,
@@ -2184,9 +2185,9 @@ export const createStyles = (colors: ThemeColors) => {
     trendMeta: {
       color: withAlpha(colors.textSecondary, 0.82),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "800",
-      letterSpacing: 0.45,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     trendBarRail: {
@@ -2226,7 +2227,7 @@ export const createStyles = (colors: ThemeColors) => {
       fontSize: 9,
       lineHeight: 12,
       fontWeight: "800",
-      letterSpacing: 0.45,
+      letterSpacing: 0,
       textTransform: "uppercase",
       marginTop: 2,
     },
@@ -2247,7 +2248,7 @@ export const createStyles = (colors: ThemeColors) => {
       ...ui.typography.caption,
       color: withAlpha(colors.textSecondary, 0.9),
       fontSize: 10,
-      letterSpacing: 0.7,
+      letterSpacing: 0,
     },
     tableRow: {
       flexDirection: "row",
@@ -2264,7 +2265,7 @@ export const createStyles = (colors: ThemeColors) => {
     tableCellSubtext: {
       color: withAlpha(colors.textSecondary, 0.78),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "700",
       marginTop: 1,
     },
@@ -2319,7 +2320,7 @@ export const createStyles = (colors: ThemeColors) => {
       fontSize: 12,
       fontWeight: "900",
     },
-    level: { fontSize: 14, fontWeight: "700", color: colors.accentPrimary, letterSpacing: 0.2 },
+    level: { fontSize: 14, fontWeight: "700", color: colors.accentPrimary, letterSpacing: 0 },
     xpText: { color: colors.textSecondary, marginBottom: 9, fontSize: 12, fontWeight: "500" },
     barTrack: {
       height: 11,
@@ -2355,7 +2356,7 @@ export const createStyles = (colors: ThemeColors) => {
       paddingHorizontal: 9,
       borderRadius: 999,
     },
-    difficultyText: { fontWeight: "900", fontSize: 10, color: colors.textPrimary, letterSpacing: 0.2 },
+    difficultyText: { fontWeight: "900", fontSize: 10, color: colors.textPrimary, letterSpacing: 0 },
 
     // Achievements
     achievementSection: { marginBottom: 28, marginTop: 28 },
@@ -2429,7 +2430,7 @@ export const createStyles = (colors: ThemeColors) => {
       fontSize: 12,
       lineHeight: 15,
       fontWeight: "900",
-      letterSpacing: 0.2,
+      letterSpacing: 0,
     },
     homeHintCard: {
       marginTop: ui.spacing.sm,

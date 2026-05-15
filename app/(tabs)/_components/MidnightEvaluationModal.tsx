@@ -233,7 +233,7 @@ function makeStyles(
       fontSize: 12,
       lineHeight: 15,
       fontWeight: "900",
-      letterSpacing: 0.7,
+      letterSpacing: 0,
       textTransform: "uppercase",
       borderWidth: 1,
       borderColor: withAlpha(judgmentColor, 0.34),
@@ -248,14 +248,14 @@ function makeStyles(
       fontSize: isCompact ? 30 : 36,
       lineHeight: isCompact ? 34 : 40,
       fontWeight: "900",
-      letterSpacing: 0.1,
+      letterSpacing: 0,
     },
     subtitle: {
       color: withAlpha(colors.textSecondary, 0.72),
       fontSize: isCompact ? 12 : 13,
       lineHeight: isCompact ? 16 : 18,
       fontWeight: "600",
-      letterSpacing: 0.42,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
 
@@ -287,7 +287,7 @@ function makeStyles(
       fontSize: 11,
       lineHeight: 14,
       fontWeight: "700",
-      letterSpacing: 0.68,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     deltaRow: {
@@ -300,7 +300,7 @@ function makeStyles(
       fontSize: isCompact ? 82 : 96,
       lineHeight: isCompact ? 86 : 100,
       fontWeight: "900",
-      letterSpacing: -0.8,
+      letterSpacing: 0,
       textAlign: "center",
     },
     deltaUnit: {
@@ -308,7 +308,7 @@ function makeStyles(
       fontSize: 14,
       lineHeight: 25,
       fontWeight: "900",
-      letterSpacing: 0.8,
+      letterSpacing: 0,
     },
     deltaPositive: {
       color: withAlpha(accentPrimary, 0.98),
@@ -337,7 +337,7 @@ function makeStyles(
       fontWeight: "800",
       textAlign: "center",
       textTransform: "uppercase",
-      letterSpacing: 0.45,
+      letterSpacing: 0,
       marginTop: 2,
     },
 
@@ -364,7 +364,7 @@ function makeStyles(
       fontSize: 9,
       lineHeight: 12,
       fontWeight: "800",
-      letterSpacing: 0.55,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     resultTileValue: {
@@ -391,9 +391,9 @@ function makeStyles(
     contractLabel: {
       color: withAlpha(colors.textSecondary, 0.78),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "800",
-      letterSpacing: 0.7,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     contractValue: {
@@ -441,9 +441,9 @@ function makeStyles(
     statusLabel: {
       color: withAlpha(colors.textSecondary, 0.66),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "700",
-      letterSpacing: 0.72,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     rankValue: {
@@ -451,16 +451,16 @@ function makeStyles(
       fontSize: isCompact ? 16 : 18,
       lineHeight: isCompact ? 20 : 22,
       fontWeight: "900",
-      letterSpacing: 0.08,
+      letterSpacing: 0,
       flexShrink: 1,
       textAlign: "right",
     },
     insightLabel: {
       color: withAlpha(colors.textSecondary, 0.66),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "700",
-      letterSpacing: 0.68,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     insightText: {
@@ -487,9 +487,9 @@ function makeStyles(
     planLabel: {
       color: withAlpha(colors.textSecondary, 0.72),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "800",
-      letterSpacing: 0.72,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     planTitle: {
@@ -569,7 +569,7 @@ function makeStyles(
       fontSize: 16,
       lineHeight: 20,
       fontWeight: "900",
-      letterSpacing: 0.2,
+      letterSpacing: 0,
     },
   });
 }

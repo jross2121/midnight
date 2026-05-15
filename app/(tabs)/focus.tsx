@@ -158,7 +158,7 @@ function buildStoredState(
     lifetimeCompletedQuestCount: number;
   }
 ): StoredState {
-  return {
+  const nextState: StoredState = {
     categories: nextValues.categories,
     quests: nextValues.quests,
     achievements: nextValues.achievements,
@@ -176,6 +176,12 @@ function buildStoredState(
       ? (parsed.archivedQuests as ArchivedQuest[])
       : [],
   };
+
+  if (Array.isArray(parsed.equippedBadgeIds)) {
+    nextState.equippedBadgeIds = parsed.equippedBadgeIds.slice(0, 3);
+  }
+
+  return nextState;
 }
 
 export default function FocusScreen() {
@@ -585,7 +591,7 @@ function createFocusStyles(colors: ThemeColors) {
       fontSize: 24,
       lineHeight: 28,
       fontWeight: "900",
-      letterSpacing: 0.2,
+      letterSpacing: 0,
     },
     subtitle: {
       color: withAlpha(colors.textSecondary, 0.82),
@@ -608,10 +614,10 @@ function createFocusStyles(colors: ThemeColors) {
     },
     eyebrow: {
       color: withAlpha(colors.textSecondary, 0.78),
-      fontSize: 10,
-      lineHeight: 13,
+      fontSize: 11,
+      lineHeight: 16,
       fontWeight: "900",
-      letterSpacing: 0.75,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     statusPill: {
@@ -633,9 +639,9 @@ function createFocusStyles(colors: ThemeColors) {
     statusText: {
       color: withAlpha(colors.textSecondary, 0.86),
       fontSize: 9,
-      lineHeight: 11,
+      lineHeight: 13,
       fontWeight: "900",
-      letterSpacing: 0.35,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     statusTextRunning: {
@@ -656,9 +662,9 @@ function createFocusStyles(colors: ThemeColors) {
     timerMeta: {
       color: withAlpha(colors.textSecondary, 0.78),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "900",
-      letterSpacing: 0.45,
+      letterSpacing: 0,
       textTransform: "uppercase",
       textAlign: "center",
     },
@@ -686,9 +692,9 @@ function createFocusStyles(colors: ThemeColors) {
     targetMeta: {
       color: withAlpha(colors.textSecondary, 0.8),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "900",
-      letterSpacing: 0.4,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     durationRow: {
@@ -737,7 +743,7 @@ function createFocusStyles(colors: ThemeColors) {
       fontSize: 12,
       lineHeight: 15,
       fontWeight: "900",
-      letterSpacing: 0.2,
+      letterSpacing: 0,
     },
     secondaryButton: {
       flex: 1,
@@ -831,7 +837,7 @@ function createFocusStyles(colors: ThemeColors) {
     taskMeta: {
       color: withAlpha(colors.textSecondary, 0.76),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "800",
       marginTop: 3,
       textTransform: "uppercase",
@@ -839,8 +845,9 @@ function createFocusStyles(colors: ThemeColors) {
     taskState: {
       color: withAlpha(colors.textSecondary, 0.78),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "900",
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     taskStateSelected: {

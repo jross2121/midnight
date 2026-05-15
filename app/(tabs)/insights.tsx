@@ -169,9 +169,7 @@ export default function InsightsScreen() {
           ? parsed.categories
           : defaultCategories
       );
-      setQuests(
-        Array.isArray(parsed.quests) && parsed.quests.length ? parsed.quests : defaultQuests
-      );
+      setQuests(Array.isArray(parsed.quests) ? parsed.quests : defaultQuests);
       setDrHistory(
         Array.isArray(parsed.drHistory)
           ? parsed.drHistory.filter((entry): entry is DrHistoryEntry => isDrHistoryEntry(entry)).slice(-30)
@@ -793,10 +791,10 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
     },
     eyebrow: {
       color: withAlpha(colors.textSecondary, 0.78),
-      fontSize: 10,
-      lineHeight: 13,
+      fontSize: 11,
+      lineHeight: 16,
       fontWeight: "900",
-      letterSpacing: 0.75,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     commandTitle: {
@@ -827,9 +825,9 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
     detailsButtonText: {
       color: withAlpha(colors.accentPrimary, 0.92),
       fontSize: 9,
-      lineHeight: 11,
+      lineHeight: 13,
       fontWeight: "900",
-      letterSpacing: 0.45,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     commandDetails: {
@@ -879,9 +877,9 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
     commandMetricLabel: {
       color: withAlpha(colors.textSecondary, 0.78),
       fontSize: 9,
-      lineHeight: 12,
+      lineHeight: 13,
       fontWeight: "900",
-      letterSpacing: 0.45,
+      letterSpacing: 0,
       textTransform: "uppercase",
       marginTop: 2,
     },
@@ -939,9 +937,9 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
     unlockProgressLabel: {
       color: withAlpha(colors.textSecondary, 0.78),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "900",
-      letterSpacing: 0.5,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     unlockProgressValue: {
@@ -972,9 +970,9 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
     unlockMeta: {
       color: withAlpha(colors.textSecondary, 0.82),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "900",
-      letterSpacing: 0.3,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     lockedPreviewGrid: {
@@ -1022,9 +1020,9 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
     signalLabel: {
       color: withAlpha(colors.textSecondary, 0.76),
       fontSize: 9,
-      lineHeight: 12,
+      lineHeight: 13,
       fontWeight: "900",
-      letterSpacing: 0.5,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     signalValue: {
@@ -1078,9 +1076,9 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
     coachMetricLabel: {
       color: withAlpha(colors.textSecondary, 0.76),
       fontSize: 8,
-      lineHeight: 10,
+      lineHeight: 12,
       fontWeight: "900",
-      letterSpacing: 0.4,
+      letterSpacing: 0,
       textTransform: "uppercase",
       marginTop: 1,
       textAlign: "right",
@@ -1114,7 +1112,7 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       fontSize: 11,
       lineHeight: 14,
       fontWeight: "900",
-      letterSpacing: 0.2,
+      letterSpacing: 0,
       textAlign: "center",
     },
     promptButtonTextSelected: {
@@ -1166,9 +1164,9 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
     },
     trendLabel: {
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "900",
-      letterSpacing: 0.45,
+      letterSpacing: 0,
       textTransform: "uppercase",
       textAlign: "right",
       maxWidth: 130,
@@ -1191,7 +1189,7 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       fontSize: 56,
       lineHeight: 58,
       fontWeight: "900",
-      letterSpacing: -0.5,
+      letterSpacing: 0,
     },
     drValueCopy: {
       flex: 1,
@@ -1203,7 +1201,7 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       fontSize: 12,
       lineHeight: 15,
       fontWeight: "900",
-      letterSpacing: 0.45,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     pulseMetaGrid: {
@@ -1221,9 +1219,9 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
     pulseMetaLabel: {
       color: withAlpha(colors.textSecondary, 0.76),
       fontSize: 9,
-      lineHeight: 12,
+      lineHeight: 13,
       fontWeight: "900",
-      letterSpacing: 0.5,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     pulseMetaValue: {
@@ -1244,9 +1242,9 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
     mutedMeta: {
       color: withAlpha(colors.textSecondary, 0.86),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "800",
-      letterSpacing: 0.25,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     judgmentRow: {
@@ -1271,9 +1269,9 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
     judgmentDate: {
       color: withAlpha(colors.textSecondary, 0.74),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "900",
-      letterSpacing: 0.45,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     judgmentTitle: {
@@ -1286,7 +1284,7 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
     judgmentMeta: {
       color: withAlpha(colors.textSecondary, 0.72),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "700",
       marginTop: 1,
     },
@@ -1309,7 +1307,7 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
     judgmentDr: {
       color: withAlpha(colors.textSecondary, 0.74),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "800",
       marginTop: 1,
     },
@@ -1342,9 +1340,9 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
     weeklyMetricLabel: {
       color: withAlpha(colors.textSecondary, 0.76),
       fontSize: 9,
-      lineHeight: 12,
+      lineHeight: 13,
       fontWeight: "900",
-      letterSpacing: 0.45,
+      letterSpacing: 0,
       textTransform: "uppercase",
       marginTop: 2,
     },
@@ -1420,9 +1418,9 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
     categoryMeta: {
       color: withAlpha(colors.textSecondary, 0.72),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "800",
-      letterSpacing: 0.2,
+      letterSpacing: 0,
     },
   });
 }

@@ -40,13 +40,13 @@ export const midnightTokens = {
       fontSize: 44,
       lineHeight: 48,
       fontWeight: "900" as const,
-      letterSpacing: 0.3,
+      letterSpacing: 0,
     },
     h2: {
       fontSize: 20,
       lineHeight: 24,
       fontWeight: "800" as const,
-      letterSpacing: 0.2,
+      letterSpacing: 0,
     },
     body: {
       fontSize: 14,
@@ -55,16 +55,16 @@ export const midnightTokens = {
     },
     label: {
       fontSize: 10,
-      lineHeight: 14,
+      lineHeight: 15,
       fontWeight: "700" as const,
-      letterSpacing: 0.7,
+      letterSpacing: 0,
       textTransform: "uppercase" as const,
     },
     mono: {
       fontSize: 14,
       lineHeight: 18,
       fontWeight: "700" as const,
-      letterSpacing: 0.35,
+      letterSpacing: 0,
     },
   },
   shadows: {

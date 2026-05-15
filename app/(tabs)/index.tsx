@@ -5,6 +5,7 @@ import * as Haptics from "expo-haptics";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
+  AppState,
   Alert,
   Easing,
   Platform,
@@ -221,6 +222,8 @@ export default function HomeScreen() {
   // Edit quest state
   const [editingQuestId, setEditingQuestId] = useState<string | null>(null);
   const [openQuestId, setOpenQuestId] = useState<string | null>(null);
+  const observedDateRef = useRef(localDateKey());
+  const liveMidnightCheckRef = useRef(false);
 
   const normalizeDifficulty = React.useCallback((d: unknown): "easy" | "medium" | "hard" => {
     if (d === "medium" || d === "hard") return d;
@@ -428,10 +431,7 @@ export default function HomeScreen() {
             ? parsed.categories
             : defaultCategories;
 
-        const loadedQuests =
-          Array.isArray(parsed.quests) && parsed.quests.length
-            ? parsed.quests
-            : defaultQuests;
+        const loadedQuests = Array.isArray(parsed.quests) ? parsed.quests : defaultQuests;
 
         const savedResetDate =
           typeof parsed.lastResetDate === "string" ? parsed.lastResetDate : today;
@@ -784,8 +784,7 @@ export default function HomeScreen() {
             Array.isArray(parsed.categories) && parsed.categories.length
               ? parsed.categories
               : defaultCategories;
-          const savedQuests =
-            Array.isArray(parsed.quests) && parsed.quests.length ? parsed.quests : defaultQuests;
+          const savedQuests = Array.isArray(parsed.quests) ? parsed.quests : defaultQuests;
           const normalizedSavedQuests = savedQuests.map((quest) =>
             normalizeQuestSchedule(
               {
@@ -872,6 +871,52 @@ export default function HomeScreen() {
 
     return () => clearInterval(interval);
   }, []);
+
+  const checkForLiveMidnightEvaluation = React.useCallback(async () => {
+    const today = localDateKey();
+    if (observedDateRef.current === today) return;
+    if (!hydrated || pendingEvaluation || isSavingEvaluation || liveMidnightCheckRef.current) return;
+
+    liveMidnightCheckRef.current = true;
+
+    try {
+      const lastEvaluatedDate = await AsyncStorage.getItem(MIDNIGHT_EVALUATION_STORAGE_KEY);
+      if (!shouldShowMidnightEvaluation(lastResetDate, today, lastEvaluatedDate)) {
+        observedDateRef.current = today;
+        return;
+      }
+
+      const previousCompletionForBonus = drHistory.length > 0 ? lastCompletionPct : null;
+      observedDateRef.current = today;
+      setPendingEvaluation(buildMidnightEvaluation(lastResetDate, quests, previousCompletionForBonus));
+    } catch (error) {
+      if (__DEV__) console.warn("Failed to check live midnight evaluation:", error);
+    } finally {
+      liveMidnightCheckRef.current = false;
+    }
+  }, [
+    drHistory.length,
+    hydrated,
+    isSavingEvaluation,
+    lastCompletionPct,
+    lastResetDate,
+    pendingEvaluation,
+    quests,
+  ]);
+
+  useEffect(() => {
+    void checkForLiveMidnightEvaluation();
+  }, [checkForLiveMidnightEvaluation, countdownToMidnight]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (status) => {
+      if (status === "active") {
+        void checkForLiveMidnightEvaluation();
+      }
+    });
+
+    return () => subscription.remove();
+  }, [checkForLiveMidnightEvaluation]);
 
   const todayDateKey = localDateKey();
   const questLimitDateKeys = useMemo(() => getUpcomingDateKeys(todayDateKey), [todayDateKey]);
@@ -1077,10 +1122,14 @@ export default function HomeScreen() {
   const toggleContract = (questId: string) => {
     setQuests((prev) => {
       const selectedCount = prev.filter((q) => q.contract && !q.paused).length;
+      const target = prev.find((q) => q.id === questId);
+      if (target && !target.contract && selectedCount >= 3) {
+        Alert.alert("Contract limit reached", "Keep the active contract list to three contracts.");
+        return prev;
+      }
       return prev.map((q) => {
         if (q.id !== questId) return q;
         if (q.contract) return { ...q, contract: false };
-        if (selectedCount >= 3) return q;
         return { ...q, contract: true, pinned: true };
       });
     });

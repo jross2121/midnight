@@ -15,7 +15,7 @@ export default function TabLayout() {
   const safeBottomInset = insets.bottom;
   const navBottomOffset = 14;
   const navBottomPadding = Math.max(safeBottomInset, 5);
-  const navHeight = 48 + safeBottomInset;
+  const navHeight = 54 + safeBottomInset;
   const sceneBottomInset = navHeight + navBottomOffset + 8;
 
   return (
@@ -58,17 +58,16 @@ export default function TabLayout() {
           alignItems: 'center',
         },
         tabBarIconStyle: {
-          marginBottom: -2,
+          marginBottom: 0,
         },
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: '700',
           marginTop: 1,
-          lineHeight: 12,
-          letterSpacing: 0.3,
+          lineHeight: 14,
+          letterSpacing: 0,
           textAlign: 'center',
           alignSelf: 'center',
-          includeFontPadding: false,
         },
       }}>
       <Tabs.Screen

@@ -32,10 +32,10 @@ export function Footer() {
           }}
         />
         <View>
-          <Text style={{ fontSize: 15, lineHeight: 18, color: HOME_GOLD, fontWeight: "900", letterSpacing: 1 }}>
+          <Text style={{ fontSize: 15, lineHeight: 19, color: HOME_GOLD, fontWeight: "900", letterSpacing: 0 }}>
             MIDNIGHT
           </Text>
-          <Text style={{ fontSize: 10, lineHeight: 13, color: colors.textSecondary, fontWeight: "700" }}>
+          <Text style={{ fontSize: 10, lineHeight: 15, color: colors.textSecondary, fontWeight: "700" }}>
             Daily discipline tracker
           </Text>
         </View>

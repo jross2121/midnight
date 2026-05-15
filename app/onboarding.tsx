@@ -149,7 +149,7 @@ export default function OnboardingScreen() {
           color: colors.textPrimary,
           fontSize: ui.typography.body.fontSize,
           fontWeight: "800",
-          letterSpacing: 0.2,
+          letterSpacing: 0,
           textAlign: "center",
         },
         ctaText: {

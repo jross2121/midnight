@@ -821,6 +821,13 @@ export default function PlanScreen() {
           quest.id === questId ? { ...quest, paused: !quest.paused } : quest
         );
         const isResuming = Boolean(target.paused);
+        const activeContractCount = current.quests.filter(
+          (quest) => quest.contract && !quest.paused
+        ).length;
+        if (isResuming && target.contract && activeContractCount >= 3) {
+          Alert.alert("Contract limit reached", "Remove another contract before resuming this one.");
+          return current;
+        }
         const conflict = isResuming
           ? findDailyQuestLimitConflict(nextQuests, questLimitDateKeys)
           : null;
@@ -1267,13 +1274,14 @@ function createPlanStyles(colors: ThemeColors) {
     },
     title: {
       color: colors.textPrimary,
-      fontSize: 32,
-      lineHeight: 36,
+      fontSize: 26,
+      lineHeight: 31,
       fontWeight: "900",
     },
     subtitle: {
       color: colors.textSecondary,
       fontSize: 13,
+      lineHeight: 18,
       fontWeight: "700",
     },
     heroCard: {
@@ -1301,9 +1309,9 @@ function createPlanStyles(colors: ThemeColors) {
     heroEyebrow: {
       color: PLAN_TONES.gold,
       fontSize: 11,
-      lineHeight: 14,
+      lineHeight: 16,
       fontWeight: "900",
-      letterSpacing: 0.6,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     heroTitle: {
@@ -1337,9 +1345,9 @@ function createPlanStyles(colors: ThemeColors) {
     heroScoreLabel: {
       color: colors.textSecondary,
       fontSize: 9,
-      lineHeight: 12,
+      lineHeight: 13,
       fontWeight: "900",
-      letterSpacing: 0.45,
+      letterSpacing: 0,
       textTransform: "uppercase",
       marginTop: 1,
     },
@@ -1381,9 +1389,9 @@ function createPlanStyles(colors: ThemeColors) {
     nextActionLabel: {
       color: withAlpha(colors.textSecondary, 0.8),
       fontSize: 9,
-      lineHeight: 12,
+      lineHeight: 13,
       fontWeight: "900",
-      letterSpacing: 0.5,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     nextActionTitle: {
@@ -1473,10 +1481,10 @@ function createPlanStyles(colors: ThemeColors) {
     },
     sectionEyebrow: {
       color: withAlpha(colors.textSecondary, 0.78),
-      fontSize: 10,
-      lineHeight: 13,
+      fontSize: 11,
+      lineHeight: 16,
       fontWeight: "900",
-      letterSpacing: 0.65,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     sectionTitle: {
@@ -1521,9 +1529,9 @@ function createPlanStyles(colors: ThemeColors) {
     priorityLabel: {
       color: withAlpha(colors.textSecondary, 0.82),
       fontSize: 10,
-      lineHeight: 12,
+      lineHeight: 15,
       fontWeight: "900",
-      letterSpacing: 0.45,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     priorityRow: {
@@ -1631,7 +1639,7 @@ function createPlanStyles(colors: ThemeColors) {
     dayMetric: {
       color: colors.textSecondary,
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "800",
     },
     dayQuestLine: {
@@ -1690,9 +1698,9 @@ function createPlanStyles(colors: ThemeColors) {
     contractSlotLabel: {
       color: withAlpha(colors.textSecondary, 0.8),
       fontSize: 9,
-      lineHeight: 12,
+      lineHeight: 13,
       fontWeight: "900",
-      letterSpacing: 0.5,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     contractSlotTitle: {
@@ -1725,7 +1733,7 @@ function createPlanStyles(colors: ThemeColors) {
     contractDecisionMeta: {
       color: colors.textSecondary,
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "700",
       marginTop: 2,
     },
@@ -1740,7 +1748,7 @@ function createPlanStyles(colors: ThemeColors) {
     },
     contractDecisionButtonText: {
       fontSize: 11,
-      lineHeight: 13,
+      lineHeight: 14,
       fontWeight: "900",
     },
     questRow: {

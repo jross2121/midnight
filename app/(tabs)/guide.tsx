@@ -192,10 +192,10 @@ function createGuideStyles(colors: ThemeColors) {
     },
     introLabel: {
       color: colors.textSecondary,
-      fontSize: 10,
-      lineHeight: 13,
+      fontSize: 11,
+      lineHeight: 16,
       fontWeight: "900",
-      letterSpacing: 0.7,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     introTitle: {
@@ -209,10 +209,10 @@ function createGuideStyles(colors: ThemeColors) {
     },
     blockTitle: {
       color: colors.textSecondary,
-      fontSize: 10,
-      lineHeight: 13,
+      fontSize: 11,
+      lineHeight: 16,
       fontWeight: "900",
-      letterSpacing: 0.75,
+      letterSpacing: 0,
       textTransform: "uppercase",
       paddingHorizontal: 2,
     },
@@ -256,8 +256,9 @@ function createGuideStyles(colors: ThemeColors) {
     ruleLabel: {
       color: HOME_GOLD,
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 14,
       fontWeight: "900",
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     ruleBody: {

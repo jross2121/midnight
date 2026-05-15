@@ -670,10 +670,10 @@ function createDisciplineStyles(colors: ThemeColors, theme: Theme) {
     },
     eyebrow: {
       color: withAlpha(colors.textSecondary, 0.78),
-      fontSize: 10,
-      lineHeight: 13,
+      fontSize: 11,
+      lineHeight: 16,
       fontWeight: "900",
-      letterSpacing: 0.75,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     rankName: {
@@ -707,9 +707,9 @@ function createDisciplineStyles(colors: ThemeColors, theme: Theme) {
     identityLabel: {
       color: withAlpha(colors.textSecondary, 0.76),
       fontSize: 9,
-      lineHeight: 12,
+      lineHeight: 13,
       fontWeight: "900",
-      letterSpacing: 0.55,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     identityValue: {
@@ -734,9 +734,9 @@ function createDisciplineStyles(colors: ThemeColors, theme: Theme) {
     progressLabel: {
       color: withAlpha(colors.textSecondary, 0.74),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "900",
-      letterSpacing: 0.5,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     progressValue: {
@@ -781,9 +781,9 @@ function createDisciplineStyles(colors: ThemeColors, theme: Theme) {
     miniMeta: {
       color: withAlpha(colors.textSecondary, 0.78),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "900",
-      letterSpacing: 0.45,
+      letterSpacing: 0,
       textTransform: "uppercase",
       textAlign: "right",
     },
@@ -822,9 +822,9 @@ function createDisciplineStyles(colors: ThemeColors, theme: Theme) {
     },
     trackSlotLabel: {
       fontSize: 9,
-      lineHeight: 12,
+      lineHeight: 13,
       fontWeight: "900",
-      letterSpacing: 0.55,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     trackSlotName: {
@@ -837,16 +837,16 @@ function createDisciplineStyles(colors: ThemeColors, theme: Theme) {
     trackSlotMeta: {
       color: withAlpha(colors.textSecondary, 0.76),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "800",
       marginTop: 1,
     },
     trackSlotState: {
       color: withAlpha(colors.textSecondary, 0.74),
       fontSize: 9,
-      lineHeight: 12,
+      lineHeight: 13,
       fontWeight: "900",
-      letterSpacing: 0.2,
+      letterSpacing: 0,
       textTransform: "uppercase",
       textAlign: "right",
       minWidth: 48,
@@ -908,16 +908,16 @@ function createDisciplineStyles(colors: ThemeColors, theme: Theme) {
     rankPathRange: {
       color: withAlpha(colors.textSecondary, 0.72),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "800",
       marginTop: 1,
     },
     rankPathStatus: {
       color: withAlpha(colors.textSecondary, 0.78),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "900",
-      letterSpacing: 0.35,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     rankPathStatusPill: {

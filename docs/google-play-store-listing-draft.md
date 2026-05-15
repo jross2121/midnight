@@ -21,7 +21,7 @@ Features:
 - Up to 10 active quests per day to keep the board focused
 - Contract quests for high-accountability commitments
 - Focus Sprint timer with 5, 15, and 25 minute sessions for the next quest
-- Discipline Rating, ranks, streaks, category XP, and a 30-award trophy room
+- Discipline Rating, ranks, streaks, category XP, and a trophy-room award collection
 - Plan tab for weekly scheduling and paused quests
 - Local coaching prompts for next moves, weak spots, weekly review, and board load
 - Optional local reminders for planning and contract checks
@@ -40,7 +40,7 @@ Initial Android release with daily quests, planning, ranks, trophy-room awards, 
 - No ads SDK.
 - No analytics SDK.
 - Current app data stays on the device unless the user manually exports a backup.
-- Optional reminders use local Android notifications.
+- Optional reminders use local notifications.
 
 ## Screenshot Checklist
 

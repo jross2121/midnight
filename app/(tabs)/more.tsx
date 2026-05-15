@@ -169,7 +169,7 @@ function createMoreStyles(colors: ThemeColors) {
       fontSize: 24,
       lineHeight: 28,
       fontWeight: "900",
-      letterSpacing: 0.2,
+      letterSpacing: 0,
     },
     subtitle: {
       color: withAlpha(colors.textSecondary, 0.82),
@@ -186,10 +186,10 @@ function createMoreStyles(colors: ThemeColors) {
     },
     groupTitle: {
       color: withAlpha(colors.textSecondary, 0.78),
-      fontSize: 10,
-      lineHeight: 13,
+      fontSize: 11,
+      lineHeight: 16,
       fontWeight: "900",
-      letterSpacing: 0.75,
+      letterSpacing: 0,
       textTransform: "uppercase",
       paddingHorizontal: 2,
     },

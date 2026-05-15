@@ -12,10 +12,14 @@ Change the Android package before the first Play Store upload if you want a diff
 
 ## Privacy And Data Safety
 
-- Publish a public privacy policy URL.
+- Publish a public privacy policy URL before creating the production listing.
 - Use `docs/privacy-policy-draft.md` as the starting copy.
+- Use `docs/google-play-data-safety-draft.md` as the starting Data Safety answer sheet.
+- The privacy policy must be publicly accessible, non-editable, not a PDF, and include the developer/contact entity used on the store listing.
+- Add the same privacy policy URL to Play Console and make sure the app has either an in-app privacy policy link or in-app privacy policy text.
 - In Google Play Data Safety, current app behavior is local-first with no account, no analytics SDK, no ads SDK, and no server upload.
-- Local notifications are optional reminders. Verify the Android notification permission prompt and disclose notification behavior in the store listing if needed.
+- Data Safety should still disclose local device storage, optional local notifications, manual backup export/import, and included SDK behavior.
+- Local notifications are optional reminders. Verify the Android notification permission prompt and disclose notification behavior in the store listing.
 - Update privacy answers before adding AI coaching, cloud sync, analytics, accounts, subscriptions, or support forms.
 
 ## Store Assets
@@ -30,13 +34,15 @@ Change the Android package before the first Play Store upload if you want a diff
 
 ## Release Checks
 
-- `npx tsc --noEmit`
+- `npm.cmd run typecheck`
 - `npm.cmd run lint`
 - `npm.cmd run check`
+- Confirm the submitted Android build targets Android 15 / API level 35 or higher.
 - If the native Android folder is not present, run `npx expo prebuild --platform android` first.
 - `cd android && .\gradlew.bat :app:processReleaseManifest :app:compileReleaseKotlin --console=plain --no-daemon`
 - `eas build --platform android --profile preview`
 - `eas build --platform android --profile production`
+- Upload the internal/closed testing build first and review Play Console warnings before production.
 - Test fresh install.
 - Test backup export/import.
 - Confirm backup export/import preserves reminder preferences.

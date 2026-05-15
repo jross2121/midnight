@@ -15,6 +15,14 @@ Midnight stores app data locally using device storage. This can include:
 - theme preference
 - backup JSON, including reminder preferences, that you generate or paste inside Settings
 
+## Developer And Privacy Contact
+
+Developer or publisher name: [match the Google Play store listing]
+
+Privacy contact: [public support email or contact form]
+
+Public privacy policy URL: [public non-PDF URL]
+
 ## Data Collection
 
 The current app does not create an account, upload your data to a Midnight server, use analytics SDKs, or use advertising SDKs.

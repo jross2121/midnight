@@ -106,7 +106,7 @@ function createStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       fontSize: 10,
       fontWeight: "700",
       textTransform: "uppercase",
-      letterSpacing: 0.5,
+      letterSpacing: 0,
     },
     metricsGrid: {
       flexDirection: "row",
@@ -133,13 +133,13 @@ function createStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       fontSize: 10,
       fontWeight: "700",
       textTransform: "uppercase",
-      letterSpacing: 0.45,
+      letterSpacing: 0,
     },
     metricValue: {
       color: colors.textPrimary,
       fontSize: 15,
       fontWeight: "800",
-      letterSpacing: 0.1,
+      letterSpacing: 0,
     },
   });
 }

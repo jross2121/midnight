@@ -1280,10 +1280,10 @@ function createAchievementStyles(colors: ThemeColors) {
     },
     eyebrow: {
       color: withAlpha(colors.textSecondary, 0.78),
-      fontSize: 10,
-      lineHeight: 13,
+      fontSize: 11,
+      lineHeight: 16,
       fontWeight: "900",
-      letterSpacing: 0.75,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     heroTitle: {
@@ -1312,9 +1312,9 @@ function createAchievementStyles(colors: ThemeColors) {
     heroPercentLabel: {
       color: withAlpha(colors.textSecondary, 0.78),
       fontSize: 8,
-      lineHeight: 10,
+      lineHeight: 12,
       fontWeight: "900",
-      letterSpacing: 0.45,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     progressTrack: {
@@ -1350,9 +1350,9 @@ function createAchievementStyles(colors: ThemeColors) {
     heroStatLabel: {
       color: withAlpha(colors.textSecondary, 0.74),
       fontSize: 8,
-      lineHeight: 10,
+      lineHeight: 12,
       fontWeight: "900",
-      letterSpacing: 0.35,
+      letterSpacing: 0,
       textTransform: "uppercase",
       marginTop: 2,
     },
@@ -1378,9 +1378,9 @@ function createAchievementStyles(colors: ThemeColors) {
     rarityLegendText: {
       color: withAlpha(colors.textSecondary, 0.82),
       fontSize: 9,
-      lineHeight: 11,
+      lineHeight: 13,
       fontWeight: "900",
-      letterSpacing: 0.25,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     featuredPanel: {
@@ -1412,9 +1412,9 @@ function createAchievementStyles(colors: ThemeColors) {
     featuredRarity: {
       color: AWARD_PAGE_ACCENT,
       fontSize: 9,
-      lineHeight: 11,
+      lineHeight: 13,
       fontWeight: "900",
-      letterSpacing: 0.45,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     collectionGrid: {
@@ -1448,9 +1448,9 @@ function createAchievementStyles(colors: ThemeColors) {
     collectionMeta: {
       color: withAlpha(colors.textSecondary, 0.76),
       fontSize: 9,
-      lineHeight: 11,
+      lineHeight: 13,
       fontWeight: "900",
-      letterSpacing: 0.35,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     collectionMetaActive: {
@@ -1493,7 +1493,7 @@ function createAchievementStyles(colors: ThemeColors) {
     nextMeta: {
       color: withAlpha(colors.textSecondary, 0.78),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "700",
     },
     nextProgress: {
@@ -1522,9 +1522,9 @@ function createAchievementStyles(colors: ThemeColors) {
     detailStatus: {
       color: AWARD_PAGE_ACCENT,
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "900",
-      letterSpacing: 0.35,
+      letterSpacing: 0,
       textTransform: "uppercase",
       textAlign: "right",
     },
@@ -1543,9 +1543,9 @@ function createAchievementStyles(colors: ThemeColors) {
     detailHint: {
       color: withAlpha(colors.textSecondary, 0.76),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "900",
-      letterSpacing: 0.3,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     detailActionButton: {
@@ -1562,7 +1562,7 @@ function createAchievementStyles(colors: ThemeColors) {
       fontSize: 11,
       lineHeight: 14,
       fontWeight: "900",
-      letterSpacing: 0.3,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     awardGrid: {
@@ -1593,9 +1593,9 @@ function createAchievementStyles(colors: ThemeColors) {
       paddingVertical: 4,
       flexShrink: 1,
       fontSize: 9,
-      lineHeight: 12,
+      lineHeight: 13,
       fontWeight: "900",
-      letterSpacing: 0.4,
+      letterSpacing: 0,
       textTransform: "uppercase",
       textAlign: "right",
       overflow: "hidden",
@@ -1635,18 +1635,18 @@ function createAchievementStyles(colors: ThemeColors) {
     awardDate: {
       color: withAlpha(colors.textSecondary, 0.74),
       fontSize: 9,
-      lineHeight: 12,
+      lineHeight: 13,
       fontWeight: "800",
-      letterSpacing: 0.25,
+      letterSpacing: 0,
       textTransform: "uppercase",
       flex: 1,
     },
     awardRarity: {
       color: AWARD_PAGE_ACCENT,
       fontSize: 8,
-      lineHeight: 10,
+      lineHeight: 12,
       fontWeight: "900",
-      letterSpacing: 0.35,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     pressed: {

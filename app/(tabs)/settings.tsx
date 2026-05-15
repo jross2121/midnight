@@ -13,7 +13,13 @@ import { defaultLastCompletionPct, defaultLastDrDelta, defaultLastDrUpdateDate }
 import { withAlpha } from "./_utils/designSystem";
 import { DAILY_EVALUATION_HISTORY_STORAGE_KEY } from "./_utils/evaluationHistory";
 import { MIDNIGHT_EVALUATION_STORAGE_KEY } from "./_utils/midnightEvaluation";
+import {
+  findDailyQuestLimitConflict,
+  formatQuestLimitDate,
+  getUpcomingDateKeys,
+} from "./_utils/questLimits";
 import { getQuestXpForDifficulty } from "./_utils/questXp";
+import { normalizeQuestRepeat, normalizeScheduledWeekday } from "./_utils/recurrence";
 import {
   adjustReminderTime,
   DEFAULT_REMINDER_SETTINGS,
@@ -47,7 +53,7 @@ type ReminderMinuteKey = "morningMinute" | "contractMinute" | "nextMoveMinute";
 
 function getReminderPermissionCopy(status: ReminderPermissionStatus) {
   if (status === "granted") return "Allowed";
-  if (status === "denied") return "Blocked in Android settings";
+  if (status === "denied") return "Blocked in device settings";
   return "Not requested";
 }
 
@@ -79,8 +85,8 @@ export default function SettingsScreen() {
     borderColor: isLightTheme ? "#E2E8F0" : colors.border,
   };
   const settingsFeatureSurface = {
-    backgroundColor: isLightTheme ? colors.surface : "#11100D",
-    borderColor: settingsGoldBorder,
+    backgroundColor: isLightTheme ? colors.surface : colors.surface2,
+    borderColor: settingsDividerColor,
   };
   const settingsInputSurface = {
     backgroundColor: isLightTheme ? "#F8FAFC" : "#0B1117",
@@ -140,7 +146,7 @@ export default function SettingsScreen() {
           setReminderSettings(nextSettings);
           Alert.alert(
             "Notifications are off",
-            "Midnight can save reminder choices, but Android notifications must be allowed before reminders can fire."
+            "Midnight can save reminder choices, but device notifications must be allowed before reminders can fire."
           );
         }
       }
@@ -326,6 +332,13 @@ export default function SettingsScreen() {
         if (!archivedQuest) return state;
 
         const activeQuests = Array.isArray(state.quests) ? state.quests : [];
+        const activeContractCount = activeQuests.filter((quest) => quest.contract && !quest.paused).length;
+        if (archivedQuest.contract && activeContractCount >= 3) {
+          Alert.alert("Contract limit reached", "Remove another contract before restoring this quest.");
+          return state;
+        }
+
+        const repeat = normalizeQuestRepeat(archivedQuest.repeat);
         const restoredQuest: Quest = {
           id: activeQuests.some((item) => item.id === archivedQuest.id)
             ? `${archivedQuest.id}-restored-${Date.now()}`
@@ -335,12 +348,27 @@ export default function SettingsScreen() {
           xp: getQuestXpForDifficulty(archivedQuest.difficulty),
           target: archivedQuest.target,
           difficulty: archivedQuest.difficulty,
-          repeat: archivedQuest.repeat,
-          scheduledWeekday: archivedQuest.scheduledWeekday,
+          repeat,
+          scheduledWeekday:
+            repeat === "weekly"
+              ? normalizeScheduledWeekday(archivedQuest.scheduledWeekday)
+              : undefined,
           pinned: archivedQuest.pinned,
           contract: archivedQuest.contract,
           done: false,
+          paused: false,
         };
+        const conflict = findDailyQuestLimitConflict(
+          [...activeQuests, restoredQuest],
+          getUpcomingDateKeys(localDateKey())
+        );
+        if (conflict) {
+          Alert.alert(
+            "Daily quest limit",
+            `${formatQuestLimitDate(conflict.dateKey)} would have ${conflict.totalCount}/${conflict.maxCount} active quests. Pause or archive another quest first.`
+          );
+          return state;
+        }
 
         return {
           ...state,
@@ -420,30 +448,47 @@ export default function SettingsScreen() {
           DAILY_EVALUATION_HISTORY_STORAGE_KEY,
           JSON.stringify(backup.evaluationHistory)
         );
+      } else {
+        await AsyncStorage.removeItem(DAILY_EVALUATION_HISTORY_STORAGE_KEY);
       }
 
       if (typeof backup.lastEvaluatedDate === "string") {
         await AsyncStorage.setItem(MIDNIGHT_EVALUATION_STORAGE_KEY, backup.lastEvaluatedDate);
-      } else if (backup.lastEvaluatedDate === null) {
+      } else {
         await AsyncStorage.removeItem(MIDNIGHT_EVALUATION_STORAGE_KEY);
       }
 
+      let importedRemindersPaused = false;
+
       if (backup.reminders) {
-        const permission = await syncReminderSchedule(backup.reminders);
-        setReminderSettings(backup.reminders);
-        setReminderPermission(permission);
+        let importedReminders = backup.reminders;
+        let permission = reminderPermission;
+
+        if (importedReminders.enabled && permission !== "granted") {
+          permission = await requestReminderPermissions();
+          setReminderPermission(permission);
+
+          if (permission !== "granted") {
+            importedReminders = { ...importedReminders, enabled: false };
+            importedRemindersPaused = true;
+          }
+        }
+
+        const syncedPermission = await syncReminderSchedule(importedReminders);
+        setReminderSettings(importedReminders);
+        setReminderPermission(syncedPermission);
       }
 
       setImportPayload("");
       setShowImportBox(false);
       setExportPayload("");
       await loadArchive();
-      Alert.alert(
-        "Import complete",
-        backup.reminders
+      const importCompleteMessage = importedRemindersPaused
+        ? "Your saved quests, stats, archive, and history were restored. Reminders were restored but left paused until notifications are allowed."
+        : backup.reminders
           ? "Your saved quests, stats, archive, history, and reminders were restored."
-          : "Your saved quests, stats, archive, and history were restored."
-      );
+          : "Your saved quests, stats, archive, and history were restored.";
+      Alert.alert("Import complete", importCompleteMessage);
     } catch (error) {
       if (__DEV__) console.warn("Failed to import data:", error);
       Alert.alert("Import failed", "Could not read that JSON backup.");
@@ -501,13 +546,13 @@ export default function SettingsScreen() {
     <Text
       style={{
         color: withAlpha(colors.textSecondary, 0.78),
-        fontSize: 10,
-        lineHeight: 13,
+        fontSize: 11,
+        lineHeight: 16,
         fontWeight: "900",
-        letterSpacing: 0.75,
+        letterSpacing: 0,
         textTransform: "uppercase",
         marginTop,
-        marginBottom: -4,
+        marginBottom: 8,
       }}
     >
       {label}
@@ -558,10 +603,15 @@ export default function SettingsScreen() {
             settingsFeatureSurface,
           ]}
         >
-          <View style={styles.cardTop}>
-            <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
-              Theme
-            </Text>
+          <View style={[styles.cardTop, { alignItems: "center", gap: 12, marginBottom: 10 }]}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
+                Theme
+              </Text>
+              <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 6 }]}>
+                Current: <Text style={{ fontWeight: "700" }}>{theme === "dark" ? "Dark Mode" : "Light Mode"}</Text>
+              </Text>
+            </View>
             <Pressable
               onPress={toggleTheme}
               accessibilityRole="button"
@@ -572,6 +622,8 @@ export default function SettingsScreen() {
                   paddingVertical: 8,
                   paddingHorizontal: 14,
                   borderRadius: 8,
+                  minWidth: 72,
+                  alignItems: "center",
                   opacity: pressed ? 0.8 : 1,
                 },
               ]}
@@ -581,9 +633,6 @@ export default function SettingsScreen() {
               </Text>
             </Pressable>
           </View>
-          <Text style={[styles.questMeta, { color: colors.textSecondary }]}>
-            Current: <Text style={{ fontWeight: "700" }}>{theme === "dark" ? "Dark Mode" : "Light Mode"}</Text>
-          </Text>
         </View>
 
         <View
@@ -593,7 +642,7 @@ export default function SettingsScreen() {
             { marginTop: 16 },
           ]}
         >
-          <View style={styles.cardTop}>
+          <View style={[styles.cardTop, { alignItems: "flex-start", gap: 12, marginBottom: 10 }]}>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
                 Reminders
@@ -620,6 +669,8 @@ export default function SettingsScreen() {
                   paddingVertical: 8,
                   paddingHorizontal: 12,
                   borderRadius: 8,
+                  minWidth: 78,
+                  alignItems: "center",
                   opacity: remindersSaving ? 0.5 : pressed ? 0.78 : 1,
                 },
               ]}
@@ -636,7 +687,7 @@ export default function SettingsScreen() {
             </Pressable>
           </View>
           <Text style={[styles.questMeta, { color: colors.textSecondary }]}>
-            Local Android notifications for planning your day and protecting contracts.
+            Local notifications for planning your day and protecting contracts.
           </Text>
           <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 6 }]}>
             {reminderSettings.enabled
@@ -672,7 +723,6 @@ export default function SettingsScreen() {
           style={[
             styles.card,
             settingsCardSurface,
-            { marginTop: 16 },
           ]}
         >
           <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
@@ -691,7 +741,6 @@ export default function SettingsScreen() {
           style={[
             styles.card,
             settingsCardSurface,
-            { marginTop: 16 },
           ]}
         >
           <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
@@ -917,7 +966,6 @@ export default function SettingsScreen() {
               style={[
                 styles.card,
                 settingsCardSurface,
-                { marginTop: 16 },
               ]}
             >
               <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Developer Tools</Text>

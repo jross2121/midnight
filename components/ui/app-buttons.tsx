@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
     fontSize: AppThemeTokens.typography.body.fontSize,
     lineHeight: AppThemeTokens.typography.body.lineHeight,
     fontWeight: "800",
-    letterSpacing: 0.2,
+    letterSpacing: 0,
     textAlign: "center",
   },
 });

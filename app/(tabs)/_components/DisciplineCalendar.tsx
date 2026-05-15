@@ -92,9 +92,9 @@ function createStyles(colors: ThemeColors) {
       ...ui.typography.caption,
       color: withAlpha(colors.textSecondary, 0.8),
       fontSize: 10,
-      lineHeight: 13,
+      lineHeight: 15,
       fontWeight: "900",
-      letterSpacing: 0.45,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     legendRow: {
@@ -108,7 +108,7 @@ function createStyles(colors: ThemeColors) {
       fontSize: 9,
       lineHeight: 12,
       fontWeight: "800",
-      letterSpacing: 0.25,
+      letterSpacing: 0,
       textTransform: "uppercase",
     },
     legendCell: {
