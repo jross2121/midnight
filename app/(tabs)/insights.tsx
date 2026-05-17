@@ -4,6 +4,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { CONTRACT_BLUE } from "./_styles";
 import { DisciplineCalendar, type DisciplineCalendarDay } from "./_components/DisciplineCalendar";
 import { DisciplinePatterns } from "./_components/DisciplinePatterns";
 import { RankBadge } from "./_components/RankBadge";
@@ -715,7 +716,7 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
     container: {
       paddingHorizontal: ui.spacing.screen,
       paddingTop: ui.spacing.md,
-      paddingBottom: ui.spacing.xl * 3 + ui.spacing.lg,
+      paddingBottom: ui.spacing.lg,
       gap: ui.spacing.sm,
     },
     headerRow: {
@@ -1282,7 +1283,7 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       marginTop: 1,
     },
     judgmentMeta: {
-      color: withAlpha(colors.textSecondary, 0.72),
+      color: withAlpha(CONTRACT_BLUE, 0.86),
       fontSize: 10,
       lineHeight: 15,
       fontWeight: "700",

@@ -5,6 +5,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { CONTRACT_BLUE } from "./_styles";
 import {
   defaultAchievements,
   defaultCategories,
@@ -96,7 +97,7 @@ const AWARD_TRACKS: {
     body: "Contract protection and streaks that prove the routine holds.",
     collections: ["contracts", "streaks"],
     icon: "shield.fill",
-    primary: "#F5B84B",
+    primary: CONTRACT_BLUE,
   },
   {
     id: "legacy",
@@ -316,8 +317,8 @@ function getAwardTrackVisual(track: AwardTrack): AwardVisual {
   return {
     icon: track.icon,
     primary: track.primary,
-    soft: "#493414",
-    deep: "#281D0B",
+    soft: "#123447",
+    deep: "#082331",
     label: "Consistency Badge",
   };
 }
@@ -1224,7 +1225,7 @@ function createAchievementStyles(colors: ThemeColors) {
     container: {
       paddingHorizontal: ui.spacing.screen,
       paddingTop: ui.spacing.md,
-      paddingBottom: ui.spacing.xl * 3 + ui.spacing.lg,
+      paddingBottom: ui.spacing.lg,
       gap: ui.spacing.sm,
     },
     pageHeader: {

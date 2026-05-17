@@ -6,7 +6,9 @@ import React, { useCallback, useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { EditQuestForm } from "./_components/EditQuestForm";
 import { Footer } from "./_components/Footer";
+import { CONTRACT_BLUE } from "./_styles";
 import { getCategoryDisplayNameById } from "./_utils/categoryLabels";
 import { localDateKey, parseDateKey } from "./_utils/dateHelpers";
 import { withAlpha } from "./_utils/designSystem";
@@ -29,7 +31,7 @@ import {
 } from "./_utils/recurrence";
 import { buildStoredStateFromImport } from "./_utils/storageImport";
 import { useTheme, type ThemeColors } from "./_utils/themeContext";
-import { STORAGE_KEY, type Quest, type QuestTemplate, type StoredState } from "./_utils/types";
+import { STORAGE_KEY, type Quest, type QuestRepeat, type QuestTemplate, type StoredState } from "./_utils/types";
 
 type WeekPlanDay = {
   dateKey: string;
@@ -64,6 +66,7 @@ type MetricTileProps = {
 
 const PLAN_TONES = {
   gold: "#F5B84B",
+  contract: CONTRACT_BLUE,
   slate: "#8EA0B2",
   warning: "#F472B6",
 } as const;
@@ -118,13 +121,13 @@ function showQuestLimitAlert(conflict: QuestLimitConflict) {
 }
 
 function getQuestTone(quest: Pick<Quest, "contract" | "difficulty"> & { pinned?: boolean }): string {
-  if (quest.contract) return PLAN_TONES.gold;
+  if (quest.contract) return PLAN_TONES.contract;
   if (quest.pinned) return PLAN_TONES.gold;
   return PLAN_TONES.slate;
 }
 
 function getQuestIcon(quest: Pick<Quest, "contract" | "categoryId">): IconSymbolName {
-  if (quest.contract) return "pin.fill";
+  if (quest.contract) return "shield.fill";
   switch (quest.categoryId.trim().toLowerCase()) {
     case "health":
       return "heart.fill";
@@ -218,8 +221,8 @@ function buildTodayBrief({
       eyebrow: "Contract Pressure",
       title: `${pluralize(exposedContractCount, "contract")} exposed`,
       body: "Contracts decide the floor. Clear those before bonus work.",
-      tone: PLAN_TONES.gold,
-      icon: "pin.fill",
+      tone: PLAN_TONES.contract,
+      icon: "shield.fill",
     };
   }
 
@@ -238,7 +241,7 @@ function buildTodayBrief({
       eyebrow: "Stable Board",
       title: "Daily standard covered",
       body: "The plan is safe. Add pressure only if the contract is real.",
-      tone: PLAN_TONES.gold,
+      tone: PLAN_TONES.slate,
       icon: "star.fill",
     };
   }
@@ -247,8 +250,8 @@ function buildTodayBrief({
     eyebrow: "Locked In",
     title: "Contracts and standard covered",
     body: "Hold this shape. Extra quests are optional XP, not pressure.",
-    tone: PLAN_TONES.gold,
-    icon: "trophy.fill",
+    tone: PLAN_TONES.contract,
+    icon: "shield.fill",
   };
 }
 
@@ -267,7 +270,7 @@ function recommendTemplate(
   }
 ): TemplateRecommendation {
   if (template.contract && availableContractSlots > 0) {
-    return { template, label: "Contract candidate", score: 100 };
+    return { template, label: "Protect pick", score: 100 };
   }
 
   if (todaysQuestCount === 0 && template.difficulty === "easy") {
@@ -288,7 +291,7 @@ function recommendTemplate(
 
   return {
     template,
-    label: template.contract ? "Contract-ready" : "Useful extra",
+    label: template.contract ? "Can protect" : "Useful extra",
     score: template.contract ? 24 : 20,
   };
 }
@@ -448,24 +451,35 @@ const localPlanArtStyles = StyleSheet.create({
   },
 });
 
-function DayPlanCard({ day, styles }: { day: WeekPlanDay; styles: ReturnType<typeof createPlanStyles> }) {
+function DayPlanCard({
+  day,
+  selected,
+  styles,
+  onPress,
+}: {
+  day: WeekPlanDay;
+  selected: boolean;
+  styles: ReturnType<typeof createPlanStyles>;
+  onPress: () => void;
+}) {
   const totalCount = day.quests.length;
   const isFull = totalCount >= MAX_ACTIVE_QUESTS_PER_DAY;
-  const contractCount = day.quests.filter((quest) => quest.contract).length;
-  const hardCount = day.quests.filter((quest) => quest.difficulty === "hard").length;
-  const completedCount = day.isToday ? day.quests.filter((quest) => quest.done).length : 0;
-  const leadQuest = day.quests[0];
   const tone = getDayTone(day);
   const progressPct = Math.min(100, Math.round((totalCount / MAX_ACTIVE_QUESTS_PER_DAY) * 100));
 
   return (
-    <View
-      style={[
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Show ${day.isToday ? "today" : day.dayLabel} plan`}
+      style={({ pressed }) => [
         styles.dayCard,
+        selected && styles.dayCardSelected,
         {
-          borderColor: withAlpha(tone, day.isToday ? 0.62 : 0.32),
-          backgroundColor: withAlpha(tone, day.isToday ? 0.08 : 0.035),
+          borderColor: withAlpha(tone, selected || day.isToday ? 0.62 : 0.32),
+          backgroundColor: withAlpha(tone, selected ? 0.12 : day.isToday ? 0.08 : 0.035),
         },
+        pressed && styles.pressed,
       ]}
     >
       <View style={[styles.dayAccentRail, { backgroundColor: tone }]} />
@@ -492,28 +506,7 @@ function DayPlanCard({ day, styles }: { day: WeekPlanDay; styles: ReturnType<typ
       <View style={styles.dayLoadTrack}>
         <View style={[styles.dayLoadFill, { width: `${progressPct}%`, backgroundColor: tone }]} />
       </View>
-
-      <View style={styles.dayMetricRow}>
-        <Text style={styles.dayMetric}>{contractCount} contract</Text>
-        <Text style={styles.dayMetric}>{hardCount} hard</Text>
-        {day.isToday ? <Text style={styles.dayMetric}>{completedCount} done</Text> : null}
-      </View>
-
-      {leadQuest ? (
-        <View style={styles.dayQuestLine}>
-          <View style={[styles.dayQuestDot, { backgroundColor: getQuestTone(leadQuest) }]} />
-          <Text style={styles.dayQuestText} numberOfLines={1}>
-            {leadQuest.contract ? "Contract: " : ""}
-            {leadQuest.title}
-          </Text>
-          {day.quests.length > 1 ? (
-            <Text style={styles.dayMoreText}>+{day.quests.length - 1}</Text>
-          ) : null}
-        </View>
-      ) : (
-        <Text style={styles.emptyLine}>No active quests planned.</Text>
-      )}
-    </View>
+    </Pressable>
   );
 }
 
@@ -523,18 +516,20 @@ function QuestLibraryRow({
   styles,
   onTogglePause,
   onToggleContract,
+  onEdit,
 }: {
   quest: Quest;
   colors: ThemeColors;
   styles: ReturnType<typeof createPlanStyles>;
   onTogglePause: (questId: string) => void;
   onToggleContract: (questId: string) => void;
+  onEdit: (questId: string) => void;
 }) {
   const tone = getQuestTone(quest);
   const categoryLabel = getCategoryDisplayNameById(quest.categoryId);
   const difficultyLabel = quest.difficulty === "hard" ? "Hard" : quest.difficulty === "medium" ? "Medium" : "Easy";
-  const statusLabel = quest.paused ? "Resting" : quest.contract ? "Contract" : quest.pinned ? "Pinned" : null;
-  const statusTone = quest.paused ? PLAN_TONES.slate : PLAN_TONES.gold;
+  const statusLabel = quest.paused ? "Resting" : quest.contract ? "Guarded" : quest.pinned ? "Pinned" : null;
+  const statusTone = quest.paused ? PLAN_TONES.slate : quest.contract ? PLAN_TONES.contract : PLAN_TONES.gold;
 
   return (
     <View
@@ -575,16 +570,31 @@ function QuestLibraryRow({
 
       <View style={styles.actionRow}>
         <Pressable
+          onPress={() => onEdit(quest.id)}
+          accessibilityRole="button"
+          accessibilityLabel={`Edit ${quest.title}`}
+          style={({ pressed }) => [
+            styles.smallButton,
+            styles.smallButtonWithIcon,
+            styles.ghostButton,
+            pressed && styles.pressed,
+          ]}
+        >
+          <IconSymbol name="pencil" size={13} color={colors.textSecondary} />
+          <Text style={[styles.smallButtonText, { color: colors.textPrimary }]}>Edit</Text>
+        </Pressable>
+
+        <Pressable
           onPress={() => onTogglePause(quest.id)}
           accessibilityRole="button"
           accessibilityLabel={quest.paused ? `Resume ${quest.title}` : `Rest ${quest.title}`}
           style={({ pressed }) => [
             styles.smallButton,
-            quest.paused ? styles.primaryButton : styles.secondaryButton,
+            quest.paused ? styles.primaryButton : styles.neutralButton,
             pressed && styles.pressed,
           ]}
         >
-          <Text style={[styles.smallButtonText, quest.paused ? { color: colors.bg } : { color: PLAN_TONES.gold }]}>
+          <Text style={[styles.smallButtonText, quest.paused ? { color: colors.bg } : { color: colors.textSecondary }]}>
             {quest.paused ? "Resume" : "Rest"}
           </Text>
         </Pressable>
@@ -595,12 +605,12 @@ function QuestLibraryRow({
           accessibilityLabel={quest.contract ? `Remove contract from ${quest.title}` : `Make ${quest.title} a contract`}
           style={({ pressed }) => [
             styles.smallButton,
-            quest.contract ? styles.secondaryButton : styles.ghostButton,
+            quest.contract ? styles.contractButton : styles.ghostButton,
             pressed && styles.pressed,
           ]}
         >
-          <Text style={[styles.smallButtonText, { color: quest.contract ? PLAN_TONES.gold : colors.textSecondary }]}>
-            {quest.contract ? "Remove" : "Contract"}
+          <Text style={[styles.smallButtonText, { color: quest.contract ? PLAN_TONES.contract : colors.textSecondary }]}>
+            {quest.contract ? "Remove" : "Protect"}
           </Text>
         </Pressable>
       </View>
@@ -619,7 +629,7 @@ function ContractDecisionRow({
   styles: ReturnType<typeof createPlanStyles>;
   onToggleContract: (questId: string) => void;
 }) {
-  const tone = quest.contract ? PLAN_TONES.gold : PLAN_TONES.slate;
+  const tone = quest.contract ? PLAN_TONES.contract : PLAN_TONES.slate;
   const categoryLabel = getCategoryDisplayNameById(quest.categoryId);
   const difficultyLabel = quest.difficulty === "hard" ? "Hard" : quest.difficulty === "medium" ? "Medium" : "Easy";
 
@@ -648,17 +658,17 @@ function ContractDecisionRow({
         accessibilityLabel={quest.contract ? `Remove contract from ${quest.title}` : `Make ${quest.title} a contract`}
         style={({ pressed }) => [
           styles.contractDecisionButton,
-          quest.contract ? styles.secondaryButton : styles.ghostButton,
+          quest.contract ? styles.contractButton : styles.ghostButton,
           pressed && styles.pressed,
         ]}
       >
         <Text
           style={[
             styles.contractDecisionButtonText,
-            { color: quest.contract ? PLAN_TONES.gold : colors.textSecondary },
+            { color: quest.contract ? PLAN_TONES.contract : colors.textSecondary },
           ]}
         >
-          {quest.contract ? "Remove" : "Contract"}
+          {quest.contract ? "Remove" : "Protect"}
         </Text>
       </Pressable>
     </View>
@@ -670,6 +680,8 @@ export default function PlanScreen() {
   const styles = useMemo(() => createPlanStyles(colors), [colors]);
   const [state, setState] = useState<StoredState>(() => buildEmptyState());
   const [hydrated, setHydrated] = useState(false);
+  const [selectedDateKey, setSelectedDateKey] = useState(() => localDateKey());
+  const [editingQuestId, setEditingQuestId] = useState<string | null>(null);
 
   const loadPlanState = useCallback(async () => {
     try {
@@ -717,6 +729,7 @@ export default function PlanScreen() {
       }),
     [state.quests, today]
   );
+  const selectedDay = weekPlan.find((day) => day.dateKey === selectedDateKey) ?? weekPlan[0];
 
   const activeQuests = useMemo(
     () => sortLibraryQuests(state.quests.filter((quest) => !quest.paused)),
@@ -742,6 +755,19 @@ export default function PlanScreen() {
   const openTodayQuests = todaysQuests.filter((quest) => !quest.done);
   const priorityQuests = openTodayQuests.slice(0, 3);
   const leadPriorityQuest = priorityQuests[0] ?? null;
+  const selectedDayQuests = sortLibraryQuests(selectedDay.quests);
+  const selectedDayCompletedCount = selectedDay.isToday
+    ? selectedDayQuests.filter((quest) => quest.done).length
+    : 0;
+  const selectedDayContractCount = selectedDayQuests.filter((quest) => quest.contract).length;
+  const selectedDayHardCount = selectedDayQuests.filter((quest) => quest.difficulty === "hard").length;
+  const selectedDayTone = getDayTone(selectedDay);
+  const selectedDayMeta = selectedDay.isToday
+    ? `${selectedDayCompletedCount}/${selectedDayQuests.length} done`
+    : `${selectedDayQuests.length}/${MAX_ACTIVE_QUESTS_PER_DAY} planned`;
+  const editingQuest = editingQuestId
+    ? state.quests.find((quest) => quest.id === editingQuestId) ?? null
+    : null;
   const weeklyQuestSlots = weekPlan.reduce((sum, day) => sum + day.quests.length, 0);
   const fullestDayCount = weekPlan.reduce(
     (max, day) => Math.max(max, day.quests.length),
@@ -930,6 +956,66 @@ export default function PlanScreen() {
     [questLimitDateKeys, updateStoredState]
   );
 
+  const editQuest = useCallback(
+    (
+      questId: string,
+      title: string,
+      categoryId: string,
+      difficulty: "easy" | "medium" | "hard",
+      target: string,
+      repeat: QuestRepeat,
+      scheduledWeekday?: number
+    ) => {
+      const safeRepeat = normalizeQuestRepeat(repeat);
+      const nextQuests = state.quests.map((quest) =>
+        quest.id === questId
+          ? {
+              ...quest,
+              title,
+              categoryId,
+              xp: getQuestXpForDifficulty(difficulty),
+              difficulty,
+              target,
+              repeat: safeRepeat,
+              scheduledWeekday:
+                safeRepeat === "weekly"
+                  ? normalizeScheduledWeekday(scheduledWeekday, getTodayWeekday())
+                  : undefined,
+            }
+          : quest
+      );
+      const conflict = findDailyQuestLimitConflict(nextQuests, questLimitDateKeys);
+      if (conflict) {
+        showQuestLimitAlert(conflict);
+        return;
+      }
+
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      updateStoredState((current) => ({
+        ...current,
+        quests: current.quests.map((quest) =>
+          quest.id === questId
+            ? {
+                ...quest,
+                title,
+                categoryId,
+                xp: getQuestXpForDifficulty(difficulty),
+                difficulty,
+                target,
+                repeat: safeRepeat,
+                scheduledWeekday:
+                  safeRepeat === "weekly"
+                    ? normalizeScheduledWeekday(scheduledWeekday, getTodayWeekday())
+                    : undefined,
+              }
+            : quest
+        ),
+      }));
+      setEditingQuestId(null);
+    },
+    [questLimitDateKeys, state.quests, updateStoredState]
+  );
+
   if (!hydrated) {
     return (
       <SafeAreaView edges={["top"]} style={styles.safe}>
@@ -950,6 +1036,76 @@ export default function PlanScreen() {
           <View style={styles.headerCopy}>
             <Text style={styles.title}>Plan</Text>
             <Text style={styles.subtitle}>Today, week, and library</Text>
+          </View>
+        </View>
+
+        <View style={styles.daysTopSection}>
+          <PlanSectionHeader eyebrow="Week" title="Days" meta={`${weeklyQuestSlots} slots`} styles={styles} compact />
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.dayRailContent}
+          >
+            {weekPlan.map((day) => (
+              <DayPlanCard
+                key={day.dateKey}
+                day={day}
+                selected={day.dateKey === selectedDay.dateKey}
+                styles={styles}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setSelectedDateKey(day.dateKey);
+                }}
+              />
+            ))}
+          </ScrollView>
+        </View>
+
+        <View style={styles.section}>
+          <PlanSectionHeader
+            eyebrow={selectedDay.isToday ? "Today" : selectedDay.dayLabel}
+            title={`${selectedDay.dateLabel} Board`}
+            meta={selectedDayMeta}
+            styles={styles}
+          />
+          <View style={styles.heroMetricRow}>
+            <PlanMetricTile
+              label="slots"
+              value={`${selectedDayQuests.length}/${MAX_ACTIVE_QUESTS_PER_DAY}`}
+              tone={selectedDayTone}
+              styles={styles}
+            />
+            <PlanMetricTile
+              label="contracts"
+              value={`${selectedDayContractCount}`}
+              tone={PLAN_TONES.contract}
+              styles={styles}
+            />
+            <PlanMetricTile
+              label={selectedDay.isToday ? "done" : "hard"}
+              value={`${selectedDay.isToday ? selectedDayCompletedCount : selectedDayHardCount}`}
+              tone={selectedDay.isToday ? todayBrief.tone : selectedDayTone}
+              styles={styles}
+            />
+          </View>
+          <View style={styles.questList}>
+            {selectedDayQuests.map((quest) => (
+              <QuestLibraryRow
+                key={`selected-day-${quest.id}`}
+                quest={quest}
+                colors={colors}
+                styles={styles}
+                onEdit={setEditingQuestId}
+                onTogglePause={toggleQuestPause}
+                onToggleContract={toggleQuestContract}
+              />
+            ))}
+            {selectedDayQuests.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyTitle}>No quests scheduled</Text>
+                <Text style={styles.emptyLine}>This day has open room.</Text>
+              </View>
+            ) : null}
           </View>
         </View>
 
@@ -990,7 +1146,7 @@ export default function PlanScreen() {
             <PlanMetricTile
               label="contracts"
               value={todaysContractQuests.length > 0 ? `${todaysContractDoneCount}/${todaysContractQuests.length}` : `${contractCount}/3`}
-              tone={PLAN_TONES.gold}
+              tone={PLAN_TONES.contract}
               styles={styles}
             />
             <PlanMetricTile
@@ -1002,14 +1158,22 @@ export default function PlanScreen() {
           </View>
 
           {leadPriorityQuest ? (
-            <View style={styles.nextActionPanel}>
+            <View
+              style={[
+                styles.nextActionPanel,
+                {
+                  borderColor: withAlpha(getQuestTone(leadPriorityQuest), 0.24),
+                  backgroundColor: withAlpha(getQuestTone(leadPriorityQuest), 0.045),
+                },
+              ]}
+            >
               <View style={[styles.nextActionIcon, { borderColor: withAlpha(getQuestTone(leadPriorityQuest), 0.36) }]}>
                 <IconSymbol name={getQuestIcon(leadPriorityQuest)} size={16} color={getQuestTone(leadPriorityQuest)} />
               </View>
               <View style={styles.nextActionCopy}>
                 <Text style={styles.nextActionLabel}>Next Move</Text>
                 <Text style={styles.nextActionTitle} numberOfLines={1}>
-                  {leadPriorityQuest.contract ? "Contract: " : ""}
+                  {leadPriorityQuest.contract ? "Protect: " : ""}
                   {leadPriorityQuest.title}
                 </Text>
               </View>
@@ -1018,31 +1182,6 @@ export default function PlanScreen() {
         </View>
 
         <View style={styles.section}>
-          <PlanSectionHeader
-            eyebrow="Today"
-            title="Board"
-            meta={`${todaysCompletedCount}/${todaysQuests.length} done`}
-            styles={styles}
-          />
-          <View style={styles.questList}>
-            {todaysQuests.map((quest) => (
-              <QuestLibraryRow
-                key={`today-${quest.id}`}
-                quest={quest}
-                colors={colors}
-                styles={styles}
-                onTogglePause={toggleQuestPause}
-                onToggleContract={toggleQuestContract}
-              />
-            ))}
-            {todaysQuests.length === 0 ? (
-              <View style={styles.emptyCard}>
-                <Text style={styles.emptyTitle}>No quests scheduled today</Text>
-                <Text style={styles.emptyLine}>Add a smart pick or resume something resting.</Text>
-              </View>
-            ) : null}
-          </View>
-
           {recommendedTemplates.length > 0 ? (
             <View style={styles.sectionSubBlock}>
               <PlanSectionHeader
@@ -1102,7 +1241,7 @@ export default function PlanScreen() {
           <View style={styles.sectionSubBlock}>
             <PlanSectionHeader
               eyebrow="Protect"
-              title="Contracts"
+              title="Protected Contracts"
               meta={`${availableContractSlots} open`}
               styles={styles}
               compact
@@ -1115,12 +1254,19 @@ export default function PlanScreen() {
                     key={`contract-slot-${index}`}
                     style={[
                       styles.contractSlot,
-                      quest ? styles.contractSlotFilled : null,
+                      quest ? styles.contractSlotFilled : styles.contractSlotOpen,
                     ]}
                   >
-                    <Text style={styles.contractSlotLabel}>Slot {index + 1}</Text>
+                    <Text
+                      style={[
+                        styles.contractSlotLabel,
+                        quest && styles.contractSlotLabelFilled,
+                      ]}
+                    >
+                      Guard {index + 1}
+                    </Text>
                     <Text style={styles.contractSlotTitle} numberOfLines={1}>
-                      {quest?.title ?? "Open"}
+                      {quest?.title ?? "Open guard"}
                     </Text>
                   </View>
                 );
@@ -1155,36 +1301,6 @@ export default function PlanScreen() {
         </View>
 
         <View style={styles.section}>
-          <PlanSectionHeader eyebrow="Week" title="Outlook" meta={`${weeklyQuestSlots} slots`} styles={styles} />
-          <View style={styles.weekSignalRail}>
-            {weekPlan.map((day) => {
-              const tone = getDayTone(day);
-              return (
-                <View key={day.dateKey} style={styles.weekSignalColumn}>
-                  <View
-                    style={[
-                      styles.weekSignalDot,
-                      {
-                        backgroundColor: tone,
-                        opacity: day.quests.length > 0 || day.isToday ? 1 : 0.36,
-                      },
-                    ]}
-                  />
-                  <Text style={[styles.weekSignalLabel, day.isToday && { color: PLAN_TONES.gold }]}>
-                    {day.isToday ? "Now" : day.dayLabel}
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
-          <View style={styles.dayGrid}>
-            {weekPlan.map((day) => (
-              <DayPlanCard key={day.dateKey} day={day} styles={styles} />
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.section}>
           <PlanSectionHeader
             eyebrow="Library"
             title="Quest Library"
@@ -1198,6 +1314,7 @@ export default function PlanScreen() {
                 quest={quest}
                 colors={colors}
                 styles={styles}
+                onEdit={setEditingQuestId}
                 onTogglePause={toggleQuestPause}
                 onToggleContract={toggleQuestContract}
               />
@@ -1208,6 +1325,7 @@ export default function PlanScreen() {
                 quest={quest}
                 colors={colors}
                 styles={styles}
+                onEdit={setEditingQuestId}
                 onTogglePause={toggleQuestPause}
                 onToggleContract={toggleQuestContract}
               />
@@ -1223,6 +1341,14 @@ export default function PlanScreen() {
 
         <Footer />
       </ScrollView>
+      {editingQuest ? (
+        <EditQuestForm
+          quest={editingQuest}
+          categories={state.categories}
+          onSave={editQuest}
+          onCancel={() => setEditingQuestId(null)}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -1236,7 +1362,7 @@ function createPlanStyles(colors: ThemeColors) {
     container: {
       paddingHorizontal: 16,
       paddingTop: 14,
-      paddingBottom: 112,
+      paddingBottom: 18,
       gap: 18,
     },
     loadingWrap: {
@@ -1369,7 +1495,7 @@ function createPlanStyles(colors: ThemeColors) {
       gap: 10,
       borderRadius: 8,
       borderWidth: 1,
-      borderColor: withAlpha(PLAN_TONES.gold, 0.2),
+      borderColor: withAlpha(colors.border, 0.2),
       backgroundColor: withAlpha(colors.bg, 0.26),
       padding: 10,
     },
@@ -1460,6 +1586,9 @@ function createPlanStyles(colors: ThemeColors) {
     section: {
       gap: 9,
     },
+    daysTopSection: {
+      gap: 9,
+    },
     sectionSubBlock: {
       gap: 9,
       borderTopWidth: 1,
@@ -1501,8 +1630,8 @@ function createPlanStyles(colors: ThemeColors) {
     sectionMetaPill: {
       borderRadius: 999,
       borderWidth: 1,
-      borderColor: withAlpha(PLAN_TONES.gold, 0.22),
-      backgroundColor: withAlpha(PLAN_TONES.gold, 0.065),
+      borderColor: withAlpha(colors.border, 0.24),
+      backgroundColor: withAlpha(colors.bg, 0.22),
       paddingHorizontal: 9,
       paddingVertical: 5,
     },
@@ -1517,6 +1646,11 @@ function createPlanStyles(colors: ThemeColors) {
     },
     dayGrid: {
       gap: 8,
+    },
+    dayRailContent: {
+      gap: 10,
+      paddingRight: 2,
+      paddingBottom: 2,
     },
     priorityPanel: {
       borderRadius: 8,
@@ -1561,14 +1695,19 @@ function createPlanStyles(colors: ThemeColors) {
       fontWeight: "900",
     },
     dayCard: {
+      width: 132,
+      minHeight: 78,
       borderRadius: 8,
       borderWidth: 1,
       borderColor: withAlpha(colors.border, 0.22),
       backgroundColor: withAlpha(colors.surface, 0.9),
-      paddingHorizontal: 11,
-      paddingVertical: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 9,
       gap: 7,
       overflow: "hidden",
+    },
+    dayCardSelected: {
+      borderWidth: 1,
     },
     dayAccentRail: {
       position: "absolute",
@@ -1631,41 +1770,6 @@ function createPlanStyles(colors: ThemeColors) {
       height: "100%",
       borderRadius: 999,
     },
-    dayMetricRow: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 7,
-    },
-    dayMetric: {
-      color: colors.textSecondary,
-      fontSize: 10,
-      lineHeight: 15,
-      fontWeight: "800",
-    },
-    dayQuestLine: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 7,
-      minWidth: 0,
-    },
-    dayQuestDot: {
-      width: 6,
-      height: 6,
-      borderRadius: 999,
-    },
-    dayQuestText: {
-      flex: 1,
-      minWidth: 0,
-      color: colors.textPrimary,
-      fontSize: 12,
-      lineHeight: 15,
-      fontWeight: "700",
-    },
-    dayMoreText: {
-      color: PLAN_TONES.gold,
-      fontSize: 12,
-      fontWeight: "800",
-    },
     questList: {
       gap: 10,
     },
@@ -1691,9 +1795,12 @@ function createPlanStyles(colors: ThemeColors) {
       paddingVertical: 8,
       justifyContent: "center",
     },
+    contractSlotOpen: {
+      borderStyle: "dashed",
+    },
     contractSlotFilled: {
-      borderColor: withAlpha(PLAN_TONES.gold, 0.36),
-      backgroundColor: withAlpha(PLAN_TONES.gold, 0.08),
+      borderColor: withAlpha(PLAN_TONES.contract, 0.4),
+      backgroundColor: withAlpha(PLAN_TONES.contract, 0.08),
     },
     contractSlotLabel: {
       color: withAlpha(colors.textSecondary, 0.8),
@@ -1702,6 +1809,9 @@ function createPlanStyles(colors: ThemeColors) {
       fontWeight: "900",
       letterSpacing: 0,
       textTransform: "uppercase",
+    },
+    contractSlotLabelFilled: {
+      color: PLAN_TONES.contract,
     },
     contractSlotTitle: {
       color: colors.textPrimary,
@@ -1816,6 +1926,10 @@ function createPlanStyles(colors: ThemeColors) {
       justifyContent: "center",
       borderWidth: 1,
     },
+    smallButtonWithIcon: {
+      flexDirection: "row",
+      gap: 6,
+    },
     primaryButton: {
       backgroundColor: PLAN_TONES.gold,
       borderColor: PLAN_TONES.gold,
@@ -1823,6 +1937,14 @@ function createPlanStyles(colors: ThemeColors) {
     secondaryButton: {
       backgroundColor: withAlpha(PLAN_TONES.gold, 0.08),
       borderColor: withAlpha(PLAN_TONES.gold, 0.3),
+    },
+    contractButton: {
+      backgroundColor: withAlpha(PLAN_TONES.contract, 0.1),
+      borderColor: withAlpha(PLAN_TONES.contract, 0.34),
+    },
+    neutralButton: {
+      backgroundColor: withAlpha(colors.bg, 0.26),
+      borderColor: withAlpha(colors.border, 0.28),
     },
     ghostButton: {
       backgroundColor: withAlpha(colors.bg, 0.22),

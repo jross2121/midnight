@@ -6,7 +6,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { HOME_GOLD } from "./_styles";
+import { CONTRACT_BLUE, HOME_GOLD } from "./_styles";
 import { getCategoryDisplayName } from "./_utils/categoryLabels";
 import { localDateKey } from "./_utils/dateHelpers";
 import {
@@ -497,6 +497,7 @@ export default function FocusScreen() {
           ) : (
             activeQuests.map((quest) => {
               const selected = selectedQuest?.id === quest.id;
+              const questTone = quest.contract ? CONTRACT_BLUE : HOME_GOLD;
               return (
                 <Pressable
                   key={quest.id}
@@ -507,14 +508,27 @@ export default function FocusScreen() {
                   style={[
                     styles.taskRow,
                     selected && styles.taskRowSelected,
+                    selected && quest.contract && {
+                      borderColor: withAlpha(CONTRACT_BLUE, 0.48),
+                      backgroundColor: withAlpha(CONTRACT_BLUE, 0.09),
+                    },
                     running && !selected && styles.taskRowDisabled,
                   ]}
                 >
-                  <View style={[styles.taskIcon, selected && styles.taskIconSelected]}>
+                  <View
+                    style={[
+                      styles.taskIcon,
+                      selected && styles.taskIconSelected,
+                      selected && quest.contract && {
+                        borderColor: withAlpha(CONTRACT_BLUE, 0.4),
+                        backgroundColor: withAlpha(CONTRACT_BLUE, 0.12),
+                      },
+                    ]}
+                  >
                     <IconSymbol
-                      name={quest.contract ? "pin.fill" : quest.pinned ? "star.fill" : "checkmark.circle.fill"}
+                      name={quest.contract ? "shield.fill" : quest.pinned ? "star.fill" : "checkmark.circle.fill"}
                       size={18}
-                      color={selected ? HOME_GOLD : colors.textSecondary}
+                      color={selected ? questTone : colors.textSecondary}
                     />
                   </View>
                   <View style={styles.taskCopy}>
@@ -525,7 +539,7 @@ export default function FocusScreen() {
                       {categoryName(quest.categoryId)} - {quest.difficulty.toUpperCase()} - {quest.xp} XP
                     </Text>
                   </View>
-                  <Text style={[styles.taskState, selected && styles.taskStateSelected]}>
+                  <Text style={[styles.taskState, selected && styles.taskStateSelected, selected && quest.contract && { color: CONTRACT_BLUE }]}>
                     {selected ? "Locked" : "Select"}
                   </Text>
                 </Pressable>
@@ -561,7 +575,7 @@ function createFocusStyles(colors: ThemeColors) {
     container: {
       paddingHorizontal: ui.spacing.screen,
       paddingTop: ui.spacing.screen,
-      paddingBottom: ui.spacing.xl * 3,
+      paddingBottom: ui.spacing.lg,
       gap: ui.spacing.sm,
     },
     pageHeader: {

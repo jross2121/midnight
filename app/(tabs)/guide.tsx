@@ -4,7 +4,7 @@ import React, { useMemo } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { HOME_GOLD } from "./_styles";
+import { CONTRACT_BLUE, HOME_GOLD } from "./_styles";
 import { createTileSurface, ui, withAlpha } from "./_utils/designSystem";
 import { useTheme, type ThemeColors } from "./_utils/themeContext";
 
@@ -90,21 +90,33 @@ export default function GuideScreen() {
         <View style={styles.block}>
           <Text style={styles.blockTitle}>Main Rules</Text>
           <View style={styles.ruleList}>
-            {GUIDE_SECTIONS.map((section) => (
-              <View key={section.title} style={styles.ruleRow}>
-                <View style={styles.ruleIcon}>
-                  <IconSymbol name={section.icon} size={17} color={HOME_GOLD} />
-                </View>
-                <View style={styles.ruleCopy}>
-                  <View style={styles.ruleTitleRow}>
-                    <Text style={styles.ruleTitle}>{section.title}</Text>
-                    <Text style={styles.ruleLabel}>{section.label}</Text>
+            {GUIDE_SECTIONS.map((section) => {
+              const isContractSection = section.title === "Contracts";
+              const tone = isContractSection ? CONTRACT_BLUE : HOME_GOLD;
+              return (
+                <View key={section.title} style={styles.ruleRow}>
+                  <View
+                    style={[
+                      styles.ruleIcon,
+                      isContractSection && {
+                        borderColor: withAlpha(CONTRACT_BLUE, 0.3),
+                        backgroundColor: withAlpha(CONTRACT_BLUE, 0.09),
+                      },
+                    ]}
+                  >
+                    <IconSymbol name={section.icon} size={17} color={tone} />
                   </View>
-                  <Text style={styles.ruleBody}>{section.body}</Text>
-                  <Text style={styles.ruleSummary}>{section.summary}</Text>
+                  <View style={styles.ruleCopy}>
+                    <View style={styles.ruleTitleRow}>
+                      <Text style={styles.ruleTitle}>{section.title}</Text>
+                      <Text style={[styles.ruleLabel, { color: tone }]}>{section.label}</Text>
+                    </View>
+                    <Text style={styles.ruleBody}>{section.body}</Text>
+                    <Text style={[styles.ruleSummary, { color: tone }]}>{section.summary}</Text>
+                  </View>
                 </View>
-              </View>
-            ))}
+              );
+            })}
           </View>
         </View>
 
@@ -140,7 +152,7 @@ function createGuideStyles(colors: ThemeColors) {
     container: {
       paddingHorizontal: ui.spacing.screen,
       paddingTop: ui.spacing.screen,
-      paddingBottom: ui.spacing.xl * 3,
+      paddingBottom: ui.spacing.lg,
       gap: 12,
     },
     pageHeader: {

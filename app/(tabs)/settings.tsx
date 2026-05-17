@@ -7,7 +7,7 @@ import React, { useCallback, useState } from "react";
 import { Alert, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Footer } from "./_components/Footer";
-import { HOME_GOLD, createStyles } from "./_styles";
+import { CONTRACT_BLUE, HOME_GOLD, createStyles } from "./_styles";
 import { localDateKey } from "./_utils/dateHelpers";
 import { defaultLastCompletionPct, defaultLastDrDelta, defaultLastDrUpdateDate } from "./_utils/defaultData";
 import { withAlpha } from "./_utils/designSystem";
@@ -191,11 +191,13 @@ export default function SettingsScreen() {
     description: string,
     enabledKey: ReminderEnabledKey,
     hourKey: ReminderHourKey,
-    minuteKey: ReminderMinuteKey
+    minuteKey: ReminderMinuteKey,
+    tone = SETTINGS_ACCENT
   ) => {
     const enabled = reminderSettings[enabledKey];
     const time = formatReminderTime(reminderSettings[hourKey], reminderSettings[minuteKey]);
     const controlsDisabled = remindersSaving || !reminderSettings.enabled;
+    const hasCustomTone = tone !== SETTINGS_ACCENT;
 
     return (
       <View
@@ -209,7 +211,7 @@ export default function SettingsScreen() {
       >
         <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={[styles.cardTitle, { color: colors.textPrimary, fontSize: 14 }]}>
+            <Text style={[styles.cardTitle, { color: hasCustomTone ? tone : colors.textPrimary, fontSize: 14 }]}>
               {title}
             </Text>
             <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 4 }]}>
@@ -224,7 +226,7 @@ export default function SettingsScreen() {
             style={({ pressed }) => [
               {
                 alignSelf: "flex-start",
-                backgroundColor: enabled ? SETTINGS_ACCENT : settingsInputSurface.backgroundColor,
+                backgroundColor: enabled ? tone : settingsInputSurface.backgroundColor,
                 borderWidth: enabled ? 0 : 1,
                 borderColor: settingsInputSurface.borderColor,
                 borderRadius: 8,
@@ -278,11 +280,11 @@ export default function SettingsScreen() {
               justifyContent: "center",
               borderRadius: 8,
               borderWidth: 1,
-              borderColor: settingsInputSurface.borderColor,
-              backgroundColor: settingsInputSurface.backgroundColor,
+              borderColor: hasCustomTone ? withAlpha(tone, 0.28) : settingsInputSurface.borderColor,
+              backgroundColor: hasCustomTone ? withAlpha(tone, 0.08) : settingsInputSurface.backgroundColor,
             }}
           >
-            <Text style={{ color: colors.textPrimary, fontWeight: "900", fontSize: 13 }}>
+            <Text style={{ color: hasCustomTone ? tone : colors.textPrimary, fontWeight: "900", fontSize: 13 }}>
               {time}
             </Text>
           </View>
@@ -707,7 +709,8 @@ export default function SettingsScreen() {
             "Catch contract quests before the day resets.",
             "contractEnabled",
             "contractHour",
-            "contractMinute"
+            "contractMinute",
+            CONTRACT_BLUE
           )}
           {renderReminderRow(
             "Next Move",

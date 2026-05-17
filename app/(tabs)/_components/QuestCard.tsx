@@ -2,7 +2,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import * as Haptics from "expo-haptics";
 import React, { useRef, useState } from "react";
 import { Alert, Animated, Easing, Pressable, Text, View } from "react-native";
-import { HOME_GOLD, createStyles } from "../_styles";
+import { CONTRACT_BLUE, HOME_GOLD, createStyles } from "../_styles";
 import { getCategoryArtById } from "../_utils/categoryArt";
 import { withAlpha } from "../_utils/designSystem";
 import { getQuestRepeatLabel } from "../_utils/recurrence";
@@ -40,7 +40,7 @@ export const QuestCard = React.memo(function QuestCard({
   const [deletePressed, setDeletePressed] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const categoryArt = getCategoryArtById(quest.categoryId);
-  const questAccent = quest.pinned || quest.contract ? HOME_GOLD : categoryArt.color;
+  const questAccent = quest.contract ? CONTRACT_BLUE : quest.pinned ? HOME_GOLD : categoryArt.color;
   const hasStatus = !quest.done && (quest.pinned || quest.contract);
 
   const flashOpacity = useRef(new Animated.Value(0)).current;
@@ -170,7 +170,7 @@ export const QuestCard = React.memo(function QuestCard({
         styles.questCard,
         { borderColor: withAlpha(colors.border, 0.28) },
         quest.contract && !quest.done && styles.questContract,
-        quest.pinned && !quest.done && styles.questContract,
+        quest.pinned && !quest.contract && !quest.done && styles.questPinned,
         quest.done && styles.questDone,
         {
           opacity: cardOpacity,
@@ -185,7 +185,8 @@ export const QuestCard = React.memo(function QuestCard({
           { backgroundColor: HOME_GOLD, opacity: flashOpacity },
         ]}
       />
-      {(quest.contract || quest.pinned) && !quest.done ? <View pointerEvents="none" style={styles.questContractRail} /> : null}
+      {quest.contract && !quest.done ? <View pointerEvents="none" style={styles.questContractRail} /> : null}
+      {quest.pinned && !quest.contract && !quest.done ? <View pointerEvents="none" style={styles.questPinnedRail} /> : null}
 
       <View style={styles.questHeader}>
         <Pressable
@@ -274,7 +275,7 @@ export const QuestCard = React.memo(function QuestCard({
                 <Text
                   style={[
                     styles.statusPill,
-                    { color: HOME_GOLD, backgroundColor: withAlpha(HOME_GOLD, 0.1) },
+                    { color: CONTRACT_BLUE, backgroundColor: withAlpha(CONTRACT_BLUE, 0.1) },
                   ]}
                 >
                   CONTRACT
@@ -339,7 +340,7 @@ export const QuestCard = React.memo(function QuestCard({
               style={[
                 styles.questActionToolBtn,
                 quest.contract
-                  ? { backgroundColor: withAlpha(HOME_GOLD, 0.1), borderColor: withAlpha(HOME_GOLD, 0.38) }
+                  ? { backgroundColor: withAlpha(CONTRACT_BLUE, 0.1), borderColor: withAlpha(CONTRACT_BLUE, 0.38) }
                   : { backgroundColor: withAlpha(colors.bg, 0.35), borderColor: withAlpha(colors.border, 0.28) },
                 contractPressed && styles.btnPressed,
               ]}
@@ -349,7 +350,7 @@ export const QuestCard = React.memo(function QuestCard({
               accessibilityRole="button"
               accessibilityLabel={`${quest.contract ? "Remove contract from" : "Make contract"} ${quest.title}`}
             >
-              <IconSymbol name="shield.fill" size={17} color={quest.contract ? HOME_GOLD : colors.textSecondary} />
+              <IconSymbol name="shield.fill" size={17} color={quest.contract ? CONTRACT_BLUE : colors.textSecondary} />
             </Pressable>
 
             <Pressable

@@ -3,6 +3,7 @@ import { createCardSurface, createTileSurface, ui, withAlpha } from "./_utils/de
 import type { ThemeColors } from "./_utils/themeContext";
 
 export const HOME_GOLD = "#F5B84B";
+export const CONTRACT_BLUE = "#22D3EE";
 export const HOME_BLUE_HINT = HOME_GOLD;
 const HOME_NAVY = "#07111F";
 const HOME_NAVY_SOFT = "#101D30";
@@ -51,7 +52,7 @@ export const createStyles = (colors: ThemeColors) => {
     container: {
       paddingHorizontal: ui.spacing.screen,
       paddingTop: ui.spacing.screen,
-      paddingBottom: ui.spacing.xl * 3,
+      paddingBottom: ui.spacing.lg,
     },
 
     title: {
@@ -834,8 +835,8 @@ export const createStyles = (colors: ThemeColors) => {
       height: 34,
       borderRadius: 12,
       borderWidth: 1,
-      borderColor: withAlpha(HOME_GOLD, 0.32),
-      backgroundColor: withAlpha(HOME_GOLD, 0.1),
+      borderColor: withAlpha(CONTRACT_BLUE, 0.34),
+      backgroundColor: withAlpha(CONTRACT_BLUE, 0.1),
       alignItems: "center",
       justifyContent: "center",
       flexShrink: 0,
@@ -856,14 +857,14 @@ export const createStyles = (colors: ThemeColors) => {
     },
     contractCounterPill: {
       borderWidth: 1,
-      borderColor: withAlpha(HOME_GOLD, 0.5),
-      backgroundColor: withAlpha(HOME_GOLD, 0.14),
+      borderColor: withAlpha(CONTRACT_BLUE, 0.5),
+      backgroundColor: withAlpha(CONTRACT_BLUE, 0.14),
       borderRadius: 999,
       paddingHorizontal: ui.spacing.sm,
       paddingVertical: 5,
     },
     contractCounterText: {
-      color: colors.textPrimary,
+      color: CONTRACT_BLUE,
       fontSize: 11,
       fontWeight: "900",
       letterSpacing: 0,
@@ -874,7 +875,7 @@ export const createStyles = (colors: ThemeColors) => {
       backgroundColor: withAlpha(colors.bg, 0.8),
       overflow: "hidden",
       borderWidth: 1,
-      borderColor: withAlpha(HOME_BLUE_BORDER, 0.46),
+      borderColor: withAlpha(CONTRACT_BLUE, 0.3),
     },
     contractProgressFill: {
       height: "100%",
@@ -1080,14 +1081,14 @@ export const createStyles = (colors: ThemeColors) => {
       alignItems: "center",
       gap: 5,
       borderWidth: 1,
-      borderColor: withAlpha(HOME_GOLD, 0.36),
-      backgroundColor: withAlpha(HOME_GOLD, 0.1),
+      borderColor: withAlpha(CONTRACT_BLUE, 0.36),
+      backgroundColor: withAlpha(CONTRACT_BLUE, 0.1),
       borderRadius: 999,
       paddingHorizontal: 9,
       paddingVertical: 4,
     },
     nextMoveBadgeText: {
-      color: HOME_GOLD,
+      color: CONTRACT_BLUE,
       fontSize: 10,
       lineHeight: 15,
       fontWeight: "900",
@@ -1411,9 +1412,9 @@ export const createStyles = (colors: ThemeColors) => {
       borderRadius: 12,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: withAlpha(HOME_GOLD, 0.1),
+      backgroundColor: withAlpha(CONTRACT_BLUE, 0.1),
       borderWidth: 1,
-      borderColor: withAlpha(HOME_GOLD, 0.26),
+      borderColor: withAlpha(CONTRACT_BLUE, 0.26),
     },
     templateTitle: {
       color: colors.textPrimary,
@@ -1801,10 +1802,23 @@ export const createStyles = (colors: ThemeColors) => {
       overflow: "hidden",
     },
     questContract: {
+      backgroundColor: withAlpha(CONTRACT_BLUE, 0.045),
+      borderBottomColor: withAlpha(CONTRACT_BLUE, 0.3),
+    },
+    questPinned: {
       backgroundColor: withAlpha(HOME_GOLD, 0.045),
       borderBottomColor: withAlpha(HOME_GOLD, 0.28),
     },
     questContractRail: {
+      position: "absolute",
+      left: 0,
+      top: 8,
+      bottom: 8,
+      width: 3,
+      borderRadius: 999,
+      backgroundColor: withAlpha(CONTRACT_BLUE, 0.78),
+    },
+    questPinnedRail: {
       position: "absolute",
       left: 0,
       top: 8,

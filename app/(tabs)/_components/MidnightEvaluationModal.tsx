@@ -5,7 +5,7 @@ import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { HOME_GOLD } from "../_styles";
+import { CONTRACT_BLUE, HOME_GOLD } from "../_styles";
 import type { MidnightEvaluationData } from "../_utils/midnightEvaluation";
 import type { NextDayPlan } from "../_utils/planning";
 
@@ -376,9 +376,9 @@ function makeStyles(
     },
     contractCard: {
       borderWidth: 1,
-      borderColor: withAlpha(accentPrimary, 0.2),
+      borderColor: withAlpha(CONTRACT_BLUE, 0.28),
       borderRadius: 12,
-      backgroundColor: withAlpha(colors.surface2, 0.48),
+      backgroundColor: withAlpha(CONTRACT_BLUE, 0.055),
       padding: 12,
       gap: 10,
     },
@@ -404,7 +404,7 @@ function makeStyles(
       marginTop: 3,
     },
     contractPercent: {
-      color: accentPrimary,
+      color: CONTRACT_BLUE,
       fontSize: 20,
       lineHeight: 24,
       fontWeight: "900",
@@ -420,7 +420,7 @@ function makeStyles(
     contractFill: {
       height: "100%",
       borderRadius: 999,
-      backgroundColor: accentPrimary,
+      backgroundColor: CONTRACT_BLUE,
     },
 
     statusPanel: {

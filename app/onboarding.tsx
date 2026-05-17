@@ -5,7 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { HOME_GOLD } from "./(tabs)/_styles";
+import { CONTRACT_BLUE, HOME_GOLD } from "./(tabs)/_styles";
 import { createCardSurface, ui, withAlpha } from "./(tabs)/_utils/designSystem";
 import { useTheme } from "./(tabs)/_utils/themeContext";
 import { ONBOARDING_STORAGE_KEY } from "./(tabs)/_utils/types";
@@ -38,6 +38,9 @@ const slides: Slide[] = [
   },
 ];
 
+const getSlideTone = (slide: Slide) =>
+  slide.title === "Protect Your Contracts" ? CONTRACT_BLUE : HOME_GOLD;
+
 export default function OnboardingScreen() {
   const router = useRouter();
   const { colors } = useTheme();
@@ -46,6 +49,7 @@ export default function OnboardingScreen() {
 
   const isLastSlide = index === slides.length - 1;
   const activeSlide = slides[index];
+  const activeTone = getSlideTone(activeSlide);
 
   useEffect(() => {
     slideAnim.setValue(0);
@@ -84,7 +88,6 @@ export default function OnboardingScreen() {
           backgroundColor: colors.border,
         },
         dotActive: {
-          backgroundColor: HOME_GOLD,
           width: 20,
         },
         card: {
@@ -105,7 +108,6 @@ export default function OnboardingScreen() {
           ...ui.typography.title,
           fontSize: 34,
           lineHeight: 38,
-          color: HOME_GOLD,
           textAlign: "center",
           marginBottom: ui.spacing.md,
         },
@@ -188,7 +190,11 @@ export default function OnboardingScreen() {
           {slides.map((_, dotIndex) => (
             <View
               key={dotIndex}
-              style={[styles.dot, dotIndex === index ? styles.dotActive : null]}
+              style={[
+                styles.dot,
+                dotIndex === index && styles.dotActive,
+                dotIndex === index && { backgroundColor: activeTone },
+              ]}
             />
           ))}
         </View>
@@ -209,7 +215,7 @@ export default function OnboardingScreen() {
             },
           ]}
         >
-          <Text style={styles.title}>{activeSlide.title}</Text>
+          <Text style={[styles.title, { color: activeTone }]}>{activeSlide.title}</Text>
           {activeSlide.text ? <Text style={styles.text}>{activeSlide.text}</Text> : null}
         </Animated.View>
 

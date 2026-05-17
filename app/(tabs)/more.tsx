@@ -139,7 +139,7 @@ function createMoreStyles(colors: ThemeColors) {
     container: {
       paddingHorizontal: ui.spacing.screen,
       paddingTop: ui.spacing.screen,
-      paddingBottom: ui.spacing.xl * 3,
+      paddingBottom: ui.spacing.lg,
       gap: ui.spacing.sm,
     },
     pageHeader: {

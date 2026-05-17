@@ -4,6 +4,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { CONTRACT_BLUE } from "./_styles";
 import { RankBadge } from "./_components/RankBadge";
 import { defaultAchievements } from "./_utils/defaultData";
 import { createCardSurface, createTileSurface, ui, withAlpha } from "./_utils/designSystem";
@@ -186,10 +187,10 @@ function getTrackVisual(trackId: BadgeTrackId, isLightTheme: boolean): TrackVisu
   }
 
   return {
-    primary: RANK_TONE,
-    surface: isLightTheme ? "#FFF7E6" : "#281D0B",
-    border: isLightTheme ? "#F0C96E" : "#6B4C1A",
-    text: isLightTheme ? "#8A5A00" : "#FFE19A",
+    primary: CONTRACT_BLUE,
+    surface: isLightTheme ? "#ECFEFF" : "#082331",
+    border: isLightTheme ? "#67E8F9" : "#155E75",
+    text: isLightTheme ? "#0E7490" : "#A5F3FC",
   };
 }
 
@@ -599,7 +600,7 @@ function createDisciplineStyles(colors: ThemeColors, theme: Theme) {
     container: {
       paddingHorizontal: ui.spacing.screen,
       paddingTop: ui.spacing.screen,
-      paddingBottom: ui.spacing.xl * 3,
+      paddingBottom: ui.spacing.lg,
       gap: ui.spacing.sm,
     },
     pageHeader: {

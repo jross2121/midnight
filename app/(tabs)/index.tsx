@@ -23,7 +23,7 @@ import { DayScoreRing } from "./_components/DayScoreRing";
 import { EditQuestForm } from "./_components/EditQuestForm";
 import { MidnightEvaluationModal } from "./_components/MidnightEvaluationModal";
 import { QuestCard } from "./_components/QuestCard";
-import { HOME_GOLD, createStyles } from "./_styles";
+import { CONTRACT_BLUE, HOME_GOLD, createStyles } from "./_styles";
 import { getCategoryDisplayName } from "./_utils/categoryLabels";
 import { diffDays, localDateKey, parseDateKey } from "./_utils/dateHelpers";
 import { withAlpha } from "./_utils/designSystem";
@@ -1365,7 +1365,7 @@ export default function HomeScreen() {
                 <View style={styles.contractHeaderRow}>
                   <View style={styles.contractTitleRow}>
                     <View style={styles.contractArtBadge}>
-                      <IconSymbol name="pin.fill" size={18} color={HOME_GOLD} />
+                      <IconSymbol name="shield.fill" size={18} color={CONTRACT_BLUE} />
                     </View>
                     <View>
                       <Text style={styles.contractEyebrow}>Midnight Contract</Text>
@@ -1384,7 +1384,7 @@ export default function HomeScreen() {
                       styles.contractProgressFill,
                       {
                         width: `${contractQuests.length > 0 ? Math.round((contractDoneCount / contractQuests.length) * 100) : 0}%`,
-                        backgroundColor: HOME_GOLD,
+                        backgroundColor: CONTRACT_BLUE,
                       },
                     ]}
                   />
@@ -1450,15 +1450,15 @@ export default function HomeScreen() {
                     style={[
                       styles.nextMoveArtBadge,
                       {
-                        backgroundColor: withAlpha(HOME_GOLD, 0.11),
-                        borderColor: withAlpha(HOME_GOLD, 0.32),
+                        backgroundColor: withAlpha(nextMove?.contract ? CONTRACT_BLUE : HOME_GOLD, 0.11),
+                        borderColor: withAlpha(nextMove?.contract ? CONTRACT_BLUE : HOME_GOLD, 0.32),
                       },
                     ]}
                   >
                     <IconSymbol
-                      name={nextMove?.contract ? "pin.fill" : "checkmark.circle.fill"}
+                      name={nextMove?.contract ? "shield.fill" : "checkmark.circle.fill"}
                       size={22}
-                      color={HOME_GOLD}
+                      color={nextMove?.contract ? CONTRACT_BLUE : HOME_GOLD}
                     />
                   </View>
                   <View style={styles.nextMoveTextWrap}>
@@ -1485,7 +1485,7 @@ export default function HomeScreen() {
               </View>
               {nextMove?.contract ? (
                 <View style={styles.nextMoveBadge}>
-                  <IconSymbol name="pin.fill" size={12} color={HOME_GOLD} />
+                  <IconSymbol name="shield.fill" size={12} color={CONTRACT_BLUE} />
                   <Text style={styles.nextMoveBadgeText}>Contract Target</Text>
                 </View>
               ) : null}
