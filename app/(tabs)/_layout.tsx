@@ -85,10 +85,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="stats"
+        name="insights"
         options={{
-          title: 'Rank',
-          tabBarIcon: ({ color }) => <IconSymbol size={22} name="star.fill" color={color} />,
+          title: 'Insights',
+          tabBarIcon: ({ color }) => <IconSymbol size={22} name="chart.bar.fill" color={color} />,
         }}
       />
       <Tabs.Screen
@@ -98,7 +98,7 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="insights"
+        name="stats"
         options={{
           href: null,
         }}

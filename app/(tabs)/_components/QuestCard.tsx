@@ -41,7 +41,6 @@ export const QuestCard = React.memo(function QuestCard({
   const [isCompleting, setIsCompleting] = useState(false);
   const categoryArt = getCategoryArtById(quest.categoryId);
   const questAccent = quest.contract ? CONTRACT_BLUE : quest.pinned ? HOME_GOLD : categoryArt.color;
-  const hasStatus = !quest.done && (quest.pinned || quest.contract);
 
   const flashOpacity = useRef(new Animated.Value(0)).current;
   const cardOpacity = useRef(new Animated.Value(1)).current;
@@ -264,25 +263,39 @@ export const QuestCard = React.memo(function QuestCard({
             </Text>
           </View>
 
-          {hasStatus ? (
-            <View style={styles.questStatusStack}>
-              {quest.pinned && (
-                <View style={[styles.statusPillIcon, { backgroundColor: withAlpha(HOME_GOLD, 0.1) }]}>
-                  <IconSymbol name="pin.fill" size={12} color={HOME_GOLD} />
-                </View>
-              )}
-              {quest.contract && (
-                <Text
-                  style={[
-                    styles.statusPill,
-                    { color: CONTRACT_BLUE, backgroundColor: withAlpha(CONTRACT_BLUE, 0.1) },
-                  ]}
-                >
-                  CONTRACT
-                </Text>
-              )}
-            </View>
-          ) : null}
+          <View style={styles.questStatusStack}>
+            {quest.done ? (
+              <Text
+                style={[
+                  styles.statusPill,
+                  { color: HOME_GOLD, backgroundColor: withAlpha(HOME_GOLD, 0.11) },
+                ]}
+              >
+                DONE
+              </Text>
+            ) : null}
+            {!quest.done && quest.contract ? (
+              <Text
+                style={[
+                  styles.statusPill,
+                  { color: CONTRACT_BLUE, backgroundColor: withAlpha(CONTRACT_BLUE, 0.1) },
+                ]}
+              >
+                CONTRACT
+              </Text>
+            ) : null}
+            {!quest.done && quest.pinned ? (
+              <View style={[styles.statusPillIcon, { backgroundColor: withAlpha(HOME_GOLD, 0.1) }]}>
+                <IconSymbol name="pin.fill" size={12} color={HOME_GOLD} />
+              </View>
+            ) : null}
+            <IconSymbol
+              name="chevron.right"
+              size={18}
+              color={colors.textSecondary}
+              style={styles.questChevron}
+            />
+          </View>
         </Pressable>
       </View>
 

@@ -6,6 +6,7 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CONTRACT_BLUE } from "./_styles";
 import { RankBadge } from "./_components/RankBadge";
+import { ScreenHeader } from "./_components/ScreenHeader";
 import { defaultAchievements } from "./_utils/defaultData";
 import { createCardSurface, createTileSurface, ui, withAlpha } from "./_utils/designSystem";
 import { DR_RANK_THRESHOLDS, getNextRank, getRankFromDR, getRankMeta } from "./_utils/rank";
@@ -331,23 +332,12 @@ export default function StatsScreen() {
   return (
     <SafeAreaView edges={["top"]} style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.pageHeader}>
-          <View
-            style={[
-              styles.headerIcon,
-              {
-                borderColor: rankGoldBorder,
-                backgroundColor: rankGoldSoftSurface,
-              },
-            ]}
-          >
-            <IconSymbol name="star.fill" size={18} color={rankTone} />
-          </View>
-          <View style={styles.headerCopy}>
-            <Text style={styles.title}>Player Card</Text>
-            <Text style={styles.subtitle}>Rank, showcase, and climb path</Text>
-          </View>
-        </View>
+        <ScreenHeader
+          title="Player Card"
+          subtitle="Rank, showcase, and climb path"
+          icon="star.fill"
+          accent={rankTone}
+        />
 
         <View style={[styles.playerCard, { borderColor: rankGoldBorder }]}>
           <View style={styles.profileHeroRow}>
@@ -602,40 +592,6 @@ function createDisciplineStyles(colors: ThemeColors, theme: Theme) {
       paddingTop: ui.spacing.screen,
       paddingBottom: ui.spacing.lg,
       gap: ui.spacing.sm,
-    },
-    pageHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: ui.spacing.sm,
-      paddingBottom: ui.spacing.lg,
-      borderBottomWidth: 1,
-      borderBottomColor: divider,
-    },
-    headerIcon: {
-      width: 38,
-      height: 38,
-      borderRadius: ui.radius.md,
-      alignItems: "center",
-      justifyContent: "center",
-      borderWidth: 1,
-    },
-    headerCopy: {
-      flex: 1,
-      minWidth: 0,
-    },
-    title: {
-      color: colors.textPrimary,
-      fontSize: 24,
-      lineHeight: 28,
-      fontWeight: "900",
-      letterSpacing: 0,
-    },
-    subtitle: {
-      color: withAlpha(colors.textSecondary, 0.82),
-      fontSize: 12,
-      lineHeight: 16,
-      fontWeight: "700",
-      marginTop: 2,
     },
     playerCard: {
       ...heroSurface,

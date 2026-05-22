@@ -1,4 +1,3 @@
-import { IconSymbol } from "@/components/ui/icon-symbol";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import Constants from "expo-constants";
@@ -7,6 +6,7 @@ import React, { useCallback, useState } from "react";
 import { Alert, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Footer } from "./_components/Footer";
+import { ScreenHeader } from "./_components/ScreenHeader";
 import { CONTRACT_BLUE, HOME_GOLD, createStyles } from "./_styles";
 import { localDateKey } from "./_utils/dateHelpers";
 import { defaultLastCompletionPct, defaultLastDrDelta, defaultLastDrUpdateDate } from "./_utils/defaultData";
@@ -79,7 +79,6 @@ export default function SettingsScreen() {
   const isLightTheme = theme === "light";
   const settingsDividerColor = isLightTheme ? "#E2E8F0" : "#1A2633";
   const settingsGoldBorder = isLightTheme ? "#F0C96E" : "#5B421B";
-  const settingsGoldSoftSurface = isLightTheme ? "#FFF7E6" : "#1C1710";
   const settingsCardSurface = {
     backgroundColor: isLightTheme ? colors.surface : colors.surface2,
     borderColor: isLightTheme ? "#E2E8F0" : colors.border,
@@ -564,39 +563,12 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView edges={["top"]} style={[styles.safe, { backgroundColor: colors.bg }]}>
       <ScrollView contentContainerStyle={styles.container}>
-        {/* Header */}
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 12,
-            marginBottom: 18,
-            paddingBottom: 18,
-            borderBottomWidth: 1,
-            borderBottomColor: settingsDividerColor,
-          }}
-        >
-          <View
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 12,
-              alignItems: "center",
-              justifyContent: "center",
-              borderWidth: 1,
-              borderColor: settingsGoldBorder,
-              backgroundColor: settingsGoldSoftSurface,
-            }}
-          >
-            <IconSymbol name="gearshape.fill" size={21} color={SETTINGS_ACCENT} />
-          </View>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={styles.title}>Settings</Text>
-            <Text style={[styles.questMeta, { color: withAlpha(colors.textSecondary, 0.82), marginTop: 3 }]}>
-              Controls and backups
-            </Text>
-          </View>
-        </View>
+        <ScreenHeader
+          title="Settings"
+          subtitle="Controls and backups"
+          icon="gearshape.fill"
+          style={{ marginBottom: 18 }}
+        />
 
         {renderSettingsSectionLabel("Appearance", 0)}
         <View

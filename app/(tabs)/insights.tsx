@@ -1,13 +1,13 @@
-import { IconSymbol } from "@/components/ui/icon-symbol";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { CONTRACT_BLUE } from "./_styles";
+import { HOME_GOLD } from "./_styles";
 import { DisciplineCalendar, type DisciplineCalendarDay } from "./_components/DisciplineCalendar";
 import { DisciplinePatterns } from "./_components/DisciplinePatterns";
 import { RankBadge } from "./_components/RankBadge";
+import { ScreenHeader } from "./_components/ScreenHeader";
 import { getMainCategoryDisplayEntries } from "./_utils/categoryLabels";
 import {
     defaultCategories,
@@ -39,7 +39,8 @@ import { STORAGE_KEY } from "./_utils/types";
 
 const MAIN_CATEGORIES = getMainCategoryDisplayEntries();
 const INSIGHTS_UNLOCK_RANK = "Focused";
-const INSIGHTS_UNLOCK_TONE = "#F5B84B";
+const INSIGHTS_TONE = HOME_GOLD;
+const INSIGHTS_UNLOCK_TONE = HOME_GOLD;
 
 const LOCKED_INSIGHT_PREVIEWS = [
   {
@@ -63,6 +64,13 @@ type CategoryInsight = {
   completed: number;
   total: number;
 };
+
+type InsightMode = "today" | "history";
+
+const INSIGHT_MODES: { id: InsightMode; label: string }[] = [
+  { id: "today", label: "Today" },
+  { id: "history", label: "History" },
+];
 
 function isDrHistoryEntry(value: unknown): value is DrHistoryEntry {
   if (typeof value !== "object" || value === null) return false;
@@ -150,6 +158,7 @@ export default function InsightsScreen() {
   const [hydrated, setHydrated] = useState(false);
   const [readoutExpanded, setReadoutExpanded] = useState(false);
   const [selectedCoachPrompt, setSelectedCoachPrompt] = useState<CoachPromptId>("next");
+  const [selectedInsightMode, setSelectedInsightMode] = useState<InsightMode>("today");
 
   const loadData = useCallback(async () => {
     try {
@@ -200,7 +209,7 @@ export default function InsightsScreen() {
     disciplineRating,
     ...evaluationHistory.map((entry) => Math.max(entry.drBefore, entry.drAfter))
   );
-  const insightsUnlocked = peakRecordedDr >= focusedMinDr;
+  const insightsUnlocked = __DEV__ || peakRecordedDr >= focusedMinDr;
   const unlockProgressPercent = Math.min(
     100,
     Math.round((Math.max(0, peakRecordedDr) / focusedMinDr) * 100)
@@ -276,7 +285,6 @@ export default function InsightsScreen() {
     latest7History.length >= 2
       ? latest7History[latest7History.length - 1].drAfter - latest7History[0].drBefore
       : 0;
-  const weeklySolidDays = latest7History.filter((entry) => entry.completionRate >= 60).length;
   const weeklyContractDays = latest7History.filter(
     (entry) =>
       typeof entry.contractTotalCount === "number" &&
@@ -310,21 +318,23 @@ export default function InsightsScreen() {
       ? colors.positive
       : coachResponse.tone === "warning"
         ? colors.negative
-        : colors.accentPrimary;
+        : INSIGHTS_TONE;
+  const latestCompletionTone =
+    latestCompletion >= 80 ? colors.positive : latestCompletion >= 50 ? INSIGHTS_UNLOCK_TONE : colors.negative;
+  const weeklyTrendLabel = weekDelta > 0 ? "Rising" : weekDelta < 0 ? "Under pressure" : "Flat";
+  const categoryToneForPercent = (percent: number) =>
+    percent >= 80 ? colors.positive : percent >= 50 ? INSIGHTS_TONE : colors.negative;
 
   if (!insightsUnlocked) {
     return (
       <SafeAreaView edges={["top"]} style={styles.safe}>
         <ScrollView contentContainerStyle={styles.container}>
-          <View style={styles.headerRow}>
-            <View style={[styles.headerIcon, styles.lockedHeaderIcon]}>
-              <IconSymbol name="chart.bar.fill" size={18} color={INSIGHTS_UNLOCK_TONE} />
-            </View>
-            <View style={styles.headerCopy}>
-              <Text style={styles.title}>Insight Matrix</Text>
-              <Text style={styles.subtitle}>Unlocks at Focused rank</Text>
-            </View>
-          </View>
+          <ScreenHeader
+            title="Insight Matrix"
+            subtitle="Unlocks at Focused rank"
+            icon="chart.bar.fill"
+            accent={INSIGHTS_UNLOCK_TONE}
+          />
 
           <View style={styles.lockedPanel}>
             <View style={styles.lockedTopRow}>
@@ -374,15 +384,12 @@ export default function InsightsScreen() {
   return (
     <SafeAreaView edges={["top"]} style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.headerRow}>
-          <View style={styles.headerIcon}>
-            <IconSymbol name="chart.bar.fill" size={18} color={colors.accentPrimary} />
-          </View>
-          <View style={styles.headerCopy}>
-            <Text style={styles.title}>Insight Matrix</Text>
-            <Text style={styles.subtitle}>Patterns, pressure points, and execution signals</Text>
-          </View>
-        </View>
+        <ScreenHeader
+          title="Insight Matrix"
+          subtitle="Patterns, pressure points, and execution signals"
+          icon="chart.bar.fill"
+          accent={INSIGHTS_TONE}
+        />
 
         <View style={styles.commandPanel}>
           <View style={styles.commandTopRow}>
@@ -401,6 +408,24 @@ export default function InsightsScreen() {
               </View>
               <Text style={styles.commandTitle}>{weeklyReviewTitle}</Text>
               <Text style={styles.commandAction}>{weeklyNextAction}</Text>
+              <View style={styles.commandPillRow}>
+                <View style={styles.commandPill}>
+                  <Text style={styles.commandPillLabel}>Rank</Text>
+                  <Text style={styles.commandPillValue} numberOfLines={1}>{currentRank}</Text>
+                </View>
+                <View style={[styles.commandPill, { borderColor: withAlpha(latestCompletionTone, 0.3) }]}>
+                  <Text style={styles.commandPillLabel}>Last</Text>
+                  <Text style={[styles.commandPillValue, { color: latestCompletionTone }]}>
+                    {Math.round(latestCompletion)}%
+                  </Text>
+                </View>
+                <View style={[styles.commandPill, { borderColor: withAlpha(trendLabelTone, 0.28) }]}>
+                  <Text style={styles.commandPillLabel}>Trend</Text>
+                  <Text style={[styles.commandPillValue, { color: trendLabelTone }]} numberOfLines={1}>
+                    {weeklyTrendLabel}
+                  </Text>
+                </View>
+              </View>
             </View>
           </View>
 
@@ -429,8 +454,46 @@ export default function InsightsScreen() {
               <Text style={styles.commandMetricLabel}>7D DR</Text>
             </View>
           </View>
+
+          <View style={styles.focusBand}>
+            <View style={styles.focusLane}>
+              <Text style={styles.focusLaneLabel}>Leverage</Text>
+              <Text style={styles.focusLaneValue} numberOfLines={1}>{strongestCategory}</Text>
+            </View>
+            <View style={styles.focusDivider} />
+            <View style={styles.focusLane}>
+              <Text style={styles.focusLaneLabel}>Protect</Text>
+              <Text style={styles.focusLaneValue} numberOfLines={1}>{weakestCategory}</Text>
+            </View>
+          </View>
         </View>
 
+        <View style={styles.modeSwitch}>
+          {INSIGHT_MODES.map((mode) => {
+            const selected = mode.id === selectedInsightMode;
+
+            return (
+              <Pressable
+                key={mode.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Show ${mode.label}`}
+                onPress={() => setSelectedInsightMode(mode.id)}
+                style={({ pressed }) => [
+                  styles.modeButton,
+                  selected && styles.modeButtonSelected,
+                  pressed && styles.modeButtonPressed,
+                ]}
+              >
+                <Text style={[styles.modeButtonText, selected && styles.modeButtonTextSelected]}>
+                  {mode.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {selectedInsightMode === "today" ? (
+          <>
         <View style={styles.coachPanel}>
           <View style={styles.cardHeaderRow}>
             <View style={{ flex: 1, minWidth: 0 }}>
@@ -484,59 +547,137 @@ export default function InsightsScreen() {
           </View>
         </View>
 
-        <View style={styles.weeklyPanel}>
-          <View style={styles.cardHeaderRow}>
-            <View>
-              <Text style={styles.eyebrow}>Weekly Review</Text>
-              <Text style={styles.cardTitle}>{weeklyReviewTitle}</Text>
-            </View>
-            <Text style={[styles.trendLabel, { color: weeklyDrDelta >= 0 ? colors.positive : colors.negative }]}>
-              {weeklyDrDelta >= 0 ? `+${weeklyDrDelta}` : weeklyDrDelta} DR
-            </Text>
-          </View>
-          <Text style={styles.weeklyBody}>{weeklyNextAction}</Text>
-          <View style={styles.weeklyGrid}>
-            <View style={styles.weeklyMetric}>
-              <Text style={styles.weeklyMetricValue}>{weeklyAvgCompletion}%</Text>
-              <Text style={styles.weeklyMetricLabel}>avg finish</Text>
-            </View>
-            <View style={styles.weeklyMetric}>
-              <Text style={styles.weeklyMetricValue}>{weeklySolidDays}/{latest7History.length || 0}</Text>
-              <Text style={styles.weeklyMetricLabel}>solid days</Text>
-            </View>
-            <View style={styles.weeklyMetric}>
-              <Text style={styles.weeklyMetricValue}>{weeklyContractDays}</Text>
-              <Text style={styles.weeklyMetricLabel}>contract days</Text>
-            </View>
-          </View>
-        </View>
-
         <View style={styles.signalMap}>
           <View style={styles.signalCard}>
-            <Text style={styles.signalLabel}>Strong Zone</Text>
+            <View style={styles.signalTopRow}>
+              <Text style={styles.signalLabel}>Strong Zone</Text>
+              <View style={[styles.signalDot, { backgroundColor: colors.positive }]} />
+            </View>
             <Text style={styles.signalValue} numberOfLines={1}>{strongestCategory}</Text>
             <Text style={styles.signalMeta}>
               {bestCategory ? `${bestCategory.completionPct}% current follow-through` : "Awaiting data"}
             </Text>
+            <View style={styles.signalTrack}>
+              <View
+                style={[
+                  styles.signalFill,
+                  {
+                    width: `${bestCategory ? Math.max(4, bestCategory.completionPct) : 0}%`,
+                    backgroundColor: colors.positive,
+                  },
+                ]}
+              />
+            </View>
           </View>
           <View style={styles.signalCard}>
-            <Text style={styles.signalLabel}>Pressure Zone</Text>
+            <View style={styles.signalTopRow}>
+              <Text style={styles.signalLabel}>Pressure Zone</Text>
+              <View style={[styles.signalDot, { backgroundColor: colors.negative }]} />
+            </View>
             <Text style={styles.signalValue} numberOfLines={1}>{weakestCategory}</Text>
             <Text style={styles.signalMeta}>
               {riskCategory ? `${riskCategory.completionPct}% current follow-through` : "Awaiting data"}
             </Text>
+            <View style={styles.signalTrack}>
+              <View
+                style={[
+                  styles.signalFill,
+                  {
+                    width: `${riskCategory ? Math.max(4, riskCategory.completionPct) : 0}%`,
+                    backgroundColor: colors.negative,
+                  },
+                ]}
+              />
+            </View>
           </View>
           <View style={styles.signalCard}>
-            <Text style={styles.signalLabel}>Today</Text>
+            <View style={styles.signalTopRow}>
+              <Text style={styles.signalLabel}>Today</Text>
+              <View style={[styles.signalDot, { backgroundColor: latestCompletionTone }]} />
+            </View>
             <Text style={styles.signalValue}>{todayRate}%</Text>
             <Text style={styles.signalMeta}>{completedToday}/{totalToday} quests complete</Text>
+            <View style={styles.signalTrack}>
+              <View
+                style={[
+                  styles.signalFill,
+                  { width: `${Math.max(4, todayRate)}%`, backgroundColor: latestCompletionTone },
+                ]}
+              />
+            </View>
           </View>
           <View style={styles.signalCard}>
-            <Text style={styles.signalLabel}>Recovery</Text>
+            <View style={styles.signalTopRow}>
+              <Text style={styles.signalLabel}>Recovery</Text>
+              <View style={[styles.signalDot, { backgroundColor: INSIGHTS_TONE }]} />
+            </View>
             <Text style={styles.signalValue}>{recoverySignal}/3</Text>
             <Text style={styles.signalMeta}>recent days above baseline</Text>
+            <View style={styles.signalTrack}>
+              <View
+                style={[
+                  styles.signalFill,
+                  {
+                    width: `${Math.max(4, Math.round((recoverySignal / 3) * 100))}%`,
+                    backgroundColor: INSIGHTS_TONE,
+                  },
+                ]}
+              />
+            </View>
           </View>
         </View>
+
+        <View style={styles.categoryPanel}>
+          <View style={styles.cardHeaderRow}>
+            <View>
+              <Text style={styles.eyebrow}>Category Loadout</Text>
+              <Text style={styles.cardTitle}>Execution Balance</Text>
+            </View>
+            <Text style={styles.mutedMeta}>{categoryBreakdown.length} domains</Text>
+          </View>
+          <View style={styles.categoryGrid}>
+            {categoryBreakdown.map((item) => {
+              const categoryTone = categoryToneForPercent(item.completionPct);
+
+              return (
+                <View
+                  key={item.id}
+                  style={[
+                    styles.categoryCard,
+                    {
+                      borderColor: withAlpha(categoryTone, 0.2),
+                      backgroundColor: withAlpha(categoryTone, 0.055),
+                    },
+                  ]}
+                >
+                  <View style={styles.categoryTopRow}>
+                    <View style={[styles.categoryDot, { backgroundColor: categoryTone }]} />
+                    <Text style={styles.categoryLabel} numberOfLines={1}>{item.label}</Text>
+                    <Text style={[styles.categoryPct, { color: categoryTone }]}>{item.completionPct}%</Text>
+                  </View>
+                  <View style={styles.progressTrack}>
+                    <View
+                      style={[
+                        styles.progressFill,
+                        {
+                          width: item.completionPct === 0 ? "0%" : `${Math.max(3, item.completionPct)}%`,
+                          backgroundColor: categoryTone,
+                          opacity: 0.72 + item.completionPct / 360,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.categoryMeta}>
+                    {item.total > 0 ? `${item.completed}/${item.total} complete` : "level progress"}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+          </>
+        ) : (
+          <>
 
         <View style={styles.trendPanel}>
           <View style={styles.cardHeaderRow}>
@@ -649,38 +790,8 @@ export default function InsightsScreen() {
           </View>
           <DisciplinePatterns days={disciplineCalendarDays} colors={colors} />
         </View>
-
-        <View style={styles.categoryPanel}>
-          <View style={styles.cardHeaderRow}>
-            <View>
-              <Text style={styles.eyebrow}>Category Loadout</Text>
-              <Text style={styles.cardTitle}>Execution Balance</Text>
-            </View>
-            <Text style={styles.mutedMeta}>{categoryBreakdown.length} domains</Text>
-          </View>
-          <View style={styles.categoryGrid}>
-            {categoryBreakdown.map((item) => (
-              <View key={item.id} style={styles.categoryCard}>
-                <View style={styles.categoryTopRow}>
-                  <Text style={styles.categoryLabel} numberOfLines={1}>{item.label}</Text>
-                  <Text style={styles.categoryPct}>{item.completionPct}%</Text>
-                </View>
-                <View style={styles.progressTrack}>
-                  <View
-                    style={[
-                      styles.progressFill,
-                      {
-                        width: item.completionPct === 0 ? "0%" : `${Math.max(3, item.completionPct)}%`,
-                        opacity: 0.6 + item.completionPct / 250,
-                      },
-                    ]}
-                  />
-                </View>
-                <Text style={styles.categoryMeta}>{item.completed}/{item.total} complete</Text>
-              </View>
-            ))}
-          </View>
-        </View>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -719,51 +830,47 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       paddingBottom: ui.spacing.lg,
       gap: ui.spacing.sm,
     },
-    headerRow: {
+    modeSwitch: {
       flexDirection: "row",
-      alignItems: "flex-start",
-      gap: ui.spacing.sm,
-      paddingTop: 2,
-      paddingBottom: ui.spacing.sm,
-      borderBottomWidth: 1,
-      borderBottomColor: withAlpha(colors.divider, 0.62),
+      gap: 6,
+      padding: 4,
+      borderRadius: ui.radius.md,
+      borderWidth: 1,
+      borderColor: withAlpha(INSIGHTS_TONE, 0.18),
+      backgroundColor: withAlpha(colors.surface2, 0.58),
     },
-    headerIcon: {
-      width: 40,
-      height: 40,
+    modeButton: {
+      flex: 1,
+      minHeight: 38,
       borderRadius: ui.radius.button,
       alignItems: "center",
       justifyContent: "center",
+      paddingHorizontal: ui.spacing.xs,
+      paddingVertical: 8,
+    },
+    modeButtonSelected: {
+      backgroundColor: withAlpha(INSIGHTS_TONE, 0.14),
       borderWidth: 1,
-      borderColor: withAlpha(colors.accentPrimary, 0.24),
-      backgroundColor: withAlpha(colors.accentPrimary, 0.075),
+      borderColor: withAlpha(INSIGHTS_TONE, 0.28),
     },
-    lockedHeaderIcon: {
-      borderColor: withAlpha(INSIGHTS_UNLOCK_TONE, 0.34),
-      backgroundColor: withAlpha(INSIGHTS_UNLOCK_TONE, 0.11),
+    modeButtonPressed: {
+      opacity: 0.76,
     },
-    headerCopy: {
-      flex: 1,
-      minWidth: 0,
-    },
-    title: {
-      color: colors.textPrimary,
-      fontSize: 24,
-      lineHeight: 29,
-      fontWeight: "900",
-      letterSpacing: 0,
-    },
-    subtitle: {
+    modeButtonText: {
       color: withAlpha(colors.textSecondary, 0.82),
       fontSize: 12,
-      lineHeight: 17,
-      fontWeight: "700",
-      marginTop: 3,
+      lineHeight: 16,
+      fontWeight: "900",
+      letterSpacing: 0,
+      textTransform: "uppercase",
+    },
+    modeButtonTextSelected: {
+      color: INSIGHTS_TONE,
     },
     commandPanel: {
       ...heroSurface,
       gap: ui.spacing.sm,
-      borderColor: withAlpha(colors.accentPrimary, 0.18),
+      borderColor: withAlpha(INSIGHTS_TONE, 0.18),
     },
     commandTopRow: {
       flexDirection: "row",
@@ -777,7 +884,7 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       alignItems: "center",
       justifyContent: "center",
       borderWidth: 1,
-      borderColor: withAlpha(colors.accentPrimary, 0.18),
+      borderColor: withAlpha(INSIGHTS_TONE, 0.18),
       backgroundColor: withAlpha(colors.bg, 0.32),
     },
     commandCopy: {
@@ -812,11 +919,43 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       fontWeight: "800",
       marginTop: 4,
     },
+    commandPillRow: {
+      flexDirection: "row",
+      gap: 6,
+      marginTop: ui.spacing.xs,
+    },
+    commandPill: {
+      flex: 1,
+      minWidth: 0,
+      minHeight: 42,
+      borderRadius: ui.radius.md,
+      borderWidth: 1,
+      borderColor: withAlpha(colors.border, 0.22),
+      backgroundColor: withAlpha(colors.bg, 0.24),
+      paddingHorizontal: 8,
+      paddingVertical: 6,
+      justifyContent: "center",
+    },
+    commandPillLabel: {
+      color: withAlpha(colors.textSecondary, 0.68),
+      fontSize: 8,
+      lineHeight: 11,
+      fontWeight: "900",
+      letterSpacing: 0,
+      textTransform: "uppercase",
+    },
+    commandPillValue: {
+      color: colors.textPrimary,
+      fontSize: 11,
+      lineHeight: 15,
+      fontWeight: "900",
+      marginTop: 1,
+    },
     detailsButton: {
       borderWidth: 1,
-      borderColor: withAlpha(colors.accentPrimary, 0.22),
+      borderColor: withAlpha(INSIGHTS_TONE, 0.22),
       borderRadius: 999,
-      backgroundColor: withAlpha(colors.accentPrimary, 0.065),
+      backgroundColor: withAlpha(INSIGHTS_TONE, 0.065),
       paddingHorizontal: ui.spacing.xs,
       paddingVertical: 4,
     },
@@ -824,7 +963,7 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       opacity: 0.72,
     },
     detailsButtonText: {
-      color: withAlpha(colors.accentPrimary, 0.92),
+      color: withAlpha(INSIGHTS_TONE, 0.92),
       fontSize: 9,
       lineHeight: 13,
       fontWeight: "900",
@@ -852,8 +991,8 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
     commandMetricPrimary: {
       ...tileSurface,
       flex: 1.2,
-      borderColor: withAlpha(colors.accentPrimary, 0.28),
-      backgroundColor: withAlpha(colors.accentPrimary, 0.075),
+      borderColor: withAlpha(INSIGHTS_TONE, 0.28),
+      backgroundColor: withAlpha(INSIGHTS_TONE, 0.075),
       paddingHorizontal: ui.spacing.sm,
       paddingVertical: ui.spacing.sm,
       minWidth: 0,
@@ -883,6 +1022,42 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       letterSpacing: 0,
       textTransform: "uppercase",
       marginTop: 2,
+    },
+    focusBand: {
+      flexDirection: "row",
+      alignItems: "center",
+      minHeight: 62,
+      borderRadius: ui.radius.md,
+      borderWidth: 1,
+      borderColor: withAlpha(INSIGHTS_TONE, 0.18),
+      backgroundColor: withAlpha(INSIGHTS_TONE, 0.065),
+      paddingHorizontal: ui.spacing.sm,
+      paddingVertical: ui.spacing.xs,
+    },
+    focusLane: {
+      flex: 1,
+      minWidth: 0,
+      gap: 2,
+    },
+    focusLaneLabel: {
+      color: withAlpha(colors.textSecondary, 0.72),
+      fontSize: 9,
+      lineHeight: 13,
+      fontWeight: "900",
+      letterSpacing: 0,
+      textTransform: "uppercase",
+    },
+    focusLaneValue: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      lineHeight: 18,
+      fontWeight: "900",
+    },
+    focusDivider: {
+      width: 1,
+      alignSelf: "stretch",
+      backgroundColor: withAlpha(colors.border, 0.22),
+      marginHorizontal: ui.spacing.sm,
     },
     lockedPanel: {
       ...heroSurface,
@@ -1012,11 +1187,22 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
     signalCard: {
       ...tileSurface,
       width: "48.8%",
-      minHeight: 102,
+      minHeight: 118,
       paddingHorizontal: ui.spacing.sm,
       paddingVertical: ui.spacing.sm,
       justifyContent: "flex-start",
       gap: 7,
+    },
+    signalTopRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: ui.spacing.xs,
+    },
+    signalDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 999,
     },
     signalLabel: {
       color: withAlpha(colors.textSecondary, 0.76),
@@ -1038,6 +1224,19 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       lineHeight: 15,
       fontWeight: "700",
     },
+    signalTrack: {
+      height: 6,
+      borderRadius: 999,
+      backgroundColor: withAlpha(colors.bg, 0.74),
+      borderWidth: 1,
+      borderColor: withAlpha(colors.border, 0.16),
+      overflow: "hidden",
+      marginTop: "auto",
+    },
+    signalFill: {
+      height: "100%",
+      borderRadius: 999,
+    },
     card: {
       ...cardSurface,
       gap: ui.spacing.sm,
@@ -1046,16 +1245,10 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       ...cardSurface,
       gap: ui.spacing.sm,
     },
-    weeklyPanel: {
-      ...cardSurface,
-      gap: ui.spacing.sm,
-      borderColor: withAlpha(colors.accentPrimary, 0.18),
-      backgroundColor: withAlpha(colors.surface2, 0.76),
-    },
     coachPanel: {
       ...cardSurface,
       gap: ui.spacing.sm,
-      borderColor: withAlpha(colors.accentPrimary, 0.24),
+      borderColor: withAlpha(INSIGHTS_TONE, 0.24),
       backgroundColor: withAlpha(colors.surface2, 0.84),
     },
     coachMetric: {
@@ -1102,8 +1295,8 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       paddingVertical: 7,
     },
     promptButtonSelected: {
-      borderColor: withAlpha(colors.accentPrimary, 0.46),
-      backgroundColor: withAlpha(colors.accentPrimary, 0.12),
+      borderColor: withAlpha(INSIGHTS_TONE, 0.46),
+      backgroundColor: withAlpha(INSIGHTS_TONE, 0.12),
     },
     promptButtonPressed: {
       opacity: 0.74,
@@ -1283,7 +1476,7 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       marginTop: 1,
     },
     judgmentMeta: {
-      color: withAlpha(CONTRACT_BLUE, 0.86),
+      color: withAlpha(INSIGHTS_TONE, 0.86),
       fontSize: 10,
       lineHeight: 15,
       fontWeight: "700",
@@ -1312,41 +1505,6 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       fontWeight: "800",
       marginTop: 1,
     },
-    weeklyBody: {
-      color: withAlpha(colors.textSecondary, 0.9),
-      fontSize: 13,
-      lineHeight: 18,
-      fontWeight: "700",
-    },
-    weeklyGrid: {
-      flexDirection: "row",
-      gap: ui.spacing.xs,
-      borderTopWidth: 1,
-      borderTopColor: withAlpha(colors.border, 0.2),
-      paddingTop: ui.spacing.xs,
-    },
-    weeklyMetric: {
-      ...tileSurface,
-      flex: 1,
-      minWidth: 0,
-      paddingHorizontal: ui.spacing.xs,
-      paddingVertical: ui.spacing.xs,
-    },
-    weeklyMetricValue: {
-      color: colors.textPrimary,
-      fontSize: 18,
-      lineHeight: 22,
-      fontWeight: "900",
-    },
-    weeklyMetricLabel: {
-      color: withAlpha(colors.textSecondary, 0.76),
-      fontSize: 9,
-      lineHeight: 13,
-      fontWeight: "900",
-      letterSpacing: 0,
-      textTransform: "uppercase",
-      marginTop: 2,
-    },
     chartBlock: {
       paddingTop: ui.spacing.xs,
     },
@@ -1360,7 +1518,7 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       flex: 1,
       minHeight: 8,
       borderRadius: 999,
-      backgroundColor: colors.accentPrimary,
+      backgroundColor: INSIGHTS_TONE,
       opacity: 0.86,
     },
     categoryPanel: {
@@ -1388,6 +1546,11 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       alignItems: "center",
       gap: ui.spacing.xs,
     },
+    categoryDot: {
+      width: 7,
+      height: 7,
+      borderRadius: 999,
+    },
     categoryLabel: {
       color: colors.textPrimary,
       fontSize: 13,
@@ -1397,7 +1560,7 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       minWidth: 0,
     },
     categoryPct: {
-      color: colors.accentPrimary,
+      color: INSIGHTS_TONE,
       fontSize: 14,
       lineHeight: 18,
       fontWeight: "900",
@@ -1414,7 +1577,7 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
     progressFill: {
       height: "100%",
       borderRadius: 999,
-      backgroundColor: colors.accentPrimary,
+      backgroundColor: INSIGHTS_TONE,
     },
     categoryMeta: {
       color: withAlpha(colors.textSecondary, 0.72),

@@ -998,6 +998,29 @@ export default function HomeScreen() {
       }),
     [todaysQuests]
   );
+  const questQueueGroups = useMemo(
+    () => [
+      {
+        id: "contracts",
+        title: "Contracts",
+        tone: CONTRACT_BLUE,
+        quests: sortedQuests.filter((quest) => quest.contract),
+      },
+      {
+        id: "pinned",
+        title: "Pinned",
+        tone: HOME_GOLD,
+        quests: sortedQuests.filter((quest) => !quest.contract && quest.pinned),
+      },
+      {
+        id: "open",
+        title: "Open",
+        tone: colors.textSecondary,
+        quests: sortedQuests.filter((quest) => !quest.contract && !quest.pinned),
+      },
+    ],
+    [colors.textSecondary, sortedQuests]
+  );
 
   const nextMove = useMemo(() => sortedQuests.find((quest) => !quest.done) ?? null, [sortedQuests]);
   const nextMoveReason = useMemo(() => {
@@ -1361,6 +1384,37 @@ export default function HomeScreen() {
                 </View>
               </View>
 
+              <View style={styles.missionSignalGrid}>
+                <View style={styles.missionSignalTile}>
+                  <Text style={styles.missionSignalLabel}>Score</Text>
+                  <Text style={styles.missionSignalValue}>{dayScorePercent}%</Text>
+                </View>
+                <View style={styles.missionSignalTile}>
+                  <Text style={styles.missionSignalLabel}>Standard</Text>
+                  <Text style={styles.missionSignalValue}>
+                    {doneCount}/{dayScoreTarget}
+                  </Text>
+                </View>
+                <View style={styles.missionSignalTile}>
+                  <Text style={styles.missionSignalLabel}>Last Judge</Text>
+                  <Text
+                    style={[
+                      styles.missionSignalValue,
+                      {
+                        color:
+                          lastDrDelta > 0
+                            ? colors.positive
+                            : lastDrDelta < 0
+                              ? colors.negative
+                              : colors.textPrimary,
+                      },
+                    ]}
+                  >
+                    {lastDrDelta > 0 ? `+${lastDrDelta}` : lastDrDelta}
+                  </Text>
+                </View>
+              </View>
+
               <View style={styles.contractPanel}>
                 <View style={styles.contractHeaderRow}>
                   <View style={styles.contractTitleRow}>
@@ -1392,6 +1446,60 @@ export default function HomeScreen() {
                 <Text style={styles.contractStatusText}>{contractStatusText}</Text>
               </View>
 
+              <View style={styles.nextMoveCard}>
+                <View style={styles.nextMoveTopRow}>
+                  <View style={styles.nextMoveIdentity}>
+                    <View
+                      style={[
+                        styles.nextMoveArtBadge,
+                        {
+                          backgroundColor: withAlpha(nextMove?.contract ? CONTRACT_BLUE : HOME_GOLD, 0.11),
+                          borderColor: withAlpha(nextMove?.contract ? CONTRACT_BLUE : HOME_GOLD, 0.32),
+                        },
+                      ]}
+                    >
+                      <IconSymbol
+                        name={nextMove?.contract ? "shield.fill" : "checkmark.circle.fill"}
+                        size={22}
+                        color={nextMove?.contract ? CONTRACT_BLUE : HOME_GOLD}
+                      />
+                    </View>
+                    <View style={styles.nextMoveTextWrap}>
+                      <Text style={styles.nextMoveEyebrow}>Next Move</Text>
+                      <Text style={styles.nextMoveTitle} numberOfLines={2}>
+                        {nextMove ? nextMove.title : "Run complete"}
+                      </Text>
+                    </View>
+                  </View>
+                  {nextMove ? (
+                    <Pressable
+                      style={styles.nextMoveButton}
+                      onPress={() => completeQuest(nextMove.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Complete next move: ${nextMove.title}`}
+                    >
+                      <Text style={styles.nextMoveButtonText}>Complete</Text>
+                    </Pressable>
+                  ) : (
+                    <View style={styles.nextMoveCompletePill}>
+                      <Text style={styles.nextMoveCompleteText}>Clear</Text>
+                    </View>
+                  )}
+                </View>
+                {nextMove?.contract ? (
+                  <View style={styles.nextMoveBadge}>
+                    <IconSymbol name="shield.fill" size={12} color={CONTRACT_BLUE} />
+                    <Text style={styles.nextMoveBadgeText}>Contract Target</Text>
+                  </View>
+                ) : null}
+                <Text style={styles.nextMoveMeta}>
+                  {nextMove
+                    ? `${categoryName(nextMove.categoryId)} - ${nextMove.difficulty.toUpperCase()} - ${nextMove.xp} XP - ${getQuestRepeatLabel(nextMove)}`
+                    : "No exposed quests remain."}
+                </Text>
+                <Text style={styles.nextMoveReason}>{nextMoveReason}</Text>
+              </View>
+
             </View>
 
             {__DEV__ && showDevActions ? (
@@ -1418,83 +1526,72 @@ export default function HomeScreen() {
 
           <View style={[styles.sectionBand, styles.dailySection]}>
             <View style={styles.dailyHeaderCard}>
-              <View style={styles.sectionRow}>
-                <Text style={[styles.sectionSecondary, { marginBottom: 0 }]}>Quest Queue</Text>
+              <View style={styles.queueHeaderRow}>
+                <View style={styles.queueHeaderIdentity}>
+                  <View style={styles.queueHeaderIcon}>
+                    <IconSymbol name="flag.fill" size={18} color={HOME_GOLD} />
+                  </View>
+                  <View style={styles.queueHeaderCopy}>
+                    <Text style={styles.queueEyebrow}>Quest Queue</Text>
+                    <Text style={styles.queueHeadline}>
+                      {doneCount}/{totalQuestCount} cleared
+                    </Text>
+                  </View>
+                </View>
                 <Pressable
                   onPress={() => setShowAdd((s) => !s)}
                   accessibilityRole="button"
                   accessibilityLabel={showAdd ? "Cancel adding quest" : "Add a new quest"}
+                  style={({ pressed }) => [styles.queueAddButton, pressed && styles.btnPressed]}
                 >
-                  <Text style={[styles.link, { color: HOME_GOLD }]}>{showAdd ? "Cancel" : "+ Add"}</Text>
+                  <IconSymbol name={showAdd ? "xmark" : "plus"} size={15} color={colors.bg} />
+                  <Text style={styles.queueAddButtonText}>{showAdd ? "Cancel" : "Add"}</Text>
                 </Pressable>
               </View>
-              <Text style={styles.sectionSubtext}>
+
+              <View style={styles.queueSummaryRow}>
+                {questQueueGroups.map((group) => {
+                  const openInGroup = group.quests.filter((quest) => !quest.done).length;
+                  return (
+                    <View
+                      key={`queue-summary-${group.id}`}
+                      style={[
+                        styles.queueSummaryChip,
+                        {
+                          borderColor: withAlpha(group.tone, 0.26),
+                          backgroundColor: withAlpha(group.tone, 0.075),
+                        },
+                      ]}
+                    >
+                      <View style={[styles.queueSummaryDot, { backgroundColor: group.tone }]} />
+                      <Text style={styles.queueSummaryLabel} numberOfLines={1}>
+                        {group.title}
+                      </Text>
+                      <Text style={[styles.queueSummaryCount, { color: group.tone }]}>
+                        {openInGroup}/{group.quests.length}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+
+              <Text style={styles.queueHelpText}>
                 Contracts first. Then pinned priorities. Then everything else.
               </Text>
-              {hiddenScheduledQuestCount > 0 ? (
-                <Text style={styles.sectionSubtext}>
-                  {hiddenScheduledQuestCount} quest{hiddenScheduledQuestCount === 1 ? "" : "s"} scheduled for another day.
-                </Text>
-              ) : null}
-              {pausedQuestCount > 0 ? (
-                <Text style={styles.sectionSubtext}>
-                  {pausedQuestCount} paused quest{pausedQuestCount === 1 ? "" : "s"} waiting in Plan.
-                </Text>
-              ) : null}
-            </View>
-
-            <View style={styles.nextMoveCard}>
-              <View style={styles.nextMoveTopRow}>
-                <View style={styles.nextMoveIdentity}>
-                  <View
-                    style={[
-                      styles.nextMoveArtBadge,
-                      {
-                        backgroundColor: withAlpha(nextMove?.contract ? CONTRACT_BLUE : HOME_GOLD, 0.11),
-                        borderColor: withAlpha(nextMove?.contract ? CONTRACT_BLUE : HOME_GOLD, 0.32),
-                      },
-                    ]}
-                  >
-                    <IconSymbol
-                      name={nextMove?.contract ? "shield.fill" : "checkmark.circle.fill"}
-                      size={22}
-                      color={nextMove?.contract ? CONTRACT_BLUE : HOME_GOLD}
-                    />
-                  </View>
-                  <View style={styles.nextMoveTextWrap}>
-                    <Text style={styles.nextMoveEyebrow}>Next Move</Text>
-                    <Text style={styles.nextMoveTitle} numberOfLines={2}>
-                      {nextMove ? nextMove.title : "Run complete"}
+              {hiddenScheduledQuestCount > 0 || pausedQuestCount > 0 ? (
+                <View style={styles.queueNoticeStack}>
+                  {hiddenScheduledQuestCount > 0 ? (
+                    <Text style={styles.queueNoticeText}>
+                      {hiddenScheduledQuestCount} quest{hiddenScheduledQuestCount === 1 ? "" : "s"} scheduled for another day.
                     </Text>
-                  </View>
-                </View>
-                {nextMove ? (
-                  <Pressable
-                    style={styles.nextMoveButton}
-                    onPress={() => completeQuest(nextMove.id)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Complete next move: ${nextMove.title}`}
-                  >
-                    <Text style={styles.nextMoveButtonText}>Complete</Text>
-                  </Pressable>
-                ) : (
-                  <View style={styles.nextMoveCompletePill}>
-                    <Text style={styles.nextMoveCompleteText}>Clear</Text>
-                  </View>
-                )}
-              </View>
-              {nextMove?.contract ? (
-                <View style={styles.nextMoveBadge}>
-                  <IconSymbol name="shield.fill" size={12} color={CONTRACT_BLUE} />
-                  <Text style={styles.nextMoveBadgeText}>Contract Target</Text>
+                  ) : null}
+                  {pausedQuestCount > 0 ? (
+                    <Text style={styles.queueNoticeText}>
+                      {pausedQuestCount} paused quest{pausedQuestCount === 1 ? "" : "s"} waiting in Plan.
+                    </Text>
+                  ) : null}
                 </View>
               ) : null}
-              <Text style={styles.nextMoveMeta}>
-                {nextMove
-                  ? `${categoryName(nextMove.categoryId)} - ${nextMove.difficulty.toUpperCase()} - ${nextMove.xp} XP - ${getQuestRepeatLabel(nextMove)}`
-                  : "No exposed quests remain."}
-              </Text>
-              <Text style={styles.nextMoveReason}>{nextMoveReason}</Text>
             </View>
 
             {/* ADD/EDIT QUEST FORM */}
@@ -1542,23 +1639,62 @@ export default function HomeScreen() {
                   </Pressable>
                 </View>
               ) : (
-                sortedQuests.map((q) => (
-                  <QuestCard
-                    key={q.id}
-                    quest={q}
-                    categoryName={categoryName(q.categoryId)}
-                    isOpen={openQuestId === q.id}
-                    onToggle={toggleQuestOpen}
-                    onComplete={completeQuest}
-                    onEdit={(questId) => {
-                      setEditingQuestId(questId);
-                      setOpenQuestId(null);
-                    }}
-                    onPin={togglePin}
-                    onContract={toggleContract}
-                    onDelete={deleteQuest}
-                  />
-                ))
+                questQueueGroups
+                  .filter((group) => group.quests.length > 0)
+                  .map((group) => {
+                    const completedInGroup = group.quests.filter((quest) => quest.done).length;
+                    return (
+                      <View
+                        key={group.id}
+                        style={[
+                          styles.questQueueGroup,
+                          {
+                            borderColor: withAlpha(group.tone, 0.16),
+                            borderLeftColor: withAlpha(group.tone, 0.74),
+                            backgroundColor: withAlpha(group.tone, 0.035),
+                          },
+                        ]}
+                      >
+                        <View style={styles.questQueueHeader}>
+                          <View style={styles.questQueueTitleRow}>
+                            <View style={[styles.questQueueDot, { backgroundColor: group.tone }]} />
+                            <Text style={styles.questQueueTitle}>{group.title}</Text>
+                          </View>
+                          <Text
+                            style={[
+                              styles.questQueueMeta,
+                              {
+                                color: group.tone,
+                                borderColor: withAlpha(group.tone, 0.28),
+                                backgroundColor: withAlpha(group.tone, 0.09),
+                              },
+                            ]}
+                          >
+                            {completedInGroup}/{group.quests.length}
+                          </Text>
+                        </View>
+                        <View style={styles.questQueueList}>
+                          {group.quests.map((q) => (
+                            <QuestCard
+                              key={q.id}
+                              quest={q}
+                              categoryName={categoryName(q.categoryId)}
+                              isOpen={openQuestId === q.id}
+                              onToggle={toggleQuestOpen}
+                              onComplete={completeQuest}
+                              onEdit={(questId) => {
+                                setEditingQuestId(questId);
+                                setOpenQuestId(null);
+                              }}
+                              onPin={togglePin}
+                              onContract={toggleContract}
+                              onDelete={deleteQuest}
+                            />
+                          ))}
+                        </View>
+                      </View>
+                    );
+                  })
               )}
             </View>
             <View style={styles.homeHintCard}>

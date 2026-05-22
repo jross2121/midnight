@@ -8,6 +8,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { EditQuestForm } from "./_components/EditQuestForm";
 import { Footer } from "./_components/Footer";
+import { ScreenHeader } from "./_components/ScreenHeader";
 import { CONTRACT_BLUE } from "./_styles";
 import { getCategoryDisplayNameById } from "./_utils/categoryLabels";
 import { localDateKey, parseDateKey } from "./_utils/dateHelpers";
@@ -1029,15 +1030,7 @@ export default function PlanScreen() {
   return (
     <SafeAreaView edges={["top"]} style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.header}>
-          <View style={styles.headerIcon}>
-            <IconSymbol name="calendar" size={18} color={PLAN_TONES.gold} />
-          </View>
-          <View style={styles.headerCopy}>
-            <Text style={styles.title}>Plan</Text>
-            <Text style={styles.subtitle}>Today, week, and library</Text>
-          </View>
-        </View>
+        <ScreenHeader title="Plan" subtitle="Today, week, and library" icon="calendar" accent={PLAN_TONES.gold} />
 
         <View style={styles.daysTopSection}>
           <PlanSectionHeader eyebrow="Week" title="Days" meta={`${weeklyQuestSlots} slots`} styles={styles} compact />
@@ -1109,76 +1102,84 @@ export default function PlanScreen() {
           </View>
         </View>
 
-        <View style={[styles.heroCard, { borderColor: withAlpha(todayBrief.tone, 0.36) }]}>
-          <View style={styles.heroHeaderRow}>
-            <View style={styles.heroCopy}>
-              <Text style={[styles.heroEyebrow, { color: todayBrief.tone }]}>{todayBrief.eyebrow}</Text>
-              <Text style={styles.heroTitle}>{todayBrief.title}</Text>
-              <Text style={styles.heroSubtitle}>
-                {todayBrief.body}
-              </Text>
-            </View>
-            <View style={[styles.heroScorePlate, { borderColor: withAlpha(todayBrief.tone, 0.34) }]}>
-              <Text style={[styles.heroScoreValue, { color: todayBrief.tone }]}>{todayCompletionPercent}%</Text>
-              <Text style={styles.heroScoreLabel}>standard</Text>
-            </View>
-          </View>
-
-          <View style={styles.heroProgressTrack}>
-            <View
-              style={[
-                styles.heroProgressFill,
-                {
-                  width: `${todayCompletionPercent}%`,
-                  backgroundColor: todayBrief.tone,
-                },
-              ]}
-            />
-          </View>
-
-          <View style={styles.heroMetricRow}>
-            <PlanMetricTile
-              label="done"
-              value={`${todaysCompletedCount}/${todaysQuests.length}`}
-              tone={todayBrief.tone}
-              styles={styles}
-            />
-            <PlanMetricTile
-              label="contracts"
-              value={todaysContractQuests.length > 0 ? `${todaysContractDoneCount}/${todaysContractQuests.length}` : `${contractCount}/3`}
-              tone={PLAN_TONES.contract}
-              styles={styles}
-            />
-            <PlanMetricTile
-              label="week load"
-              value={`${weeklyLoadPercent}%`}
-              tone={maxDayTone}
-              styles={styles}
-            />
-          </View>
-
-          {leadPriorityQuest ? (
-            <View
-              style={[
-                styles.nextActionPanel,
-                {
-                  borderColor: withAlpha(getQuestTone(leadPriorityQuest), 0.24),
-                  backgroundColor: withAlpha(getQuestTone(leadPriorityQuest), 0.045),
-                },
-              ]}
-            >
-              <View style={[styles.nextActionIcon, { borderColor: withAlpha(getQuestTone(leadPriorityQuest), 0.36) }]}>
-                <IconSymbol name={getQuestIcon(leadPriorityQuest)} size={16} color={getQuestTone(leadPriorityQuest)} />
-              </View>
-              <View style={styles.nextActionCopy}>
-                <Text style={styles.nextActionLabel}>Next Move</Text>
-                <Text style={styles.nextActionTitle} numberOfLines={1}>
-                  {leadPriorityQuest.contract ? "Protect: " : ""}
-                  {leadPriorityQuest.title}
+        <View style={styles.section}>
+          <PlanSectionHeader
+            eyebrow="Signal"
+            title="Today Standard"
+            meta={`${todayCompletionPercent}%`}
+            styles={styles}
+          />
+          <View style={[styles.heroCard, { borderColor: withAlpha(todayBrief.tone, 0.36) }]}>
+            <View style={styles.heroHeaderRow}>
+              <View style={styles.heroCopy}>
+                <Text style={[styles.heroEyebrow, { color: todayBrief.tone }]}>{todayBrief.eyebrow}</Text>
+                <Text style={styles.heroTitle}>{todayBrief.title}</Text>
+                <Text style={styles.heroSubtitle}>
+                  {todayBrief.body}
                 </Text>
               </View>
+              <View style={[styles.heroScorePlate, { borderColor: withAlpha(todayBrief.tone, 0.34) }]}>
+                <Text style={[styles.heroScoreValue, { color: todayBrief.tone }]}>{todayCompletionPercent}%</Text>
+                <Text style={styles.heroScoreLabel}>standard</Text>
+              </View>
             </View>
-          ) : null}
+
+            <View style={styles.heroProgressTrack}>
+              <View
+                style={[
+                  styles.heroProgressFill,
+                  {
+                    width: `${todayCompletionPercent}%`,
+                    backgroundColor: todayBrief.tone,
+                  },
+                ]}
+              />
+            </View>
+
+            <View style={styles.heroMetricRow}>
+              <PlanMetricTile
+                label="done"
+                value={`${todaysCompletedCount}/${todaysQuests.length}`}
+                tone={todayBrief.tone}
+                styles={styles}
+              />
+              <PlanMetricTile
+                label="contracts"
+                value={todaysContractQuests.length > 0 ? `${todaysContractDoneCount}/${todaysContractQuests.length}` : `${contractCount}/3`}
+                tone={PLAN_TONES.contract}
+                styles={styles}
+              />
+              <PlanMetricTile
+                label="week load"
+                value={`${weeklyLoadPercent}%`}
+                tone={maxDayTone}
+                styles={styles}
+              />
+            </View>
+
+            {leadPriorityQuest ? (
+              <View
+                style={[
+                  styles.nextActionPanel,
+                  {
+                    borderColor: withAlpha(getQuestTone(leadPriorityQuest), 0.24),
+                    backgroundColor: withAlpha(getQuestTone(leadPriorityQuest), 0.045),
+                  },
+                ]}
+              >
+                <View style={[styles.nextActionIcon, { borderColor: withAlpha(getQuestTone(leadPriorityQuest), 0.36) }]}>
+                  <IconSymbol name={getQuestIcon(leadPriorityQuest)} size={16} color={getQuestTone(leadPriorityQuest)} />
+                </View>
+                <View style={styles.nextActionCopy}>
+                  <Text style={styles.nextActionLabel}>Next Move</Text>
+                  <Text style={styles.nextActionTitle} numberOfLines={1}>
+                    {leadPriorityQuest.contract ? "Protect: " : ""}
+                    {leadPriorityQuest.title}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+          </View>
         </View>
 
         <View style={styles.section}>
@@ -1362,8 +1363,8 @@ function createPlanStyles(colors: ThemeColors) {
     container: {
       paddingHorizontal: 16,
       paddingTop: 14,
-      paddingBottom: 18,
-      gap: 18,
+      paddingBottom: 22,
+      gap: 22,
     },
     loadingWrap: {
       flex: 1,
@@ -1376,52 +1377,18 @@ function createPlanStyles(colors: ThemeColors) {
       fontSize: 14,
       fontWeight: "700",
     },
-    header: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
-      paddingBottom: 8,
-      borderBottomWidth: 1,
-      borderBottomColor: withAlpha(PLAN_TONES.gold, 0.22),
-    },
-    headerIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 14,
-      borderWidth: 1,
-      borderColor: withAlpha(PLAN_TONES.gold, 0.34),
-      backgroundColor: withAlpha(PLAN_TONES.gold, 0.11),
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    headerCopy: {
-      flex: 1,
-      minWidth: 0,
-    },
-    title: {
-      color: colors.textPrimary,
-      fontSize: 26,
-      lineHeight: 31,
-      fontWeight: "900",
-    },
-    subtitle: {
-      color: colors.textSecondary,
-      fontSize: 13,
-      lineHeight: 18,
-      fontWeight: "700",
-    },
     heroCard: {
       borderRadius: 8,
       borderWidth: 1,
       borderColor: withAlpha(PLAN_TONES.gold, 0.3),
       backgroundColor: withAlpha(colors.surface2, 0.94),
-      padding: 16,
-      gap: 14,
+      padding: 14,
+      gap: 13,
     },
     heroHeaderRow: {
       flexDirection: "row",
       alignItems: "flex-start",
-      gap: 12,
+      gap: 14,
     },
     heroTopRow: {
       flexDirection: "row",
@@ -1442,16 +1409,16 @@ function createPlanStyles(colors: ThemeColors) {
     },
     heroTitle: {
       color: colors.textPrimary,
-      fontSize: 24,
-      lineHeight: 29,
+      fontSize: 22,
+      lineHeight: 27,
       fontWeight: "900",
       marginTop: 2,
     },
     heroSubtitle: {
       color: withAlpha(colors.textSecondary, 0.82),
-      fontSize: 12,
-      lineHeight: 17,
-      fontWeight: "800",
+      fontSize: 13,
+      lineHeight: 18,
+      fontWeight: "700",
       marginTop: 4,
     },
     heroScorePlate: {
@@ -1557,7 +1524,7 @@ function createPlanStyles(colors: ThemeColors) {
     },
     heroMetricRow: {
       flexDirection: "row",
-      gap: 8,
+      gap: 9,
     },
     heroMetric: {
       flex: 1,
@@ -1565,7 +1532,7 @@ function createPlanStyles(colors: ThemeColors) {
       backgroundColor: withAlpha(colors.bg, 0.3),
       borderWidth: 1,
       borderColor: withAlpha(colors.border, 0.22),
-      paddingVertical: 9,
+      paddingVertical: 8,
       paddingHorizontal: 9,
       minWidth: 0,
     },
@@ -1577,27 +1544,32 @@ function createPlanStyles(colors: ThemeColors) {
     },
     heroMetricLabel: {
       color: colors.textSecondary,
-      fontSize: 10,
+      fontSize: 9,
       lineHeight: 12,
       fontWeight: "900",
       marginTop: 2,
       textTransform: "uppercase",
     },
     section: {
-      gap: 9,
+      gap: 12,
+      borderTopWidth: 1,
+      borderTopColor: withAlpha(colors.divider, 0.68),
+      paddingTop: 17,
     },
     daysTopSection: {
-      gap: 9,
+      gap: 11,
+      paddingBottom: 2,
     },
     sectionSubBlock: {
-      gap: 9,
-      borderTopWidth: 1,
-      borderTopColor: withAlpha(colors.border, 0.16),
-      paddingTop: 10,
+      gap: 11,
+      borderLeftWidth: 3,
+      borderLeftColor: withAlpha(colors.border, 0.34),
+      paddingLeft: 11,
+      paddingTop: 2,
     },
     sectionHeaderRow: {
       flexDirection: "row",
-      alignItems: "center",
+      alignItems: "flex-end",
       justifyContent: "space-between",
       gap: 12,
     },
@@ -1610,29 +1582,29 @@ function createPlanStyles(colors: ThemeColors) {
     },
     sectionEyebrow: {
       color: withAlpha(colors.textSecondary, 0.78),
-      fontSize: 11,
-      lineHeight: 16,
+      fontSize: 10,
+      lineHeight: 14,
       fontWeight: "900",
       letterSpacing: 0,
       textTransform: "uppercase",
     },
     sectionTitle: {
       color: colors.textPrimary,
-      fontSize: 20,
-      lineHeight: 24,
+      fontSize: 22,
+      lineHeight: 27,
       fontWeight: "900",
       marginTop: 1,
     },
     sectionTitleCompact: {
-      fontSize: 16,
-      lineHeight: 20,
+      fontSize: 18,
+      lineHeight: 23,
     },
     sectionMetaPill: {
       borderRadius: 999,
       borderWidth: 1,
-      borderColor: withAlpha(colors.border, 0.24),
-      backgroundColor: withAlpha(colors.bg, 0.22),
-      paddingHorizontal: 9,
+      borderColor: withAlpha(colors.border, 0.32),
+      backgroundColor: withAlpha(colors.bg, 0.32),
+      paddingHorizontal: 10,
       paddingVertical: 5,
     },
     sectionMetaPillCompact: {
@@ -1641,14 +1613,15 @@ function createPlanStyles(colors: ThemeColors) {
     },
     sectionMeta: {
       color: colors.textSecondary,
-      fontSize: 12,
-      fontWeight: "800",
+      fontSize: 11,
+      lineHeight: 15,
+      fontWeight: "900",
     },
     dayGrid: {
       gap: 8,
     },
     dayRailContent: {
-      gap: 10,
+      gap: 9,
       paddingRight: 2,
       paddingBottom: 2,
     },
@@ -1695,15 +1668,15 @@ function createPlanStyles(colors: ThemeColors) {
       fontWeight: "900",
     },
     dayCard: {
-      width: 132,
-      minHeight: 78,
+      width: 126,
+      minHeight: 82,
       borderRadius: 8,
       borderWidth: 1,
       borderColor: withAlpha(colors.border, 0.22),
       backgroundColor: withAlpha(colors.surface, 0.9),
       paddingHorizontal: 10,
-      paddingVertical: 9,
-      gap: 7,
+      paddingVertical: 10,
+      gap: 8,
       overflow: "hidden",
     },
     dayCardSelected: {
@@ -1771,17 +1744,17 @@ function createPlanStyles(colors: ThemeColors) {
       borderRadius: 999,
     },
     questList: {
-      gap: 10,
+      gap: 11,
     },
     contractCandidateGroup: {
-      gap: 8,
+      gap: 9,
       borderTopWidth: 1,
       borderTopColor: withAlpha(colors.border, 0.18),
-      paddingTop: 10,
+      paddingTop: 12,
     },
     contractSlotGrid: {
       flexDirection: "row",
-      gap: 8,
+      gap: 9,
     },
     contractSlot: {
       flex: 1,
@@ -1821,14 +1794,14 @@ function createPlanStyles(colors: ThemeColors) {
       marginTop: 3,
     },
     contractDecisionRow: {
-      minHeight: 62,
+      minHeight: 64,
       borderRadius: 8,
       borderWidth: 1,
       flexDirection: "row",
       alignItems: "center",
-      gap: 10,
-      paddingHorizontal: 10,
-      paddingVertical: 9,
+      gap: 11,
+      paddingHorizontal: 11,
+      paddingVertical: 10,
     },
     contractDecisionCopy: {
       flex: 1,
@@ -1836,13 +1809,13 @@ function createPlanStyles(colors: ThemeColors) {
     },
     contractDecisionTitle: {
       color: colors.textPrimary,
-      fontSize: 13,
-      lineHeight: 17,
+      fontSize: 14,
+      lineHeight: 18,
       fontWeight: "900",
     },
     contractDecisionMeta: {
       color: colors.textSecondary,
-      fontSize: 10,
+      fontSize: 11,
       lineHeight: 15,
       fontWeight: "700",
       marginTop: 2,
@@ -1866,8 +1839,8 @@ function createPlanStyles(colors: ThemeColors) {
       borderWidth: 1,
       borderColor: withAlpha(colors.border, 0.22),
       backgroundColor: withAlpha(colors.surface, 0.9),
-      padding: 12,
-      gap: 12,
+      padding: 13,
+      gap: 11,
       position: "relative",
       overflow: "hidden",
     },
@@ -1893,12 +1866,14 @@ function createPlanStyles(colors: ThemeColors) {
     },
     questTitle: {
       color: colors.textPrimary,
-      fontSize: 15,
+      fontSize: 16,
+      lineHeight: 20,
       fontWeight: "900",
     },
     questMeta: {
       color: colors.textSecondary,
-      fontSize: 11,
+      fontSize: 12,
+      lineHeight: 16,
       fontWeight: "700",
       marginTop: 4,
     },
@@ -1915,13 +1890,13 @@ function createPlanStyles(colors: ThemeColors) {
     actionRow: {
       flexDirection: "row",
       flexWrap: "wrap",
-      gap: 8,
+      gap: 7,
       justifyContent: "flex-end",
     },
     smallButton: {
-      minHeight: 34,
+      minHeight: 32,
       borderRadius: 8,
-      paddingHorizontal: 12,
+      paddingHorizontal: 11,
       alignItems: "center",
       justifyContent: "center",
       borderWidth: 1,
@@ -1951,7 +1926,8 @@ function createPlanStyles(colors: ThemeColors) {
       borderColor: withAlpha(colors.border, 0.24),
     },
     smallButtonText: {
-      fontSize: 12,
+      fontSize: 11,
+      lineHeight: 14,
       fontWeight: "900",
     },
     pressed: {
@@ -1978,17 +1954,17 @@ function createPlanStyles(colors: ThemeColors) {
     templateGrid: {
       flexDirection: "row",
       flexWrap: "wrap",
-      gap: 10,
+      gap: 9,
     },
     templateCard: {
       borderRadius: 8,
       borderWidth: 1,
       borderColor: withAlpha(colors.border, 0.22),
       backgroundColor: withAlpha(colors.surface, 0.82),
-      padding: 12,
-      gap: 6,
-      width: "48.4%",
-      minHeight: 112,
+      padding: 11,
+      gap: 8,
+      width: "48.6%",
+      minHeight: 116,
       justifyContent: "space-between",
     },
     templateTopRow: {
@@ -2003,12 +1979,15 @@ function createPlanStyles(colors: ThemeColors) {
     templateTitle: {
       color: colors.textPrimary,
       fontSize: 14,
+      lineHeight: 18,
       fontWeight: "900",
     },
     templateMeta: {
       color: colors.textSecondary,
       fontSize: 11,
+      lineHeight: 15,
       fontWeight: "700",
+      marginTop: 2,
     },
     templateContractPill: {
       alignSelf: "flex-start",

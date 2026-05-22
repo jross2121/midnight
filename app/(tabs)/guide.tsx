@@ -1,9 +1,10 @@
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useRouter } from "expo-router";
 import React, { useMemo } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { ScreenHeader } from "./_components/ScreenHeader";
 import { CONTRACT_BLUE, HOME_GOLD } from "./_styles";
 import { createTileSurface, ui, withAlpha } from "./_utils/designSystem";
 import { useTheme, type ThemeColors } from "./_utils/themeContext";
@@ -67,20 +68,13 @@ export default function GuideScreen() {
   return (
     <SafeAreaView edges={["top"]} style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.pageHeader}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Back to More"
-            onPress={() => router.push("/(tabs)/more")}
-            style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}
-          >
-            <IconSymbol name="chevron.left" size={19} color={HOME_GOLD} />
-          </Pressable>
-          <View style={styles.headerCopy}>
-            <Text style={styles.title}>How Midnight Works</Text>
-            <Text style={styles.subtitle}>Rules, terms, and flow</Text>
-          </View>
-        </View>
+        <ScreenHeader
+          title="How Midnight Works"
+          subtitle="Rules, terms, and flow"
+          icon="chevron.left"
+          onIconPress={() => router.push("/(tabs)/more")}
+          iconAccessibilityLabel="Back to More"
+        />
 
         <View style={styles.introCard}>
           <Text style={styles.introLabel}>Core loop</Text>
@@ -154,45 +148,6 @@ function createGuideStyles(colors: ThemeColors) {
       paddingTop: ui.spacing.screen,
       paddingBottom: ui.spacing.lg,
       gap: 12,
-    },
-    pageHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: ui.spacing.sm,
-      paddingBottom: 14,
-      borderBottomWidth: 1,
-      borderBottomColor: withAlpha(colors.divider, 0.72),
-    },
-    backButton: {
-      width: 38,
-      height: 38,
-      borderRadius: 8,
-      borderWidth: 1,
-      borderColor: withAlpha(HOME_GOLD, 0.34),
-      backgroundColor: withAlpha(HOME_GOLD, 0.1),
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    pressed: {
-      opacity: 0.76,
-      transform: [{ scale: 0.992 }],
-    },
-    headerCopy: {
-      flex: 1,
-      minWidth: 0,
-    },
-    title: {
-      color: colors.textPrimary,
-      fontSize: 23,
-      lineHeight: 27,
-      fontWeight: "900",
-    },
-    subtitle: {
-      color: colors.textSecondary,
-      fontSize: 12,
-      lineHeight: 16,
-      fontWeight: "700",
-      marginTop: 2,
     },
     introCard: {
       borderRadius: 8,

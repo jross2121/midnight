@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { ScreenHeader } from "./_components/ScreenHeader";
 import { CONTRACT_BLUE, HOME_GOLD } from "./_styles";
 import { getCategoryDisplayName } from "./_utils/categoryLabels";
 import { localDateKey } from "./_utils/dateHelpers";
@@ -361,15 +362,7 @@ export default function FocusScreen() {
   return (
     <SafeAreaView edges={["top"]} style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.pageHeader}>
-          <View style={styles.headerIcon}>
-            <IconSymbol name="timer" size={20} color={HOME_GOLD} />
-          </View>
-          <View style={styles.headerCopy}>
-            <Text style={styles.title}>Focus Sprint</Text>
-            <Text style={styles.subtitle}>Single-task timer</Text>
-          </View>
-        </View>
+        <ScreenHeader title="Focus Sprint" subtitle="Single-task timer" icon="timer" />
 
         <View style={styles.timerPanel}>
           <View style={styles.timerTopRow}>
@@ -577,42 +570,6 @@ function createFocusStyles(colors: ThemeColors) {
       paddingTop: ui.spacing.screen,
       paddingBottom: ui.spacing.lg,
       gap: ui.spacing.sm,
-    },
-    pageHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: ui.spacing.sm,
-      paddingBottom: ui.spacing.lg,
-      borderBottomWidth: 1,
-      borderBottomColor: withAlpha(colors.divider, 0.72),
-    },
-    headerIcon: {
-      width: 38,
-      height: 38,
-      borderRadius: ui.radius.md,
-      alignItems: "center",
-      justifyContent: "center",
-      borderWidth: 1,
-      borderColor: withAlpha(HOME_GOLD, 0.34),
-      backgroundColor: withAlpha(HOME_GOLD, 0.1),
-    },
-    headerCopy: {
-      flex: 1,
-      minWidth: 0,
-    },
-    title: {
-      color: colors.textPrimary,
-      fontSize: 24,
-      lineHeight: 28,
-      fontWeight: "900",
-      letterSpacing: 0,
-    },
-    subtitle: {
-      color: withAlpha(colors.textSecondary, 0.82),
-      fontSize: 12,
-      lineHeight: 16,
-      fontWeight: "700",
-      marginTop: 2,
     },
     timerPanel: {
       ...cardSurface,

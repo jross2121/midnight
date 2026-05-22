@@ -5,6 +5,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { ScreenHeader } from "./_components/ScreenHeader";
 import { CONTRACT_BLUE } from "./_styles";
 import {
   defaultAchievements,
@@ -872,15 +873,12 @@ export default function AchievementsScreen() {
   return (
     <SafeAreaView edges={["top"]} style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.pageHeader}>
-          <View style={styles.headerIcon}>
-            <IconSymbol name="trophy.fill" size={18} color={AWARD_PAGE_ACCENT} />
-          </View>
-          <View style={styles.headerCopy}>
-            <Text style={styles.title}>Awards</Text>
-            <Text style={styles.subtitle}>Quest, Consistency, and Legacy badge collection</Text>
-          </View>
-        </View>
+        <ScreenHeader
+          title="Awards"
+          subtitle="Quest, Consistency, and Legacy badge collection"
+          icon="trophy.fill"
+          accent={AWARD_PAGE_ACCENT}
+        />
 
         <View style={styles.heroPanel}>
           <View style={styles.heroTopRow}>
@@ -1227,41 +1225,6 @@ function createAchievementStyles(colors: ThemeColors) {
       paddingTop: ui.spacing.md,
       paddingBottom: ui.spacing.lg,
       gap: ui.spacing.sm,
-    },
-    pageHeader: {
-      flexDirection: "row",
-      alignItems: "flex-start",
-      gap: ui.spacing.sm,
-      paddingBottom: ui.spacing.sm,
-      borderBottomWidth: 1,
-      borderBottomColor: withAlpha(colors.divider, 0.62),
-    },
-    headerIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: ui.radius.button,
-      alignItems: "center",
-      justifyContent: "center",
-      borderWidth: 1,
-      borderColor: withAlpha(AWARD_PAGE_ACCENT, 0.34),
-      backgroundColor: withAlpha(AWARD_PAGE_ACCENT, 0.11),
-    },
-    headerCopy: {
-      flex: 1,
-      minWidth: 0,
-    },
-    title: {
-      color: colors.textPrimary,
-      fontSize: 24,
-      lineHeight: 29,
-      fontWeight: "900",
-    },
-    subtitle: {
-      color: withAlpha(colors.textSecondary, 0.82),
-      fontSize: 12,
-      lineHeight: 17,
-      fontWeight: "700",
-      marginTop: 3,
     },
     heroPanel: {
       ...cardSurface,
