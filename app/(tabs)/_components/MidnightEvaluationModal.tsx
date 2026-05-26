@@ -7,7 +7,7 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensio
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle, G } from "react-native-svg";
 
-import { CONTRACT_BLUE, HOME_GOLD } from "../_styles";
+import { CONTRACT_GOLD, HOME_GOLD } from "../_styles";
 import type { MidnightEvaluationData } from "../_utils/midnightEvaluation";
 import type { NextDayPlan } from "../_utils/planning";
 
@@ -291,7 +291,7 @@ function ScoreDetails({ evaluation, styles }: ScoreDetailsProps) {
             : "No contract set"
         }
         percent={contractPercent}
-        color={CONTRACT_BLUE}
+        color={CONTRACT_GOLD}
         styles={styles}
       />
 
@@ -316,7 +316,7 @@ function SignalPanel({ rank, insight, styles }: SignalPanelProps) {
   return (
     <View style={styles.signalPanel}>
       <View style={styles.panelTitleRow}>
-        <IconSymbol name="shield.fill" size={18} color={CONTRACT_BLUE} />
+        <IconSymbol name="shield.fill" size={18} color={CONTRACT_GOLD} />
         <Text style={styles.panelTitle}>Signal</Text>
       </View>
       <View style={styles.signalContent}>
@@ -821,8 +821,8 @@ function makeStyles(
     signalPanel: {
       borderRadius: 18,
       borderWidth: 1,
-      borderColor: withAlpha(CONTRACT_BLUE, 0.2),
-      backgroundColor: withAlpha(CONTRACT_BLUE, 0.055),
+      borderColor: withAlpha(CONTRACT_GOLD, 0.2),
+      backgroundColor: withAlpha(CONTRACT_GOLD, 0.055),
       padding: isCompact ? 12 : 14,
       gap: 8,
     },
@@ -1004,6 +1004,8 @@ export function MidnightEvaluationModal({
             <Pressable
               onPress={onStartNewDay}
               disabled={isSaving}
+              accessibilityRole="button"
+              accessibilityLabel={isSaving ? "Saving midnight evaluation" : "Start today"}
               style={({ pressed }) => [
                 styles.cta,
                 pressed && styles.ctaPressed,

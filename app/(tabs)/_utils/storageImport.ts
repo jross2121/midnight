@@ -1,5 +1,4 @@
 import {
-  defaultAchievements,
   defaultCategories,
   defaultDisciplineRating,
   defaultDrHistory,
@@ -8,13 +7,13 @@ import {
   defaultLastDrUpdateDate,
   defaultQuests,
 } from "./defaultData";
+import { mergeAchievements } from "./achievements";
 import { localDateKey } from "./dateHelpers";
 import { getQuestXpForDifficulty } from "./questXp";
 import { normalizeQuestRepeat, normalizeScheduledWeekday } from "./recurrence";
 import { normalizeReminderSettings, type ReminderSettings } from "./reminders";
 import {
   STORAGE_KEY,
-  type Achievement,
   type ArchivedQuest,
   type Category,
   type DrHistoryEntry,
@@ -120,23 +119,6 @@ function normalizeArchivedQuest(value: unknown, fallbackCategoryId: string): Arc
   };
 }
 
-function normalizeAchievements(value: unknown): Achievement[] {
-  const saved = Array.isArray(value) ? value : [];
-  const savedById = new Map(
-    saved
-      .filter(isObject)
-      .map((achievement) => [
-        typeof achievement.id === "string" ? achievement.id : "",
-        typeof achievement.unlockedAt === "string" ? achievement.unlockedAt : null,
-      ])
-  );
-
-  return defaultAchievements.map((achievement) => ({
-    ...achievement,
-    unlockedAt: savedById.get(achievement.id) ?? achievement.unlockedAt,
-  }));
-}
-
 function normalizeDrHistory(value: unknown): DrHistoryEntry[] {
   if (!Array.isArray(value)) return defaultDrHistory;
 
@@ -221,7 +203,7 @@ export function buildStoredStateFromImport(value: Partial<StoredState>): StoredS
       typeof value.lastDrUpdateDate === "string" ? value.lastDrUpdateDate : defaultLastDrUpdateDate,
     drHistory: normalizeDrHistory(value.drHistory),
     lastResetDate: safeDateKey(value.lastResetDate, today),
-    achievements: normalizeAchievements(value.achievements),
+    achievements: mergeAchievements(value.achievements),
     ...(equippedBadgeIds ? { equippedBadgeIds } : {}),
     lifetimeCompletedQuestCount: safeNumber(value.lifetimeCompletedQuestCount, 0),
     archivedQuests,

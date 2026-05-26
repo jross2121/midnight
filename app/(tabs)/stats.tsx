@@ -4,9 +4,10 @@ import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { CONTRACT_BLUE } from "./_styles";
+import { CONTRACT_GOLD } from "./_styles";
 import { RankBadge } from "./_components/RankBadge";
 import { ScreenHeader } from "./_components/ScreenHeader";
+import { mergeAchievements } from "./_utils/achievements";
 import { defaultAchievements } from "./_utils/defaultData";
 import { createCardSurface, createTileSurface, ui, withAlpha } from "./_utils/designSystem";
 import { DR_RANK_THRESHOLDS, getNextRank, getRankFromDR, getRankMeta } from "./_utils/rank";
@@ -134,28 +135,6 @@ function getRankTone(tier: number): string {
   return tier >= 7 ? "#FFE19A" : RANK_TONE;
 }
 
-function isAchievement(value: unknown): value is Achievement {
-  if (typeof value !== "object" || value === null) return false;
-  const candidate = value as Partial<Achievement>;
-  return (
-    typeof candidate.id === "string" &&
-    typeof candidate.name === "string" &&
-    typeof candidate.description === "string" &&
-    typeof candidate.icon === "string" &&
-    (typeof candidate.unlockedAt === "string" || candidate.unlockedAt === null)
-  );
-}
-
-function mergeAchievements(saved: unknown): Achievement[] {
-  if (!Array.isArray(saved)) return defaultAchievements;
-  const savedById = new Map(saved.filter(isAchievement).map((item) => [item.id, item]));
-
-  return defaultAchievements.map((achievement) => ({
-    ...achievement,
-    unlockedAt: savedById.get(achievement.id)?.unlockedAt ?? achievement.unlockedAt,
-  }));
-}
-
 function getBadgeMeta(id: string): BadgeMeta {
   return BADGE_META[id] ?? FALLBACK_BADGE_META;
 }
@@ -188,10 +167,10 @@ function getTrackVisual(trackId: BadgeTrackId, isLightTheme: boolean): TrackVisu
   }
 
   return {
-    primary: CONTRACT_BLUE,
-    surface: isLightTheme ? "#ECFEFF" : "#082331",
-    border: isLightTheme ? "#67E8F9" : "#155E75",
-    text: isLightTheme ? "#0E7490" : "#A5F3FC",
+    primary: CONTRACT_GOLD,
+    surface: isLightTheme ? "#FFF7E6" : "#241B0C",
+    border: isLightTheme ? "#F0C96E" : "#6E5625",
+    text: isLightTheme ? "#7C4A03" : "#F5D783",
   };
 }
 

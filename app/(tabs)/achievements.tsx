@@ -6,7 +6,8 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ScreenHeader } from "./_components/ScreenHeader";
-import { CONTRACT_BLUE } from "./_styles";
+import { CONTRACT_GOLD } from "./_styles";
+import { mergeAchievements } from "./_utils/achievements";
 import {
   defaultAchievements,
   defaultCategories,
@@ -98,7 +99,7 @@ const AWARD_TRACKS: {
     body: "Contract protection and streaks that prove the routine holds.",
     collections: ["contracts", "streaks"],
     icon: "shield.fill",
-    primary: CONTRACT_BLUE,
+    primary: CONTRACT_GOLD,
   },
   {
     id: "legacy",
@@ -318,8 +319,8 @@ function getAwardTrackVisual(track: AwardTrack): AwardVisual {
   return {
     icon: track.icon,
     primary: track.primary,
-    soft: "#123447",
-    deep: "#082331",
+    soft: "#3A2A12",
+    deep: "#20170B",
     label: "Consistency Badge",
   };
 }
@@ -355,28 +356,6 @@ function normalizeEquippedBadgeIds(value: unknown, achievements: Achievement[]):
   });
 
   return slots;
-}
-
-function isAchievement(value: unknown): value is Achievement {
-  if (typeof value !== "object" || value === null) return false;
-  const candidate = value as Partial<Achievement>;
-  return (
-    typeof candidate.id === "string" &&
-    typeof candidate.name === "string" &&
-    typeof candidate.description === "string" &&
-    typeof candidate.icon === "string" &&
-    (typeof candidate.unlockedAt === "string" || candidate.unlockedAt === null)
-  );
-}
-
-function mergeAchievements(saved: unknown): Achievement[] {
-  if (!Array.isArray(saved)) return defaultAchievements;
-  const savedById = new Map(saved.filter(isAchievement).map((item) => [item.id, item]));
-
-  return defaultAchievements.map((achievement) => ({
-    ...achievement,
-    unlockedAt: savedById.get(achievement.id)?.unlockedAt ?? achievement.unlockedAt,
-  }));
 }
 
 function formatDate(isoString: string): string {

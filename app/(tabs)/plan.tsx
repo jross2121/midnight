@@ -9,7 +9,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { EditQuestForm } from "./_components/EditQuestForm";
 import { Footer } from "./_components/Footer";
 import { ScreenHeader } from "./_components/ScreenHeader";
-import { CONTRACT_BLUE } from "./_styles";
+import { CONTRACT_GOLD } from "./_styles";
 import { getCategoryDisplayNameById } from "./_utils/categoryLabels";
 import { localDateKey, parseDateKey } from "./_utils/dateHelpers";
 import { withAlpha } from "./_utils/designSystem";
@@ -67,7 +67,7 @@ type MetricTileProps = {
 
 const PLAN_TONES = {
   gold: "#F5B84B",
-  contract: CONTRACT_BLUE,
+  contract: CONTRACT_GOLD,
   slate: "#8EA0B2",
   warning: "#F472B6",
 } as const;

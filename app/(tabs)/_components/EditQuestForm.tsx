@@ -13,7 +13,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { CONTRACT_BLUE, HOME_GOLD, createStyles } from "../_styles";
+import { CONTRACT_GOLD, HOME_GOLD, createStyles } from "../_styles";
 import { getCategoryDisplayName } from "../_utils/categoryLabels";
 import { withAlpha } from "../_utils/designSystem";
 import { getQuestXpForDifficulty } from "../_utils/questXp";
@@ -421,13 +421,13 @@ export function EditQuestSheet({ quest, categories, onSave, onCancel }: EditQues
                   style={[
                     styles.editSheetMetaPill,
                     {
-                      backgroundColor: withAlpha(CONTRACT_BLUE, 0.12),
-                      borderColor: withAlpha(CONTRACT_BLUE, 0.32),
+                      backgroundColor: withAlpha(CONTRACT_GOLD, 0.12),
+                      borderColor: withAlpha(CONTRACT_GOLD, 0.32),
                     },
                   ]}
                 >
                   <Text
-                    style={[styles.editSheetMetaPillText, { color: CONTRACT_BLUE }]}
+                    style={[styles.editSheetMetaPillText, { color: CONTRACT_GOLD }]}
                     numberOfLines={1}
                   >
                     Contract

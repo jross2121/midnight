@@ -5,7 +5,7 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ScreenHeader } from "./_components/ScreenHeader";
-import { CONTRACT_BLUE, HOME_GOLD } from "./_styles";
+import { CONTRACT_GOLD, HOME_GOLD } from "./_styles";
 import { createTileSurface, ui, withAlpha } from "./_utils/designSystem";
 import { useTheme, type ThemeColors } from "./_utils/themeContext";
 
@@ -22,11 +22,16 @@ type GlossaryItem = {
   definition: string;
 };
 
+type FirstDayStep = {
+  title: string;
+  body: string;
+};
+
 const GUIDE_SECTIONS: GuideSection[] = [
   {
     title: "Daily Run",
     label: "Home",
-    body: "Home is the live board for the current day. Finish quests before midnight, then the day gets judged.",
+    body: "Home is today's board. Finish quests before midnight; Midnight evaluates the day after it ends.",
     icon: "house.fill",
     summary: "Finish before midnight. Pins and contracts first.",
   },
@@ -47,17 +52,32 @@ const GUIDE_SECTIONS: GuideSection[] = [
   {
     title: "Progress",
     label: "Climb",
-    body: "DR is the long-term score. Rank, insights, awards, and the player card come from finished days.",
+    body: "DR is Discipline Rating, the long-term score. Rank, insights, awards, and the player card come from evaluated days.",
     icon: "trophy.fill",
     summary: "Rank follows DR. Equip badges from Awards.",
   },
 ];
 
+const FIRST_DAY_STEPS: FirstDayStep[] = [
+  {
+    title: "1. Pick today's quests",
+    body: "Keep the board small: one easy win, one useful task, and one contract if it truly matters.",
+  },
+  {
+    title: "2. Finish before midnight",
+    body: "Tap Complete as you finish. Contracts and pinned quests should happen before optional work.",
+  },
+  {
+    title: "3. Review the judgment",
+    body: "After midnight, Midnight turns the day into DR movement, rank progress, streaks, and awards.",
+  },
+];
+
 const GLOSSARY: GlossaryItem[] = [
-  { term: "DR", definition: "Discipline Rating. The long-term score behind rank." },
-  { term: "Daily Standard", definition: "The completion target that makes the day count as stable." },
-  { term: "Resting", definition: "A quest removed from the active board until resumed." },
-  { term: "Evaluation", definition: "The midnight judgment that turns the day into DR movement." },
+  { term: "DR", definition: "Discipline Rating. The long-term score that moves after each Midnight Evaluation and determines rank." },
+  { term: "Daily Standard", definition: "The completion target for a stable day. You do not need a huge board to improve." },
+  { term: "Resting", definition: "A paused quest. It stays in Plan but does not count on today's board." },
+  { term: "Evaluation", definition: "The midnight review that scores yesterday's scheduled quests and records DR movement." },
 ];
 
 export default function GuideScreen() {
@@ -82,19 +102,31 @@ export default function GuideScreen() {
         </View>
 
         <View style={styles.block}>
+          <Text style={styles.blockTitle}>First Day</Text>
+          <View style={styles.firstDayList}>
+            {FIRST_DAY_STEPS.map((step) => (
+              <View key={step.title} style={styles.firstDayRow}>
+                <Text style={styles.firstDayTitle}>{step.title}</Text>
+                <Text style={styles.firstDayBody}>{step.body}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.block}>
           <Text style={styles.blockTitle}>Main Rules</Text>
           <View style={styles.ruleList}>
             {GUIDE_SECTIONS.map((section) => {
               const isContractSection = section.title === "Contracts";
-              const tone = isContractSection ? CONTRACT_BLUE : HOME_GOLD;
+              const tone = isContractSection ? CONTRACT_GOLD : HOME_GOLD;
               return (
                 <View key={section.title} style={styles.ruleRow}>
                   <View
                     style={[
                       styles.ruleIcon,
                       isContractSection && {
-                        borderColor: withAlpha(CONTRACT_BLUE, 0.3),
-                        backgroundColor: withAlpha(CONTRACT_BLUE, 0.09),
+                        borderColor: withAlpha(CONTRACT_GOLD, 0.3),
+                        backgroundColor: withAlpha(CONTRACT_GOLD, 0.09),
                       },
                     ]}
                   >
@@ -185,6 +217,27 @@ function createGuideStyles(colors: ThemeColors) {
     },
     ruleList: {
       gap: 8,
+    },
+    firstDayList: {
+      gap: 8,
+    },
+    firstDayRow: {
+      ...rowSurface,
+      backgroundColor: withAlpha(HOME_GOLD, 0.06),
+      borderColor: withAlpha(HOME_GOLD, 0.2),
+    },
+    firstDayTitle: {
+      color: colors.textPrimary,
+      fontSize: 14,
+      lineHeight: 18,
+      fontWeight: "900",
+    },
+    firstDayBody: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      lineHeight: 17,
+      fontWeight: "700",
+      marginTop: 3,
     },
     ruleRow: {
       ...rowSurface,

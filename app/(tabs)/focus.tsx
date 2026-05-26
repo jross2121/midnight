@@ -7,7 +7,8 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ScreenHeader } from "./_components/ScreenHeader";
-import { CONTRACT_BLUE, HOME_GOLD } from "./_styles";
+import { CONTRACT_GOLD, HOME_GOLD } from "./_styles";
+import { getAchievementsAfterQuestCompletion, mergeAchievements } from "./_utils/achievements";
 import { getCategoryDisplayName } from "./_utils/categoryLabels";
 import { localDateKey } from "./_utils/dateHelpers";
 import {
@@ -58,96 +59,6 @@ function sortFocusQuests(quests: Quest[]): Quest[] {
     const weight = { hard: 3, medium: 2, easy: 1 };
     return weight[b.difficulty] - weight[a.difficulty];
   });
-}
-
-function normalizeAchievements(saved: unknown): Achievement[] {
-  if (!Array.isArray(saved)) return defaultAchievements;
-  const savedById = new Map(
-    saved
-      .filter((item): item is Achievement => {
-        if (typeof item !== "object" || item === null) return false;
-        const candidate = item as Partial<Achievement>;
-        return typeof candidate.id === "string";
-      })
-      .map((item) => [item.id, item])
-  );
-
-  return defaultAchievements.map((achievement) => ({
-    ...achievement,
-    unlockedAt: savedById.get(achievement.id)?.unlockedAt ?? achievement.unlockedAt,
-  }));
-}
-
-function unlockAchievement(achievements: Achievement[], achievementId: string): Achievement[] {
-  return achievements.map((achievement) =>
-    achievement.id === achievementId && !achievement.unlockedAt
-      ? { ...achievement, unlockedAt: new Date().toISOString() }
-      : achievement
-  );
-}
-
-function updateAchievementsAfterCompletion({
-  achievements,
-  quests,
-  categories,
-  previousCategories,
-  lifetimeCompletedQuestCount,
-}: {
-  achievements: Achievement[];
-  quests: Quest[];
-  categories: Category[];
-  previousCategories: Category[];
-  lifetimeCompletedQuestCount: number;
-}) {
-  const todaysQuests = getScheduledQuestsForDate(quests, localDateKey());
-  const completedToday = todaysQuests.filter((quest) => quest.done);
-  const todayXPTotal = completedToday.reduce((sum, quest) => sum + quest.xp, 0);
-  const hardQuestDoneCount = completedToday.filter((quest) => quest.difficulty === "hard").length;
-  const completedCategoryCount = new Set(completedToday.map((quest) => quest.categoryId)).size;
-
-  let nextAchievements = achievements;
-  const unlock = (id: string) => {
-    nextAchievements = unlockAchievement(nextAchievements, id);
-  };
-
-  if (lifetimeCompletedQuestCount >= 1) unlock("first_quest");
-  if (lifetimeCompletedQuestCount >= 10) unlock("quest_10");
-  if (lifetimeCompletedQuestCount >= 30) unlock("30_quests");
-  if (lifetimeCompletedQuestCount >= 50) unlock("quest_50");
-  if (lifetimeCompletedQuestCount >= 100) unlock("quest_100");
-  if (completedToday.some((quest) => quest.difficulty === "hard")) unlock("hard_mode");
-  if (hardQuestDoneCount >= 2) unlock("double_hard");
-  if (todayXPTotal >= 100) unlock("100_xp");
-  if (todayXPTotal >= 150) unlock("xp_150");
-  if (todayXPTotal >= 200) unlock("xp_200");
-  if (completedCategoryCount >= 4) unlock("balanced_day");
-  if (todaysQuests.length > 0 && todaysQuests.every((quest) => quest.done)) unlock("perfect_day");
-
-  const contractQuests = todaysQuests.filter((quest) => quest.contract);
-  if (contractQuests.length > 0 && contractQuests.every((quest) => quest.done)) {
-    unlock("first_contract");
-  }
-
-  if (
-    categories.some((category) => {
-      const previousLevel = previousCategories.find((item) => item.id === category.id)?.level ?? category.level;
-      return previousLevel < 5 && category.level >= 5;
-    })
-  ) {
-    unlock("level_5");
-  }
-  if (
-    categories.some((category) => {
-      const previousLevel = previousCategories.find((item) => item.id === category.id)?.level ?? category.level;
-      return previousLevel < 10 && category.level >= 10;
-    })
-  ) {
-    unlock("level_10");
-  }
-  if (categories.length > 0 && categories.every((category) => category.level >= 3)) unlock("all_categories");
-  if (categories.length > 0 && categories.every((category) => category.level >= 5)) unlock("all_categories_5");
-
-  return nextAchievements;
 }
 
 function buildStoredState(
@@ -204,7 +115,7 @@ export default function FocusScreen() {
       const parsed = raw ? (JSON.parse(raw) as Partial<StoredState>) : {};
       const loadedCategories = Array.isArray(parsed.categories) ? parsed.categories : defaultCategories;
       const loadedQuests = Array.isArray(parsed.quests) ? parsed.quests : defaultQuests;
-      const loadedAchievements = normalizeAchievements(parsed.achievements);
+      const loadedAchievements = mergeAchievements(parsed.achievements);
       const loadedLifetime =
         typeof parsed.lifetimeCompletedQuestCount === "number"
           ? Math.max(0, Math.floor(parsed.lifetimeCompletedQuestCount))
@@ -323,7 +234,7 @@ export default function FocusScreen() {
           : category
       );
       const nextLifetimeCompletedQuestCount = lifetimeCompletedQuestCount + 1;
-      const nextAchievements = updateAchievementsAfterCompletion({
+      const nextAchievements = getAchievementsAfterQuestCompletion({
         achievements,
         quests: nextQuests,
         categories: nextCategories,
@@ -490,7 +401,7 @@ export default function FocusScreen() {
           ) : (
             activeQuests.map((quest) => {
               const selected = selectedQuest?.id === quest.id;
-              const questTone = quest.contract ? CONTRACT_BLUE : HOME_GOLD;
+              const questTone = quest.contract ? CONTRACT_GOLD : HOME_GOLD;
               return (
                 <Pressable
                   key={quest.id}
@@ -502,8 +413,8 @@ export default function FocusScreen() {
                     styles.taskRow,
                     selected && styles.taskRowSelected,
                     selected && quest.contract && {
-                      borderColor: withAlpha(CONTRACT_BLUE, 0.48),
-                      backgroundColor: withAlpha(CONTRACT_BLUE, 0.09),
+                      borderColor: withAlpha(CONTRACT_GOLD, 0.48),
+                      backgroundColor: withAlpha(CONTRACT_GOLD, 0.09),
                     },
                     running && !selected && styles.taskRowDisabled,
                   ]}
@@ -513,8 +424,8 @@ export default function FocusScreen() {
                       styles.taskIcon,
                       selected && styles.taskIconSelected,
                       selected && quest.contract && {
-                        borderColor: withAlpha(CONTRACT_BLUE, 0.4),
-                        backgroundColor: withAlpha(CONTRACT_BLUE, 0.12),
+                        borderColor: withAlpha(CONTRACT_GOLD, 0.4),
+                        backgroundColor: withAlpha(CONTRACT_GOLD, 0.12),
                       },
                     ]}
                   >
@@ -532,7 +443,7 @@ export default function FocusScreen() {
                       {categoryName(quest.categoryId)} - {quest.difficulty.toUpperCase()} - {quest.xp} XP
                     </Text>
                   </View>
-                  <Text style={[styles.taskState, selected && styles.taskStateSelected, selected && quest.contract && { color: CONTRACT_BLUE }]}>
+                  <Text style={[styles.taskState, selected && styles.taskStateSelected, selected && quest.contract && { color: CONTRACT_GOLD }]}>
                     {selected ? "Locked" : "Select"}
                   </Text>
                 </Pressable>

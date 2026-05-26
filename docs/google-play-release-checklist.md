@@ -46,11 +46,16 @@ Change the Android package before the first Play Store upload if you want a diff
 - Test fresh install.
 - Test backup export/import.
 - Confirm backup export/import preserves reminder preferences.
+- Test importing a backup into an install that already has local progress, and confirm the replacement warning is clear.
 - Test archive restore/clear.
 - Test reminder permission request, enable/disable, and each reminder slot.
 - Test Focus Sprint start, pause, reset, duration change, and quest completion.
+- Test completing the same type of quest from Home and Focus Sprint, including achievement unlocks.
 - Test Awards filters, next unlocks, selected award details, and new trophy progress.
 - Test midnight evaluation flow.
+- Test missed-day handling after a 1-day gap and a 2+ day gap.
+- Test recurring quests: once, daily, weekdays, and weekly.
+- Verify first-run onboarding and Guide explain quests, contracts, DR, ranks, and awards without outside context.
 - Test dark and light theme.
 - Verify dev-only tools are hidden in release builds.
 

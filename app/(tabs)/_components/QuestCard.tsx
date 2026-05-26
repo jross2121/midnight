@@ -2,7 +2,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import * as Haptics from "expo-haptics";
 import React, { useRef, useState } from "react";
 import { Alert, Animated, Easing, Pressable, Text, View } from "react-native";
-import { CONTRACT_BLUE, HOME_GOLD, createStyles } from "../_styles";
+import { CONTRACT_GOLD, HOME_GOLD, createStyles } from "../_styles";
 import { getCategoryArtById } from "../_utils/categoryArt";
 import { withAlpha } from "../_utils/designSystem";
 import { getQuestRepeatLabel } from "../_utils/recurrence";
@@ -40,7 +40,7 @@ export const QuestCard = React.memo(function QuestCard({
   const [deletePressed, setDeletePressed] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const categoryArt = getCategoryArtById(quest.categoryId);
-  const questAccent = quest.contract ? CONTRACT_BLUE : quest.pinned ? HOME_GOLD : categoryArt.color;
+  const questAccent = quest.contract ? CONTRACT_GOLD : quest.pinned ? HOME_GOLD : categoryArt.color;
 
   const flashOpacity = useRef(new Animated.Value(0)).current;
   const cardOpacity = useRef(new Animated.Value(1)).current;
@@ -278,7 +278,7 @@ export const QuestCard = React.memo(function QuestCard({
               <Text
                 style={[
                   styles.statusPill,
-                  { color: CONTRACT_BLUE, backgroundColor: withAlpha(CONTRACT_BLUE, 0.1) },
+                  { color: CONTRACT_GOLD, backgroundColor: withAlpha(CONTRACT_GOLD, 0.1) },
                 ]}
               >
                 CONTRACT
@@ -353,7 +353,7 @@ export const QuestCard = React.memo(function QuestCard({
               style={[
                 styles.questActionToolBtn,
                 quest.contract
-                  ? { backgroundColor: withAlpha(CONTRACT_BLUE, 0.1), borderColor: withAlpha(CONTRACT_BLUE, 0.38) }
+                  ? { backgroundColor: withAlpha(CONTRACT_GOLD, 0.1), borderColor: withAlpha(CONTRACT_GOLD, 0.38) }
                   : { backgroundColor: withAlpha(colors.bg, 0.35), borderColor: withAlpha(colors.border, 0.28) },
                 contractPressed && styles.btnPressed,
               ]}
@@ -363,7 +363,7 @@ export const QuestCard = React.memo(function QuestCard({
               accessibilityRole="button"
               accessibilityLabel={`${quest.contract ? "Remove contract from" : "Make contract"} ${quest.title}`}
             >
-              <IconSymbol name="shield.fill" size={17} color={quest.contract ? CONTRACT_BLUE : colors.textSecondary} />
+              <IconSymbol name="shield.fill" size={17} color={quest.contract ? CONTRACT_GOLD : colors.textSecondary} />
             </Pressable>
 
             <Pressable

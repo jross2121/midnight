@@ -16,7 +16,7 @@ export interface ThemeColors {
   accent: string;
   positive: string;
   negative: string;
-  accentCyan: string;
+  accentGold: string;
   accentGreen: string;
   accentPrimary: string;
   accentSecondary: string;
@@ -40,12 +40,12 @@ function createThemeColors(mode: Theme): ThemeColors {
     text: base.text,
     mutedText: base.mutedText,
     textTertiary: base.textTertiary,
-    accent: base.accentCyan,
+    accent: base.accentGold,
     positive: base.accentGreen,
     negative: base.negative,
-    accentCyan: base.accentCyan,
+    accentGold: base.accentGold,
     accentGreen: base.accentGreen,
-    accentPrimary: base.accentCyan,
+    accentPrimary: base.accentGold,
     accentSecondary: base.accentGreen,
     accentTertiary: base.accentGreen,
     textPrimary: base.text,

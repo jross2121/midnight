@@ -3,7 +3,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { HOME_GOLD } from "./_styles";
+import { CONTRACT_GOLD, HOME_GOLD } from "./_styles";
 import { DisciplineCalendar, type DisciplineCalendarDay } from "./_components/DisciplineCalendar";
 import { DisciplinePatterns } from "./_components/DisciplinePatterns";
 import { RankBadge } from "./_components/RankBadge";
@@ -20,7 +20,6 @@ import { formatDelta } from "./_utils/discipline";
 import { buildCoachResponse, COACH_PROMPTS, type CoachPromptId } from "./_utils/coach";
 import {
     buildCalendarFromHistory,
-    buildInsightOfTheDay,
     getAverageCompletionRate,
     getCurrentRankFromHistory,
     getLatestCategoriesFromHistory,
@@ -41,6 +40,10 @@ const MAIN_CATEGORIES = getMainCategoryDisplayEntries();
 const INSIGHTS_UNLOCK_RANK = "Focused";
 const INSIGHTS_TONE = HOME_GOLD;
 const INSIGHTS_UNLOCK_TONE = HOME_GOLD;
+const INSIGHT_MINT = "#34D399";
+const INSIGHT_CONTRACT = CONTRACT_GOLD;
+const INSIGHT_VIOLET = "#A78BFA";
+const INSIGHT_ROSE = "#FB7185";
 
 const LOCKED_INSIGHT_PREVIEWS = [
   {
@@ -71,6 +74,11 @@ const INSIGHT_MODES: { id: InsightMode; label: string }[] = [
   { id: "today", label: "Today" },
   { id: "history", label: "History" },
 ];
+
+function clampPercent(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100, Math.round(value)));
+}
 
 function isDrHistoryEntry(value: unknown): value is DrHistoryEntry {
   if (typeof value !== "object" || value === null) return false;
@@ -156,7 +164,6 @@ export default function InsightsScreen() {
   const [categories, setCategories] = useState<Category[]>(defaultCategories);
   const [quests, setQuests] = useState<Quest[]>(defaultQuests);
   const [hydrated, setHydrated] = useState(false);
-  const [readoutExpanded, setReadoutExpanded] = useState(false);
   const [selectedCoachPrompt, setSelectedCoachPrompt] = useState<CoachPromptId>("next");
   const [selectedInsightMode, setSelectedInsightMode] = useState<InsightMode>("today");
 
@@ -248,7 +255,6 @@ export default function InsightsScreen() {
   const hasSufficientTrend = latest7History.length >= 2;
   const weekDelta = getSevenDayDrChange(evaluationHistory);
   const trendLabelTone = weekDelta > 0 ? colors.positive : weekDelta < 0 ? colors.negative : colors.textSecondary;
-  const insightMessage = buildInsightOfTheDay(evaluationHistory);
   const averageCompletionRate = getAverageCompletionRate(evaluationHistory);
   const compactInsightMessage = buildCompactInsight({
     averageCompletionRate,
@@ -263,7 +269,6 @@ export default function InsightsScreen() {
     "N/A";
   const currentRank = getCurrentRankFromHistory(evaluationHistory) ?? getRankFromDR(disciplineRating);
   const currentDrValue = latest7History[latest7History.length - 1]?.drAfter ?? disciplineRating;
-  const rankForBadge = getRankFromDR(currentDrValue);
   const completedToday = todaysQuests.filter((quest) => quest.done).length;
   const totalToday = todaysQuests.length;
   const todayRate = totalToday > 0 ? Math.round((completedToday / totalToday) * 100) : 0;
@@ -324,13 +329,120 @@ export default function InsightsScreen() {
   const weeklyTrendLabel = weekDelta > 0 ? "Rising" : weekDelta < 0 ? "Under pressure" : "Flat";
   const categoryToneForPercent = (percent: number) =>
     percent >= 80 ? colors.positive : percent >= 50 ? INSIGHTS_TONE : colors.negative;
+  const recoveryPercent = clampPercent((recoverySignal / 3) * 100);
+  const contractPercent = latest7History.length
+    ? clampPercent((weeklyContractDays / latest7History.length) * 100)
+    : 0;
+  const trendPercent = clampPercent(50 + weekDelta * 4);
+  const momentumScore = clampPercent(
+    (todayRate + averageCompletionRate + recoveryPercent + trendPercent) / 4
+  );
+  const momentumTone =
+    momentumScore >= 75 ? INSIGHT_MINT : momentumScore >= 50 ? INSIGHTS_TONE : INSIGHT_ROSE;
+  const strengthTone = bestCategory ? categoryToneForPercent(bestCategory.completionPct) : INSIGHT_MINT;
+  const improveTone = riskCategory ? categoryToneForPercent(riskCategory.completionPct) : INSIGHT_ROSE;
+  const dashboardCards = [
+    {
+      label: "Improve",
+      title: weakestCategory,
+      value: riskCategory ? `${riskCategory.completionPct}%` : "No data",
+      body: riskCategory?.total
+        ? `${riskCategory.completed}/${riskCategory.total} complete today`
+        : "Needs a tracked quest to measure.",
+      tone: improveTone,
+      percent: riskCategory?.completionPct ?? 0,
+      featured: true,
+    },
+    {
+      label: "Good At",
+      title: strongestCategory,
+      value: bestCategory ? `${bestCategory.completionPct}%` : "No data",
+      body: bestCategory?.total
+        ? `${bestCategory.completed}/${bestCategory.total} complete today`
+        : "Your strongest lane will appear here.",
+      tone: strengthTone,
+      percent: bestCategory?.completionPct ?? 0,
+      featured: true,
+    },
+    {
+      label: "Today",
+      title: "Completion",
+      value: `${todayRate}%`,
+      body: `${completedToday}/${totalToday} quests complete`,
+      percent: todayRate,
+      tone: latestCompletionTone,
+      featured: false,
+    },
+    {
+      label: "Trend",
+      title: weeklyTrendLabel,
+      value: weekDelta > 0 ? `+${weekDelta}` : `${weekDelta}`,
+      body: formatWeekChange(weekDelta, hasSufficientTrend),
+      percent: trendPercent,
+      tone: trendLabelTone,
+      featured: false,
+    },
+  ];
+  const actionPlan = [
+    {
+      label: "1",
+      title: "Improve first",
+      body: riskCategory
+        ? `Put the next completed quest into ${weakestCategory}.`
+        : weeklyNextAction,
+      tone: improveTone,
+    },
+    {
+      label: "2",
+      title: "Keep doing",
+      body: bestCategory
+        ? `${strongestCategory} is carrying the run. Keep one easy win there.`
+        : "Build one reliable category with a repeatable quest.",
+      tone: strengthTone,
+    },
+    {
+      label: "3",
+      title: "Watch",
+      body:
+        weekDelta < 0
+          ? "DR is slipping this week. Shrink the board and protect one contract."
+          : `Momentum score is ${momentumScore}. Keep the average above 60%.`,
+      tone: weekDelta < 0 ? colors.negative : momentumTone,
+    },
+  ];
+  const historyStats = [
+    {
+      label: "Momentum",
+      value: `${momentumScore}`,
+      tone: momentumTone,
+      percent: momentumScore,
+    },
+    {
+      label: "Contracts",
+      value: `${weeklyContractDays}/${latest7History.length || 0}`,
+      tone: INSIGHT_CONTRACT,
+      percent: contractPercent,
+    },
+    {
+      label: "Recovery",
+      value: `${recoverySignal}/3`,
+      tone: INSIGHT_VIOLET,
+      percent: recoveryPercent,
+    },
+    {
+      label: "Trend",
+      value: weeklyTrendLabel,
+      percent: trendPercent,
+      tone: trendLabelTone,
+    },
+  ];
 
   if (!insightsUnlocked) {
     return (
       <SafeAreaView edges={["top"]} style={styles.safe}>
         <ScrollView contentContainerStyle={styles.container}>
           <ScreenHeader
-            title="Insight Matrix"
+            title="Insights"
             subtitle="Unlocks at Focused rank"
             icon="chart.bar.fill"
             accent={INSIGHTS_UNLOCK_TONE}
@@ -385,86 +497,105 @@ export default function InsightsScreen() {
     <SafeAreaView edges={["top"]} style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
         <ScreenHeader
-          title="Insight Matrix"
-          subtitle="Patterns, pressure points, and execution signals"
+          title="Insights"
+          subtitle="What to improve, what is working"
           icon="chart.bar.fill"
           accent={INSIGHTS_TONE}
         />
 
-        <View style={styles.commandPanel}>
-          <View style={styles.commandTopRow}>
-            <View style={styles.rankSlot}>
-              <RankBadge rank={rankForBadge} size={42} active />
-            </View>
-            <View style={styles.commandCopy}>
-              <View style={styles.commandEyebrowRow}>
-                <Text style={styles.eyebrow}>Current Read</Text>
-                <Pressable
-                  onPress={() => setReadoutExpanded((current) => !current)}
-                  style={({ pressed }) => [styles.detailsButton, pressed && styles.detailsButtonPressed]}
+        <View style={styles.dashboardPanel}>
+          <View style={styles.dashboardHeader}>
+            <View style={styles.dashboardTitleRow}>
+              <View style={styles.dashboardTitleCopy}>
+                <Text style={styles.eyebrow}>Dashboard</Text>
+                <Text
+                  style={styles.dashboardTitle}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.82}
                 >
-                  <Text style={styles.detailsButtonText}>{readoutExpanded ? "Hide" : "Pattern"}</Text>
-                </Pressable>
+                  {weeklyReviewTitle}
+                </Text>
               </View>
-              <Text style={styles.commandTitle}>{weeklyReviewTitle}</Text>
-              <Text style={styles.commandAction}>{weeklyNextAction}</Text>
-              <View style={styles.commandPillRow}>
-                <View style={styles.commandPill}>
-                  <Text style={styles.commandPillLabel}>Rank</Text>
-                  <Text style={styles.commandPillValue} numberOfLines={1}>{currentRank}</Text>
-                </View>
-                <View style={[styles.commandPill, { borderColor: withAlpha(latestCompletionTone, 0.3) }]}>
-                  <Text style={styles.commandPillLabel}>Last</Text>
-                  <Text style={[styles.commandPillValue, { color: latestCompletionTone }]}>
-                    {Math.round(latestCompletion)}%
-                  </Text>
-                </View>
-                <View style={[styles.commandPill, { borderColor: withAlpha(trendLabelTone, 0.28) }]}>
-                  <Text style={styles.commandPillLabel}>Trend</Text>
-                  <Text style={[styles.commandPillValue, { color: trendLabelTone }]} numberOfLines={1}>
-                    {weeklyTrendLabel}
-                  </Text>
-                </View>
+              <View
+                style={[
+                  styles.dashboardScore,
+                  {
+                    borderColor: withAlpha(momentumTone, 0.42),
+                    backgroundColor: withAlpha(momentumTone, 0.13),
+                  },
+                ]}
+              >
+                <Text style={styles.dashboardScoreLabel}>Momentum</Text>
+                <Text style={[styles.dashboardScoreValue, { color: momentumTone }]}>{momentumScore}</Text>
               </View>
             </View>
+            <Text style={styles.dashboardBody}>{compactInsightMessage}</Text>
           </View>
 
-          {readoutExpanded ? (
-            <View style={styles.commandDetailsStack}>
-              <Text style={styles.commandDetails}>{compactInsightMessage}</Text>
-              <Text style={styles.commandDetails}>{insightMessage}</Text>
-            </View>
-          ) : null}
+          <View style={styles.dashboardGrid}>
+            {dashboardCards.map((card) => (
+              <View
+                key={card.label}
+                style={[
+                  styles.dashboardCard,
+                  card.featured && styles.dashboardCardFeatured,
+                  {
+                    borderColor: withAlpha(card.tone, card.featured ? 0.34 : 0.24),
+                    backgroundColor: withAlpha(card.tone, card.featured ? 0.1 : 0.055),
+                  },
+                ]}
+              >
+                <View style={styles.dashboardCardTop}>
+                  <Text style={[styles.dashboardCardLabel, { color: card.tone }]}>{card.label}</Text>
+                  <Text style={[styles.dashboardCardValue, { color: card.tone }]}>{card.value}</Text>
+                </View>
+                <Text style={styles.dashboardCardTitle} numberOfLines={1}>{card.title}</Text>
+                <Text style={styles.dashboardCardBody}>{card.body}</Text>
+                <View style={styles.dashboardTrack}>
+                  <View
+                    style={[
+                      styles.dashboardFill,
+                      {
+                        width: `${Math.max(4, card.percent)}%`,
+                        backgroundColor: card.tone,
+                      },
+                    ]}
+                  />
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
 
-          <View style={styles.commandDivider} />
-
-          <View style={styles.commandMetrics}>
-            <View style={styles.commandMetricPrimary}>
-              <Text style={styles.commandMetricValue}>{currentDrValue}</Text>
-              <Text style={styles.commandMetricLabel}>Current DR</Text>
-            </View>
-            <View style={styles.commandMetric}>
-              <Text style={styles.commandMetricValue}>{averageCompletionRate}%</Text>
-              <Text style={styles.commandMetricLabel}>30D Avg</Text>
-            </View>
-            <View style={styles.commandMetric}>
-              <Text style={[styles.commandMetricValue, { color: trendLabelTone }]}>
-                {weekDelta > 0 ? `+${weekDelta}` : weekDelta}
-              </Text>
-              <Text style={styles.commandMetricLabel}>7D DR</Text>
+        <View style={styles.actionPanel}>
+          <View style={styles.cardHeaderRow}>
+            <View>
+              <Text style={styles.eyebrow}>Action Plan</Text>
+              <Text style={styles.cardTitle}>Next three moves</Text>
             </View>
           </View>
-
-          <View style={styles.focusBand}>
-            <View style={styles.focusLane}>
-              <Text style={styles.focusLaneLabel}>Leverage</Text>
-              <Text style={styles.focusLaneValue} numberOfLines={1}>{strongestCategory}</Text>
-            </View>
-            <View style={styles.focusDivider} />
-            <View style={styles.focusLane}>
-              <Text style={styles.focusLaneLabel}>Protect</Text>
-              <Text style={styles.focusLaneValue} numberOfLines={1}>{weakestCategory}</Text>
-            </View>
+          <View style={styles.actionList}>
+            {actionPlan.map((item) => (
+              <View
+                key={item.label}
+                style={[
+                  styles.actionRow,
+                  {
+                    borderColor: withAlpha(item.tone, 0.28),
+                    backgroundColor: withAlpha(item.tone, 0.055),
+                  },
+                ]}
+              >
+                <View style={[styles.actionIndex, { backgroundColor: withAlpha(item.tone, 0.16) }]}>
+                  <Text style={[styles.actionIndexText, { color: item.tone }]}>{item.label}</Text>
+                </View>
+                <View style={styles.actionCopy}>
+                  <Text style={styles.actionTitle}>{item.title}</Text>
+                  <Text style={styles.actionBody}>{item.body}</Text>
+                </View>
+              </View>
+            ))}
           </View>
         </View>
 
@@ -547,86 +678,6 @@ export default function InsightsScreen() {
           </View>
         </View>
 
-        <View style={styles.signalMap}>
-          <View style={styles.signalCard}>
-            <View style={styles.signalTopRow}>
-              <Text style={styles.signalLabel}>Strong Zone</Text>
-              <View style={[styles.signalDot, { backgroundColor: colors.positive }]} />
-            </View>
-            <Text style={styles.signalValue} numberOfLines={1}>{strongestCategory}</Text>
-            <Text style={styles.signalMeta}>
-              {bestCategory ? `${bestCategory.completionPct}% current follow-through` : "Awaiting data"}
-            </Text>
-            <View style={styles.signalTrack}>
-              <View
-                style={[
-                  styles.signalFill,
-                  {
-                    width: `${bestCategory ? Math.max(4, bestCategory.completionPct) : 0}%`,
-                    backgroundColor: colors.positive,
-                  },
-                ]}
-              />
-            </View>
-          </View>
-          <View style={styles.signalCard}>
-            <View style={styles.signalTopRow}>
-              <Text style={styles.signalLabel}>Pressure Zone</Text>
-              <View style={[styles.signalDot, { backgroundColor: colors.negative }]} />
-            </View>
-            <Text style={styles.signalValue} numberOfLines={1}>{weakestCategory}</Text>
-            <Text style={styles.signalMeta}>
-              {riskCategory ? `${riskCategory.completionPct}% current follow-through` : "Awaiting data"}
-            </Text>
-            <View style={styles.signalTrack}>
-              <View
-                style={[
-                  styles.signalFill,
-                  {
-                    width: `${riskCategory ? Math.max(4, riskCategory.completionPct) : 0}%`,
-                    backgroundColor: colors.negative,
-                  },
-                ]}
-              />
-            </View>
-          </View>
-          <View style={styles.signalCard}>
-            <View style={styles.signalTopRow}>
-              <Text style={styles.signalLabel}>Today</Text>
-              <View style={[styles.signalDot, { backgroundColor: latestCompletionTone }]} />
-            </View>
-            <Text style={styles.signalValue}>{todayRate}%</Text>
-            <Text style={styles.signalMeta}>{completedToday}/{totalToday} quests complete</Text>
-            <View style={styles.signalTrack}>
-              <View
-                style={[
-                  styles.signalFill,
-                  { width: `${Math.max(4, todayRate)}%`, backgroundColor: latestCompletionTone },
-                ]}
-              />
-            </View>
-          </View>
-          <View style={styles.signalCard}>
-            <View style={styles.signalTopRow}>
-              <Text style={styles.signalLabel}>Recovery</Text>
-              <View style={[styles.signalDot, { backgroundColor: INSIGHTS_TONE }]} />
-            </View>
-            <Text style={styles.signalValue}>{recoverySignal}/3</Text>
-            <Text style={styles.signalMeta}>recent days above baseline</Text>
-            <View style={styles.signalTrack}>
-              <View
-                style={[
-                  styles.signalFill,
-                  {
-                    width: `${Math.max(4, Math.round((recoverySignal / 3) * 100))}%`,
-                    backgroundColor: INSIGHTS_TONE,
-                  },
-                ]}
-              />
-            </View>
-          </View>
-        </View>
-
         <View style={styles.categoryPanel}>
           <View style={styles.cardHeaderRow}>
             <View>
@@ -678,6 +729,35 @@ export default function InsightsScreen() {
           </>
         ) : (
           <>
+
+        <View style={styles.historySummaryGrid}>
+          {historyStats.map((item) => (
+            <View
+              key={item.label}
+              style={[
+                styles.historySummaryCard,
+                {
+                  borderColor: withAlpha(item.tone, 0.24),
+                  backgroundColor: withAlpha(item.tone, 0.055),
+                },
+              ]}
+            >
+              <Text style={[styles.historySummaryValue, { color: item.tone }]}>{item.value}</Text>
+              <Text style={styles.historySummaryLabel}>{item.label}</Text>
+              <View style={styles.historySummaryTrack}>
+                <View
+                  style={[
+                    styles.historySummaryFill,
+                    {
+                      width: `${Math.max(4, item.percent)}%`,
+                      backgroundColor: item.tone,
+                    },
+                  ]}
+                />
+              </View>
+            </View>
+          ))}
+        </View>
 
         <View style={styles.trendPanel}>
           <View style={styles.cardHeaderRow}>
@@ -867,35 +947,24 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
     modeButtonTextSelected: {
       color: INSIGHTS_TONE,
     },
-    commandPanel: {
+    dashboardPanel: {
       ...heroSurface,
       gap: ui.spacing.sm,
-      borderColor: withAlpha(INSIGHTS_TONE, 0.18),
+      borderColor: withAlpha(INSIGHTS_TONE, 0.24),
     },
-    commandTopRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: ui.spacing.sm,
+    dashboardHeader: {
+      flexDirection: "column",
+      gap: ui.spacing.xs,
     },
-    rankSlot: {
-      width: 58,
-      height: 58,
-      borderRadius: ui.radius.md,
-      alignItems: "center",
-      justifyContent: "center",
-      borderWidth: 1,
-      borderColor: withAlpha(INSIGHTS_TONE, 0.18),
-      backgroundColor: withAlpha(colors.bg, 0.32),
-    },
-    commandCopy: {
-      flex: 1,
-      minWidth: 0,
-    },
-    commandEyebrowRow: {
+    dashboardTitleRow: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      gap: ui.spacing.xs,
+      gap: ui.spacing.sm,
+    },
+    dashboardTitleCopy: {
+      flex: 1,
+      minWidth: 0,
     },
     eyebrow: {
       color: withAlpha(colors.textSecondary, 0.78),
@@ -905,159 +974,195 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       letterSpacing: 0,
       textTransform: "uppercase",
     },
-    commandTitle: {
+    dashboardTitle: {
       color: colors.textPrimary,
-      fontSize: 20,
-      lineHeight: 26,
-      fontWeight: "800",
+      fontSize: 22,
+      lineHeight: 27,
+      fontWeight: "900",
       marginTop: 4,
     },
-    commandAction: {
-      color: withAlpha(colors.textSecondary, 0.86),
-      fontSize: 12,
-      lineHeight: 18,
-      fontWeight: "800",
-      marginTop: 4,
+    dashboardBody: {
+      color: withAlpha(colors.textSecondary, 0.9),
+      fontSize: 13,
+      lineHeight: 19,
+      fontWeight: "700",
     },
-    commandPillRow: {
-      flexDirection: "row",
-      gap: 6,
-      marginTop: ui.spacing.xs,
-    },
-    commandPill: {
-      flex: 1,
-      minWidth: 0,
+    dashboardScore: {
+      minWidth: 104,
       minHeight: 42,
       borderRadius: ui.radius.md,
       borderWidth: 1,
-      borderColor: withAlpha(colors.border, 0.22),
-      backgroundColor: withAlpha(colors.bg, 0.24),
-      paddingHorizontal: 8,
-      paddingVertical: 6,
+      flexDirection: "row",
+      alignItems: "center",
       justifyContent: "center",
+      gap: 7,
+      paddingHorizontal: ui.spacing.sm,
+      paddingVertical: 7,
+      flexShrink: 0,
     },
-    commandPillLabel: {
-      color: withAlpha(colors.textSecondary, 0.68),
-      fontSize: 8,
-      lineHeight: 11,
+    dashboardScoreValue: {
+      fontSize: 22,
+      lineHeight: 25,
+      fontWeight: "900",
+      letterSpacing: 0,
+    },
+    dashboardScoreLabel: {
+      color: withAlpha(colors.textSecondary, 0.74),
+      fontSize: 9,
+      lineHeight: 12,
       fontWeight: "900",
       letterSpacing: 0,
       textTransform: "uppercase",
     },
-    commandPillValue: {
+    dashboardGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "space-between",
+      rowGap: ui.spacing.xs,
+    },
+    dashboardCard: {
+      ...tileSurface,
+      width: "48%",
+      paddingHorizontal: ui.spacing.sm,
+      paddingVertical: ui.spacing.sm,
+      minHeight: 132,
+      gap: 7,
+      justifyContent: "space-between",
+    },
+    dashboardCardFeatured: {
+      minHeight: 146,
+    },
+    dashboardCardTop: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: ui.spacing.xs,
+    },
+    dashboardCardLabel: {
+      fontSize: 9,
+      lineHeight: 13,
+      fontWeight: "900",
+      letterSpacing: 0,
+      textTransform: "uppercase",
+    },
+    dashboardCardValue: {
+      fontSize: 18,
+      lineHeight: 22,
+      fontWeight: "900",
+      textAlign: "right",
+      flexShrink: 0,
+    },
+    dashboardCardTitle: {
+      color: colors.textPrimary,
+      fontSize: 16,
+      lineHeight: 20,
+      fontWeight: "900",
+    },
+    dashboardCardBody: {
+      color: withAlpha(colors.textSecondary, 0.82),
+      fontSize: 11,
+      lineHeight: 16,
+      fontWeight: "700",
+    },
+    dashboardTrack: {
+      height: 8,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: withAlpha(colors.border, 0.16),
+      backgroundColor: withAlpha(colors.bg, 0.7),
+      overflow: "hidden",
+    },
+    dashboardFill: {
+      height: "100%",
+      borderRadius: 999,
+    },
+    actionPanel: {
+      ...cardSurface,
+      gap: ui.spacing.sm,
+      borderColor: withAlpha(INSIGHTS_TONE, 0.2),
+    },
+    actionList: {
+      gap: ui.spacing.xs,
+    },
+    actionRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: ui.spacing.sm,
+      borderWidth: 1,
+      borderRadius: ui.radius.md,
+      paddingHorizontal: ui.spacing.sm,
+      paddingVertical: ui.spacing.sm,
+    },
+    actionIndex: {
+      width: 34,
+      height: 34,
+      borderRadius: ui.radius.md,
+      alignItems: "center",
+      justifyContent: "center",
+      flexShrink: 0,
+    },
+    actionIndexText: {
+      fontSize: 11,
+      lineHeight: 14,
+      fontWeight: "900",
+      letterSpacing: 0,
+    },
+    actionCopy: {
+      flex: 1,
+      minWidth: 0,
+      gap: 3,
+    },
+    actionTitle: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      lineHeight: 19,
+      fontWeight: "900",
+    },
+    actionBody: {
+      color: withAlpha(colors.textSecondary, 0.9),
+      fontSize: 13,
+      lineHeight: 19,
+      fontWeight: "700",
+    },
+    historySummaryGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "space-between",
+      rowGap: ui.spacing.xs,
+    },
+    historySummaryCard: {
+      ...tileSurface,
+      width: "48%",
+      minHeight: 88,
+      gap: 5,
+      paddingHorizontal: ui.spacing.sm,
+      paddingVertical: ui.spacing.xs,
+    },
+    historySummaryValue: {
+      fontSize: 18,
+      lineHeight: 22,
+      fontWeight: "900",
+    },
+    historySummaryLabel: {
       color: colors.textPrimary,
       fontSize: 11,
       lineHeight: 15,
       fontWeight: "900",
-      marginTop: 1,
+      textTransform: "uppercase",
+      letterSpacing: 0,
     },
-    detailsButton: {
-      borderWidth: 1,
-      borderColor: withAlpha(INSIGHTS_TONE, 0.22),
+    historySummaryTrack: {
+      height: 7,
       borderRadius: 999,
-      backgroundColor: withAlpha(INSIGHTS_TONE, 0.065),
-      paddingHorizontal: ui.spacing.xs,
-      paddingVertical: 4,
-    },
-    detailsButtonPressed: {
-      opacity: 0.72,
-    },
-    detailsButtonText: {
-      color: withAlpha(INSIGHTS_TONE, 0.92),
-      fontSize: 9,
-      lineHeight: 13,
-      fontWeight: "900",
-      letterSpacing: 0,
-      textTransform: "uppercase",
-    },
-    commandDetails: {
-      color: withAlpha(colors.textSecondary, 0.82),
-      fontSize: 12,
-      lineHeight: 18,
-      fontWeight: "700",
-    },
-    commandDetailsStack: {
-      gap: 4,
-      paddingTop: 2,
-    },
-    commandDivider: {
-      height: 1,
-      backgroundColor: withAlpha(colors.border, 0.22),
-    },
-    commandMetrics: {
-      flexDirection: "row",
-      gap: ui.spacing.xs,
-    },
-    commandMetricPrimary: {
-      ...tileSurface,
-      flex: 1.2,
-      borderColor: withAlpha(INSIGHTS_TONE, 0.28),
-      backgroundColor: withAlpha(INSIGHTS_TONE, 0.075),
-      paddingHorizontal: ui.spacing.sm,
-      paddingVertical: ui.spacing.sm,
-      minWidth: 0,
-      minHeight: 76,
-      justifyContent: "center",
-    },
-    commandMetric: {
-      ...tileSurface,
-      flex: 1,
-      paddingHorizontal: ui.spacing.sm,
-      paddingVertical: ui.spacing.sm,
-      minWidth: 0,
-      minHeight: 76,
-      justifyContent: "center",
-    },
-    commandMetricValue: {
-      color: colors.textPrimary,
-      fontSize: 26,
-      lineHeight: 30,
-      fontWeight: "900",
-    },
-    commandMetricLabel: {
-      color: withAlpha(colors.textSecondary, 0.78),
-      fontSize: 9,
-      lineHeight: 13,
-      fontWeight: "900",
-      letterSpacing: 0,
-      textTransform: "uppercase",
-      marginTop: 2,
-    },
-    focusBand: {
-      flexDirection: "row",
-      alignItems: "center",
-      minHeight: 62,
-      borderRadius: ui.radius.md,
       borderWidth: 1,
-      borderColor: withAlpha(INSIGHTS_TONE, 0.18),
-      backgroundColor: withAlpha(INSIGHTS_TONE, 0.065),
-      paddingHorizontal: ui.spacing.sm,
-      paddingVertical: ui.spacing.xs,
+      borderColor: withAlpha(colors.border, 0.16),
+      backgroundColor: withAlpha(colors.bg, 0.7),
+      overflow: "hidden",
+      marginTop: "auto",
     },
-    focusLane: {
-      flex: 1,
-      minWidth: 0,
-      gap: 2,
-    },
-    focusLaneLabel: {
-      color: withAlpha(colors.textSecondary, 0.72),
-      fontSize: 9,
-      lineHeight: 13,
-      fontWeight: "900",
-      letterSpacing: 0,
-      textTransform: "uppercase",
-    },
-    focusLaneValue: {
-      color: colors.textPrimary,
-      fontSize: 14,
-      lineHeight: 18,
-      fontWeight: "900",
-    },
-    focusDivider: {
-      width: 1,
-      alignSelf: "stretch",
-      backgroundColor: withAlpha(colors.border, 0.22),
-      marginHorizontal: ui.spacing.sm,
+    historySummaryFill: {
+      height: "100%",
+      borderRadius: 999,
     },
     lockedPanel: {
       ...heroSurface,
@@ -1179,64 +1284,6 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       lineHeight: 17,
       fontWeight: "700",
     },
-    signalMap: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: ui.spacing.xs,
-    },
-    signalCard: {
-      ...tileSurface,
-      width: "48.8%",
-      minHeight: 118,
-      paddingHorizontal: ui.spacing.sm,
-      paddingVertical: ui.spacing.sm,
-      justifyContent: "flex-start",
-      gap: 7,
-    },
-    signalTopRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: ui.spacing.xs,
-    },
-    signalDot: {
-      width: 8,
-      height: 8,
-      borderRadius: 999,
-    },
-    signalLabel: {
-      color: withAlpha(colors.textSecondary, 0.76),
-      fontSize: 9,
-      lineHeight: 13,
-      fontWeight: "900",
-      letterSpacing: 0,
-      textTransform: "uppercase",
-    },
-    signalValue: {
-      color: colors.textPrimary,
-      fontSize: 20,
-      lineHeight: 24,
-      fontWeight: "900",
-    },
-    signalMeta: {
-      color: withAlpha(colors.textSecondary, 0.74),
-      fontSize: 11,
-      lineHeight: 15,
-      fontWeight: "700",
-    },
-    signalTrack: {
-      height: 6,
-      borderRadius: 999,
-      backgroundColor: withAlpha(colors.bg, 0.74),
-      borderWidth: 1,
-      borderColor: withAlpha(colors.border, 0.16),
-      overflow: "hidden",
-      marginTop: "auto",
-    },
-    signalFill: {
-      height: "100%",
-      borderRadius: 999,
-    },
     card: {
       ...cardSurface,
       gap: ui.spacing.sm,
@@ -1328,19 +1375,25 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       flexDirection: "row",
       alignItems: "flex-start",
       gap: 8,
+      borderWidth: 1,
+      borderColor: withAlpha(colors.border, 0.16),
+      borderRadius: ui.radius.md,
+      backgroundColor: withAlpha(colors.bg, 0.2),
+      paddingHorizontal: ui.spacing.sm,
+      paddingVertical: ui.spacing.xs,
     },
     coachBulletDot: {
-      width: 7,
-      height: 7,
+      width: 8,
+      height: 8,
       borderRadius: 999,
-      marginTop: 5,
+      marginTop: 6,
     },
     coachBulletText: {
       flex: 1,
       minWidth: 0,
       color: colors.textPrimary,
-      fontSize: 12,
-      lineHeight: 17,
+      fontSize: 13,
+      lineHeight: 18,
       fontWeight: "800",
     },
     cardHeaderRow: {

@@ -23,7 +23,8 @@ import { DayScoreRing } from "./_components/DayScoreRing";
 import { EditQuestForm } from "./_components/EditQuestForm";
 import { MidnightEvaluationModal } from "./_components/MidnightEvaluationModal";
 import { QuestCard } from "./_components/QuestCard";
-import { CONTRACT_BLUE, HOME_GOLD, createStyles } from "./_styles";
+import { CONTRACT_GOLD, HOME_GOLD, createStyles } from "./_styles";
+import { getAchievementsAfterQuestCompletion, mergeAchievements, unlockAchievementById } from "./_utils/achievements";
 import { getCategoryDisplayName } from "./_utils/categoryLabels";
 import { diffDays, localDateKey, parseDateKey } from "./_utils/dateHelpers";
 import { withAlpha } from "./_utils/designSystem";
@@ -118,31 +119,6 @@ function loadDrHistory(value: unknown): DrHistoryEntry[] {
   return value
     .filter((entry): entry is DrHistoryEntry => isDrHistoryEntry(entry))
     .slice(-30);
-}
-
-function mergeAchievements(saved: unknown): Achievement[] {
-  if (!Array.isArray(saved)) return defaultAchievements;
-
-  const savedById = new Map(
-    saved
-      .filter((item): item is Achievement => {
-        if (typeof item !== "object" || item === null) return false;
-        const candidate = item as Partial<Achievement>;
-        return (
-          typeof candidate.id === "string" &&
-          typeof candidate.name === "string" &&
-          typeof candidate.description === "string" &&
-          typeof candidate.icon === "string" &&
-          (typeof candidate.unlockedAt === "string" || candidate.unlockedAt === null)
-        );
-      })
-      .map((item) => [item.id, item])
-  );
-
-  return defaultAchievements.map((achievement) => ({
-    ...achievement,
-    unlockedAt: savedById.get(achievement.id)?.unlockedAt ?? achievement.unlockedAt,
-  }));
 }
 
 function isArchivedQuest(value: unknown): value is ArchivedQuest {
@@ -246,13 +222,7 @@ export default function HomeScreen() {
   }), [normalizeDifficulty]);
 
   const unlockAchievement = (achievementId: string) => {
-    setAchievements((prev) =>
-      prev.map((a) =>
-        a.id === achievementId && !a.unlockedAt
-          ? { ...a, unlockedAt: new Date().toISOString() }
-          : a
-      )
-    );
+    setAchievements((prev) => unlockAchievementById(prev, achievementId));
   };
 
   const showQuestLimitAlert = (conflict: QuestLimitConflict) => {
@@ -260,146 +230,6 @@ export default function HomeScreen() {
       "Daily quest limit",
       `${formatQuestLimitDate(conflict.dateKey)} would have ${conflict.totalCount}/${conflict.maxCount} active quests. Pause or move a quest first.`
     );
-  };
-
-  const checkAchievements = (
-    updatedQuests: typeof quests,
-    updatedCategories: typeof categories,
-    nextLifetimeCompletedCount: number
-  ) => {
-    const todaysUpdatedQuests = getScheduledQuestsForDate(updatedQuests, localDateKey());
-    const todayXPTotal = todaysUpdatedQuests
-      .filter((q) => q.done)
-      .reduce((sum, q) => sum + q.xp, 0);
-    const questsDone = todaysUpdatedQuests.filter((q) => q.done);
-    const hardQuestDoneCount = questsDone.filter((q) => q.difficulty === "hard").length;
-    const completedCategoryCount = new Set(questsDone.map((q) => q.categoryId)).size;
-
-    // first_quest: Complete first quest
-    if (
-      nextLifetimeCompletedCount >= 1 &&
-      !achievements.find((a) => a.id === "first_quest")?.unlockedAt
-    ) {
-      unlockAchievement("first_quest");
-    }
-
-    // hard_mode: Complete hard difficulty quest
-    if (
-      questsDone.some((q) => q.difficulty === "hard") &&
-      !achievements.find((a) => a.id === "hard_mode")?.unlockedAt
-    ) {
-      unlockAchievement("hard_mode");
-    }
-
-    // 100_xp: Earn 100 XP in single day
-    if (todayXPTotal >= 100 && !achievements.find((a) => a.id === "100_xp")?.unlockedAt) {
-      unlockAchievement("100_xp");
-    }
-
-    // perfect_day: Complete all quests in one day
-    if (
-      updatedQuests.length > 0 &&
-      todaysUpdatedQuests.length > 0 &&
-      todaysUpdatedQuests.every((q) => q.done) &&
-      !achievements.find((a) => a.id === "perfect_day")?.unlockedAt
-    ) {
-      unlockAchievement("perfect_day");
-    }
-
-    // level_5: Reach level 5 in any category
-    if (
-      updatedCategories.some((c) => {
-        const previousLevel = categories.find((previous) => previous.id === c.id)?.level ?? c.level;
-        return previousLevel < 5 && c.level >= 5;
-      }) &&
-      !achievements.find((a) => a.id === "level_5")?.unlockedAt
-    ) {
-      unlockAchievement("level_5");
-    }
-
-    // all_categories: Level 3 in all categories
-    if (
-      updatedCategories.every((c) => c.level >= 3) &&
-      updatedCategories.length > 0 &&
-      !achievements.find((a) => a.id === "all_categories")?.unlockedAt
-    ) {
-      unlockAchievement("all_categories");
-    }
-
-    // 30_quests: Complete 30 quests total
-    if (
-      nextLifetimeCompletedCount >= 30 &&
-      !achievements.find((a) => a.id === "30_quests")?.unlockedAt
-    ) {
-      unlockAchievement("30_quests");
-    }
-
-    if (
-      nextLifetimeCompletedCount >= 50 &&
-      !achievements.find((a) => a.id === "quest_50")?.unlockedAt
-    ) {
-      unlockAchievement("quest_50");
-    }
-
-    if (
-      nextLifetimeCompletedCount >= 10 &&
-      !achievements.find((a) => a.id === "quest_10")?.unlockedAt
-    ) {
-      unlockAchievement("quest_10");
-    }
-
-    if (
-      nextLifetimeCompletedCount >= 100 &&
-      !achievements.find((a) => a.id === "quest_100")?.unlockedAt
-    ) {
-      unlockAchievement("quest_100");
-    }
-
-    if (
-      hardQuestDoneCount >= 2 &&
-      !achievements.find((a) => a.id === "double_hard")?.unlockedAt
-    ) {
-      unlockAchievement("double_hard");
-    }
-
-    if (todayXPTotal >= 150 && !achievements.find((a) => a.id === "xp_150")?.unlockedAt) {
-      unlockAchievement("xp_150");
-    }
-
-    if (todayXPTotal >= 200 && !achievements.find((a) => a.id === "xp_200")?.unlockedAt) {
-      unlockAchievement("xp_200");
-    }
-
-    if (
-      completedCategoryCount >= 4 &&
-      !achievements.find((a) => a.id === "balanced_day")?.unlockedAt
-    ) {
-      unlockAchievement("balanced_day");
-    }
-
-    if (
-      updatedCategories.some((c) => c.level >= 10) &&
-      !achievements.find((a) => a.id === "level_10")?.unlockedAt
-    ) {
-      unlockAchievement("level_10");
-    }
-
-    if (
-      updatedCategories.every((c) => c.level >= 5) &&
-      updatedCategories.length > 0 &&
-      !achievements.find((a) => a.id === "all_categories_5")?.unlockedAt
-    ) {
-      unlockAchievement("all_categories_5");
-    }
-
-    const contractQuestsForDay = todaysUpdatedQuests.filter((q) => q.contract);
-    if (
-      contractQuestsForDay.length > 0 &&
-      contractQuestsForDay.every((q) => q.done) &&
-      !achievements.find((a) => a.id === "first_contract")?.unlockedAt
-    ) {
-      unlockAchievement("first_contract");
-    }
   };
 
   /*
@@ -1003,7 +833,7 @@ export default function HomeScreen() {
       {
         id: "contracts",
         title: "Contracts",
-        tone: CONTRACT_BLUE,
+        tone: CONTRACT_GOLD,
         quests: sortedQuests.filter((quest) => quest.contract),
       },
       {
@@ -1024,11 +854,11 @@ export default function HomeScreen() {
 
   const nextMove = useMemo(() => sortedQuests.find((quest) => !quest.done) ?? null, [sortedQuests]);
   const nextMoveReason = useMemo(() => {
-    if (!nextMove) return "All quests cleared. Hold the line until midnight.";
-    if (nextMove.contract) return "Contract quest. Protect this before anything else.";
-    if (nextMove.pinned) return "Pinned priority. Clear it while momentum is available.";
-    if (nextMove.difficulty === "hard") return "Hard quest. Taking it now lowers tonight's pressure.";
-    return "Fastest useful move for the current run.";
+    if (!nextMove) return "All quests cleared. Keep the day clean until Midnight Evaluation.";
+    if (nextMove.contract) return "Protected work. Finish it first so the contract holds at midnight.";
+    if (nextMove.pinned) return "Pinned priority. Clear it before optional work.";
+    if (nextMove.difficulty === "hard") return "Hard quest. Finish it while energy is available.";
+    return "Best next action for making today count.";
   }, [nextMove]);
   const nextDayPlan = useMemo(
     () => buildNextDayPlan(getScheduledQuestsForDate(rollQuestsForNewDay(quests), todayDateKey), drHistory),
@@ -1052,11 +882,19 @@ export default function HomeScreen() {
       c.id === quest.categoryId ? levelUp({ ...c, xp: c.xp + xpAwarded }) : c
     );
     const nextLifetimeCompletedCount = lifetimeCompletedQuestCount + 1;
+    const updatedAchievements = getAchievementsAfterQuestCompletion({
+      achievements,
+      quests: updatedQuests,
+      categories: updatedCategories,
+      previousCategories: categories,
+      lifetimeCompletedQuestCount: nextLifetimeCompletedCount,
+      dateKey: todayDateKey,
+    });
 
     setQuests(updatedQuests);
     setCategories(updatedCategories);
     setLifetimeCompletedQuestCount(nextLifetimeCompletedCount);
-    checkAchievements(updatedQuests, updatedCategories, nextLifetimeCompletedCount);
+    setAchievements(updatedAchievements);
     setOpenQuestId(null);
   };
 
@@ -1419,7 +1257,7 @@ export default function HomeScreen() {
                 <View style={styles.contractHeaderRow}>
                   <View style={styles.contractTitleRow}>
                     <View style={styles.contractArtBadge}>
-                      <IconSymbol name="shield.fill" size={18} color={CONTRACT_BLUE} />
+                      <IconSymbol name="shield.fill" size={18} color={CONTRACT_GOLD} />
                     </View>
                     <View>
                       <Text style={styles.contractEyebrow}>Midnight Contract</Text>
@@ -1438,7 +1276,7 @@ export default function HomeScreen() {
                       styles.contractProgressFill,
                       {
                         width: `${contractQuests.length > 0 ? Math.round((contractDoneCount / contractQuests.length) * 100) : 0}%`,
-                        backgroundColor: CONTRACT_BLUE,
+                        backgroundColor: CONTRACT_GOLD,
                       },
                     ]}
                   />
@@ -1453,15 +1291,15 @@ export default function HomeScreen() {
                       style={[
                         styles.nextMoveArtBadge,
                         {
-                          backgroundColor: withAlpha(nextMove?.contract ? CONTRACT_BLUE : HOME_GOLD, 0.11),
-                          borderColor: withAlpha(nextMove?.contract ? CONTRACT_BLUE : HOME_GOLD, 0.32),
+                          backgroundColor: withAlpha(nextMove?.contract ? CONTRACT_GOLD : HOME_GOLD, 0.11),
+                          borderColor: withAlpha(nextMove?.contract ? CONTRACT_GOLD : HOME_GOLD, 0.32),
                         },
                       ]}
                     >
                       <IconSymbol
                         name={nextMove?.contract ? "shield.fill" : "checkmark.circle.fill"}
                         size={22}
-                        color={nextMove?.contract ? CONTRACT_BLUE : HOME_GOLD}
+                        color={nextMove?.contract ? CONTRACT_GOLD : HOME_GOLD}
                       />
                     </View>
                     <View style={styles.nextMoveTextWrap}>
@@ -1488,7 +1326,7 @@ export default function HomeScreen() {
                 </View>
                 {nextMove?.contract ? (
                   <View style={styles.nextMoveBadge}>
-                    <IconSymbol name="shield.fill" size={12} color={CONTRACT_BLUE} />
+                    <IconSymbol name="shield.fill" size={12} color={CONTRACT_GOLD} />
                     <Text style={styles.nextMoveBadgeText}>Contract Target</Text>
                   </View>
                 ) : null}
@@ -1576,7 +1414,7 @@ export default function HomeScreen() {
               </View>
 
               <Text style={styles.queueHelpText}>
-                Contracts first. Then pinned priorities. Then everything else.
+                What to do today: protect contracts first, clear pinned priorities, then finish open quests.
               </Text>
               {hiddenScheduledQuestCount > 0 || pausedQuestCount > 0 ? (
                 <View style={styles.queueNoticeStack}>
@@ -1699,7 +1537,7 @@ export default function HomeScreen() {
             </View>
             <View style={styles.homeHintCard}>
               <Text style={styles.homeHintText}>
-                DR updates only at midnight judgment.
+                DR updates after Midnight Evaluation; today, just complete the board.
               </Text>
             </View>
           </View>

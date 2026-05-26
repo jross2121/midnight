@@ -5,7 +5,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { CONTRACT_BLUE, HOME_GOLD } from "./(tabs)/_styles";
+import { CONTRACT_GOLD, HOME_GOLD } from "./(tabs)/_styles";
 import { createCardSurface, ui, withAlpha } from "./(tabs)/_utils/designSystem";
 import { useTheme } from "./(tabs)/_utils/themeContext";
 import { ONBOARDING_STORAGE_KEY } from "./(tabs)/_utils/types";
@@ -18,28 +18,28 @@ type Slide = {
 const slides: Slide[] = [
   {
     title: "Start A Daily Run",
-    text: "Pick a few quests that make today real.\nSmall actions count when they are finished.",
+    text: "Choose the few actions that would make today count.\nAdd them as quests, then clear them before midnight.",
   },
   {
     title: "Protect Your Contracts",
-    text: "Mark up to three quests as contracts.\nThey become the work you do not casually drop.",
+    text: "Contracts are your protected quests.\nPick up to three must-do actions; missing them matters more than optional work.",
   },
   {
     title: "Midnight Scores The Day",
-    text: "At midnight, completed quests turn into a Discipline Rating change.\nClear the standard. Protect the floor.",
+    text: "At midnight, Midnight evaluates the day.\nCompleted quests move Discipline Rating (DR), which drives rank and progress.",
   },
   {
     title: "Read The Signal",
-    text: "Ranks, awards, and insights show what is working.\nUse them to choose tomorrow's pressure.",
+    text: "Ranks show your DR tier. Awards mark milestones.\nInsights point to what to improve after enough evaluated days.",
   },
   {
     title: "Ready To Begin?",
-    text: "Discipline starts at 0.\nWhat it becomes is built one run at a time.",
+    text: "Start with one small quest and one real contract.\nThe first day is about learning the loop.",
   },
 ];
 
 const getSlideTone = (slide: Slide) =>
-  slide.title === "Protect Your Contracts" ? CONTRACT_BLUE : HOME_GOLD;
+  slide.title === "Protect Your Contracts" ? CONTRACT_GOLD : HOME_GOLD;
 
 export default function OnboardingScreen() {
   const router = useRouter();

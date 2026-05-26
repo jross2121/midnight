@@ -3,11 +3,10 @@ import { createCardSurface, createTileSurface, ui, withAlpha } from "./_utils/de
 import type { ThemeColors } from "./_utils/themeContext";
 
 export const HOME_GOLD = "#F5B84B";
-export const CONTRACT_BLUE = "#22D3EE";
-export const HOME_BLUE_HINT = HOME_GOLD;
+export const CONTRACT_GOLD = "#D6A756";
 const HOME_NAVY = "#07111F";
 const HOME_NAVY_SOFT = "#101D30";
-const HOME_BLUE_BORDER = "#5B421B";
+const HOME_GOLD_BORDER = "#5B421B";
 
 export const createStyles = (colors: ThemeColors) => {
   const cardSurface = createCardSurface(colors, {
@@ -29,8 +28,8 @@ export const createStyles = (colors: ThemeColors) => {
     borderOpacity: 0.2,
     backgroundOpacity: 0.2,
   });
-  const homeSectionRule = withAlpha(HOME_BLUE_BORDER, 0.62);
-  const homeSectionRuleSoft = withAlpha(HOME_BLUE_BORDER, 0.46);
+  const homeSectionRule = withAlpha(HOME_GOLD_BORDER, 0.62);
+  const homeSectionRuleSoft = withAlpha(HOME_GOLD_BORDER, 0.46);
 
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.bg },
@@ -482,7 +481,7 @@ export const createStyles = (colors: ThemeColors) => {
       borderRadius: 999,
       backgroundColor: withAlpha(colors.bg, 0.9),
       borderWidth: 1,
-      borderColor: withAlpha(HOME_BLUE_BORDER, 0.52),
+      borderColor: withAlpha(HOME_GOLD_BORDER, 0.52),
       overflow: "hidden",
     },
     rankProgressFill: {
@@ -987,8 +986,8 @@ export const createStyles = (colors: ThemeColors) => {
       height: 34,
       borderRadius: 12,
       borderWidth: 1,
-      borderColor: withAlpha(CONTRACT_BLUE, 0.34),
-      backgroundColor: withAlpha(CONTRACT_BLUE, 0.1),
+      borderColor: withAlpha(CONTRACT_GOLD, 0.34),
+      backgroundColor: withAlpha(CONTRACT_GOLD, 0.1),
       alignItems: "center",
       justifyContent: "center",
       flexShrink: 0,
@@ -1009,14 +1008,14 @@ export const createStyles = (colors: ThemeColors) => {
     },
     contractCounterPill: {
       borderWidth: 1,
-      borderColor: withAlpha(CONTRACT_BLUE, 0.5),
-      backgroundColor: withAlpha(CONTRACT_BLUE, 0.14),
+      borderColor: withAlpha(CONTRACT_GOLD, 0.5),
+      backgroundColor: withAlpha(CONTRACT_GOLD, 0.14),
       borderRadius: 999,
       paddingHorizontal: ui.spacing.sm,
       paddingVertical: 5,
     },
     contractCounterText: {
-      color: CONTRACT_BLUE,
+      color: CONTRACT_GOLD,
       fontSize: 11,
       fontWeight: "900",
       letterSpacing: 0,
@@ -1027,7 +1026,7 @@ export const createStyles = (colors: ThemeColors) => {
       backgroundColor: withAlpha(colors.bg, 0.8),
       overflow: "hidden",
       borderWidth: 1,
-      borderColor: withAlpha(CONTRACT_BLUE, 0.3),
+      borderColor: withAlpha(CONTRACT_GOLD, 0.3),
     },
     contractProgressFill: {
       height: "100%",
@@ -1240,14 +1239,14 @@ export const createStyles = (colors: ThemeColors) => {
       alignItems: "center",
       gap: 5,
       borderWidth: 1,
-      borderColor: withAlpha(CONTRACT_BLUE, 0.36),
-      backgroundColor: withAlpha(CONTRACT_BLUE, 0.1),
+      borderColor: withAlpha(CONTRACT_GOLD, 0.36),
+      backgroundColor: withAlpha(CONTRACT_GOLD, 0.1),
       borderRadius: 999,
       paddingHorizontal: 9,
       paddingVertical: 4,
     },
     nextMoveBadgeText: {
-      color: CONTRACT_BLUE,
+      color: CONTRACT_GOLD,
       fontSize: 10,
       lineHeight: 15,
       fontWeight: "900",
@@ -1571,9 +1570,9 @@ export const createStyles = (colors: ThemeColors) => {
       borderRadius: 12,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: withAlpha(CONTRACT_BLUE, 0.1),
+      backgroundColor: withAlpha(CONTRACT_GOLD, 0.1),
       borderWidth: 1,
-      borderColor: withAlpha(CONTRACT_BLUE, 0.26),
+      borderColor: withAlpha(CONTRACT_GOLD, 0.26),
     },
     templateTitle: {
       color: colors.textPrimary,
@@ -2011,8 +2010,8 @@ export const createStyles = (colors: ThemeColors) => {
       overflow: "hidden",
     },
     questContract: {
-      backgroundColor: withAlpha(CONTRACT_BLUE, 0.07),
-      borderColor: withAlpha(CONTRACT_BLUE, 0.32),
+      backgroundColor: withAlpha(CONTRACT_GOLD, 0.07),
+      borderColor: withAlpha(CONTRACT_GOLD, 0.32),
     },
     questPinned: {
       backgroundColor: withAlpha(HOME_GOLD, 0.07),
@@ -2025,7 +2024,7 @@ export const createStyles = (colors: ThemeColors) => {
       bottom: 0,
       width: 4,
       borderRadius: 0,
-      backgroundColor: withAlpha(CONTRACT_BLUE, 0.78),
+      backgroundColor: withAlpha(CONTRACT_GOLD, 0.78),
     },
     questPinnedRail: {
       position: "absolute",

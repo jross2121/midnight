@@ -7,7 +7,7 @@ import { Alert, Pressable, ScrollView, Text, TextInput, View } from "react-nativ
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Footer } from "./_components/Footer";
 import { ScreenHeader } from "./_components/ScreenHeader";
-import { CONTRACT_BLUE, HOME_GOLD, createStyles } from "./_styles";
+import { CONTRACT_GOLD, HOME_GOLD, createStyles } from "./_styles";
 import { localDateKey } from "./_utils/dateHelpers";
 import { defaultLastCompletionPct, defaultLastDrDelta, defaultLastDrUpdateDate } from "./_utils/defaultData";
 import { withAlpha } from "./_utils/designSystem";
@@ -496,6 +496,19 @@ export default function SettingsScreen() {
     }
   };
 
+  const confirmImportData = () => {
+    if (importPayload.trim().length === 0) return;
+
+    Alert.alert(
+      "Import backup?",
+      "This replaces the saved quests, stats, archive, history, and reminder settings on this device.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Import", style: "destructive", onPress: importData },
+      ]
+    );
+  };
+
   const simulateMidnightEvaluation = async () => {
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEY);
@@ -682,7 +695,7 @@ export default function SettingsScreen() {
             "contractEnabled",
             "contractHour",
             "contractMinute",
-            CONTRACT_BLUE
+            CONTRACT_GOLD
           )}
           {renderReminderRow(
             "Next Move",
@@ -859,7 +872,7 @@ export default function SettingsScreen() {
                   setShowImportBox(true);
                   return;
                 }
-                importData();
+                confirmImportData();
               }}
               disabled={importButtonDisabled}
               accessibilityRole="button"
