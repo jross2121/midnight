@@ -40,9 +40,15 @@ npm run check
 
 ## Android Release Notes
 
-The Android package is currently `com.jacob.midnight` with version code `1`.
+The Android package is currently `com.jacobross.midnight` with version code `1`.
 Change this package before the first Google Play upload if you want a different
 permanent app ID.
+
+Release builds use the managed Expo/EAS source of truth:
+
+- App identity, permissions, icons, version, and Android package live in `app.json`.
+- Build profiles live in `eas.json`.
+- The local `android/` folder is generated/native output and is ignored unless the project intentionally switches to a committed native workflow.
 
 Release planning docs:
 

@@ -58,7 +58,7 @@ import {
   shouldShowMidnightEvaluation,
   type MidnightEvaluationData,
 } from "./_utils/midnightEvaluation";
-import { buildNextDayPlan, buildStreakSummary } from "./_utils/planning";
+import { buildStreakSummary } from "./_utils/planning";
 import {
   findDailyQuestLimitConflict,
   formatQuestLimitDate,
@@ -860,11 +860,6 @@ export default function HomeScreen() {
     if (nextMove.difficulty === "hard") return "Hard quest. Finish it while energy is available.";
     return "Best next action for making today count.";
   }, [nextMove]);
-  const nextDayPlan = useMemo(
-    () => buildNextDayPlan(getScheduledQuestsForDate(rollQuestsForNewDay(quests), todayDateKey), drHistory),
-    [drHistory, quests, todayDateKey]
-  );
-
   const completeQuest = (questId: string) => {
     const quest = quests.find((q) => q.id === questId);
     if (!quest || quest.done) return;
@@ -1116,8 +1111,6 @@ export default function HomeScreen() {
     return (
       <MidnightEvaluationModal
         evaluation={pendingEvaluation}
-        currentRank={rankName}
-        nextDayPlan={nextDayPlan}
         isSaving={isSavingEvaluation}
         onStartNewDay={commitMidnightEvaluation}
       />

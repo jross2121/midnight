@@ -25,7 +25,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.jacob.midnight",
+      "package": "com.jacobross.midnight",
       "versionCode": 1,
       "permissions": [],
       "blockedPermissions": [

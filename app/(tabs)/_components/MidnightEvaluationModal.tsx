@@ -3,21 +3,18 @@ import { withAlpha } from "@/app/(tabs)/_utils/designSystem";
 import { formatSignedDelta } from "@/app/(tabs)/_utils/discipline";
 import { useTheme, type ThemeColors } from "@/app/(tabs)/_utils/themeContext";
 import React from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle, G } from "react-native-svg";
 
 import { CONTRACT_GOLD, HOME_GOLD } from "../_styles";
 import type { MidnightEvaluationData } from "../_utils/midnightEvaluation";
-import type { NextDayPlan } from "../_utils/planning";
 
 const CTA_FOREGROUND = "#101722";
 const MIDNIGHT_ICON = require("../../../assets/images/midnight-icon.png");
 
 type MidnightEvaluationModalProps = {
   evaluation: MidnightEvaluationData;
-  currentRank: string;
-  nextDayPlan: NextDayPlan;
   onStartNewDay: () => void;
   isSaving: boolean;
 };
@@ -47,27 +44,8 @@ type ScoreRingProps = {
   colors: ThemeColors;
 };
 
-type ProgressRowProps = {
-  label: string;
-  value: string;
-  percent: number;
-  color: string;
-  styles: ReturnType<typeof makeStyles>;
-};
-
-type ScoreDetailsProps = {
-  evaluation: MidnightEvaluationData;
-  styles: ReturnType<typeof makeStyles>;
-};
-
-type SignalPanelProps = {
-  rank: string;
+type EvaluationSupportPanelProps = {
   insight: string;
-  styles: ReturnType<typeof makeStyles>;
-};
-
-type NextDayPlanPanelProps = {
-  plan: NextDayPlan;
   styles: ReturnType<typeof makeStyles>;
 };
 
@@ -94,8 +72,8 @@ function ScoreRing({
   styles,
   colors,
 }: ScoreRingProps) {
-  const size = isCompact ? 108 : 124;
-  const strokeWidth = isCompact ? 9 : 10;
+  const size = isCompact ? 102 : 116;
+  const strokeWidth = isCompact ? 8 : 9;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const percent = clampPercent(completionPercent);
@@ -152,24 +130,21 @@ function EvaluationHeader({ evaluation, isPositiveDelta, styles, colors }: Evalu
           <Text style={styles.evaluationDate}>{formatEvaluationDate(evaluation.date)}</Text>
         </View>
         <Text style={styles.title}>Midnight Evaluation</Text>
-        <View style={styles.headerStatusRow}>
-          <View style={styles.runBadge}>
-            <IconSymbol
-              name={isPositiveDelta ? "checkmark.circle.fill" : "flag.fill"}
-              size={14}
-              color={isPositiveDelta ? HOME_GOLD : colors.negative}
-            />
-            <Text
-              style={[
-                styles.runBadgeText,
-                isPositiveDelta ? styles.runBadgeTextPositive : styles.runBadgeTextNegative,
-              ]}
-              numberOfLines={1}
-            >
-              {evaluation.runTitle}
-            </Text>
-          </View>
-          <Text style={styles.subtitle}>Board scored</Text>
+        <View style={styles.runBadge}>
+          <IconSymbol
+            name={isPositiveDelta ? "checkmark.circle.fill" : "flag.fill"}
+            size={14}
+            color={isPositiveDelta ? HOME_GOLD : colors.negative}
+          />
+          <Text
+            style={[
+              styles.runBadgeText,
+              isPositiveDelta ? styles.runBadgeTextPositive : styles.runBadgeTextNegative,
+            ]}
+            numberOfLines={1}
+          >
+            {evaluation.runTitle}
+          </Text>
         </View>
       </View>
     </View>
@@ -188,7 +163,7 @@ function ResultOverview({
     <View style={styles.overviewShadow}>
       <View style={styles.overviewPanel}>
         <View style={styles.verdictRail}>
-          <Text style={styles.verdictRailText}>Judgment</Text>
+          <Text style={styles.verdictRailText}>Result</Text>
         </View>
 
         <View style={styles.overviewBody}>
@@ -229,124 +204,21 @@ function ResultOverview({
                 : "None"}
             </Text>
           </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statCell}>
-            <Text style={styles.statLabel}>Recovery</Text>
-            <Text style={styles.statValue}>
-              {evaluation.comebackBonus > 0 ? formatSignedDelta(evaluation.comebackBonus) : "0"}
-            </Text>
-          </View>
         </View>
       </View>
     </View>
   );
 }
 
-function ProgressRow({ label, value, percent, color, styles }: ProgressRowProps) {
-  const safePercent = clampPercent(percent);
-
+function EvaluationSupportPanel({ insight, styles }: EvaluationSupportPanelProps) {
   return (
-    <View style={styles.progressRow}>
-      <View style={styles.progressHeader}>
-        <Text style={styles.progressLabel}>{label}</Text>
-        <Text style={styles.progressValue}>{value}</Text>
-      </View>
-      <View style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${safePercent}%`, backgroundColor: color }]} />
-      </View>
-    </View>
-  );
-}
-
-function ScoreDetails({ evaluation, styles }: ScoreDetailsProps) {
-  const contractPercent =
-    evaluation.contractTotalCount > 0
-      ? (evaluation.contractCompletedCount / evaluation.contractTotalCount) * 100
-      : 0;
-
-  return (
-    <View style={styles.detailsPanel}>
-      <View style={styles.panelTitleRow}>
-        <IconSymbol name="chart.bar.fill" size={18} color={HOME_GOLD} />
-        <Text style={styles.panelTitle}>Score Breakdown</Text>
-      </View>
-
-      <ProgressRow
-        label="Daily quests"
-        value={
-          evaluation.totalCount > 0
-            ? `${evaluation.completedCount} of ${evaluation.totalCount}`
-            : "No quests scheduled"
-        }
-        percent={evaluation.completionPercent}
-        color={HOME_GOLD}
-        styles={styles}
-      />
-
-      <ProgressRow
-        label="Midnight contract"
-        value={
-          evaluation.contractTotalCount > 0
-            ? `${evaluation.contractCompletedCount} of ${evaluation.contractTotalCount}`
-            : "No contract set"
-        }
-        percent={contractPercent}
-        color={CONTRACT_GOLD}
-        styles={styles}
-      />
-
-      <View style={styles.deltaMathRow}>
-        <View style={styles.deltaMathItem}>
-          <Text style={styles.deltaMathLabel}>Base score</Text>
-          <Text style={styles.deltaMathValue}>{formatSignedDelta(evaluation.baseDrDelta)}</Text>
+    <View style={styles.supportPanel}>
+      <View style={styles.supportSection}>
+        <View style={styles.panelTitleRow}>
+          <IconSymbol name="shield.fill" size={17} color={CONTRACT_GOLD} />
+          <Text style={styles.panelTitle}>Readout</Text>
         </View>
-        <View style={styles.deltaMathDivider} />
-        <View style={styles.deltaMathItem}>
-          <Text style={styles.deltaMathLabel}>Recovery</Text>
-          <Text style={styles.deltaMathValue}>
-            {evaluation.comebackBonus > 0 ? formatSignedDelta(evaluation.comebackBonus) : "0"}
-          </Text>
-        </View>
-      </View>
-    </View>
-  );
-}
-
-function SignalPanel({ rank, insight, styles }: SignalPanelProps) {
-  return (
-    <View style={styles.signalPanel}>
-      <View style={styles.panelTitleRow}>
-        <IconSymbol name="shield.fill" size={18} color={CONTRACT_GOLD} />
-        <Text style={styles.panelTitle}>Signal</Text>
-      </View>
-      <View style={styles.signalContent}>
-        <Text style={styles.signalRank} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
-          {rank}
-        </Text>
         <Text style={styles.signalText}>{insight}</Text>
-      </View>
-    </View>
-  );
-}
-
-function NextDayPlanPanel({ plan, styles }: NextDayPlanPanelProps) {
-  return (
-    <View style={styles.planPanel}>
-      <View style={styles.panelTitleRow}>
-        <IconSymbol name="calendar" size={18} color={HOME_GOLD} />
-        <Text style={styles.panelTitle}>Today&apos;s Plan</Text>
-      </View>
-
-      <Text style={styles.planTitle}>{plan.title}</Text>
-      <Text style={styles.planBody}>{plan.body}</Text>
-
-      <View style={styles.planSteps}>
-        {plan.steps.map((step, index) => (
-          <View key={`${step}-${index}`} style={styles.planStep}>
-            <Text style={styles.planStepNumber}>{index + 1}</Text>
-            <Text style={styles.planStepText}>{step}</Text>
-          </View>
-        ))}
       </View>
     </View>
   );
@@ -355,8 +227,8 @@ function NextDayPlanPanel({ plan, styles }: NextDayPlanPanelProps) {
 function getJudgmentMessage(delta: number): string {
   if (delta >= 8) return "Strong execution. Keep the standard today.";
   if (delta >= 3) return "Good discipline signal. Protect the momentum.";
-  if (delta >= 0) return "Stable result. Make the next board cleaner.";
-  return "The standard slipped. Start with the smallest win.";
+  if (delta >= 0) return "Stable result. Make today's board cleaner.";
+  return "Yesterday slipped. Start with the smallest win.";
 }
 
 function makeStyles(
@@ -398,27 +270,34 @@ function makeStyles(
     },
     content: {
       flex: 1,
-      paddingHorizontal: 18,
-      paddingTop: isCompact ? 8 : 14,
-      paddingBottom: 0,
+      justifyContent: "center",
+      paddingHorizontal: isCompact ? 12 : 16,
+      paddingTop: isCompact ? 10 : 14,
+      paddingBottom: bottomClearance,
     },
-    scrollContent: {
-      paddingBottom: isCompact ? 6 : 8,
-    },
-    main: {
+    sheet: {
+      borderRadius: isCompact ? 22 : 26,
+      borderWidth: 1,
+      borderColor: withAlpha(judgmentColor, 0.2),
+      backgroundColor: withAlpha(colors.surface, 0.96),
+      padding: isCompact ? 14 : 18,
       gap: sectionGap,
+      shadowColor: judgmentColor,
+      shadowOffset: { width: 0, height: 12 },
+      shadowOpacity: 0.12,
+      shadowRadius: 20,
+      elevation: 5,
     },
     header: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 13,
-      marginBottom: isCompact ? 1 : 4,
-      minHeight: isCompact ? 86 : 96,
+      gap: 12,
+      minHeight: isCompact ? 64 : 74,
     },
     sealShadow: {
-      width: isCompact ? 76 : 86,
-      height: isCompact ? 76 : 86,
-      borderRadius: isCompact ? 22 : 25,
+      width: isCompact ? 54 : 64,
+      height: isCompact ? 54 : 64,
+      borderRadius: isCompact ? 17 : 19,
       shadowColor: judgmentColor,
       shadowOffset: { width: 0, height: 10 },
       shadowOpacity: 0.18,
@@ -428,7 +307,7 @@ function makeStyles(
     },
     sealFrame: {
       flex: 1,
-      borderRadius: isCompact ? 22 : 25,
+      borderRadius: isCompact ? 17 : 19,
       overflow: "hidden",
       borderWidth: 1,
       borderColor: withAlpha(judgmentColor, 0.42),
@@ -449,11 +328,6 @@ function makeStyles(
       justifyContent: "space-between",
       gap: 10,
     },
-    headerStatusRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-    },
     eyebrow: {
       color: withAlpha(judgmentColor, 0.92),
       fontSize: 11,
@@ -464,21 +338,13 @@ function makeStyles(
     },
     title: {
       color: colors.textPrimary,
-      fontSize: isCompact ? 28 : 32,
-      lineHeight: isCompact ? 32 : 36,
+      fontSize: isCompact ? 24 : 28,
+      lineHeight: isCompact ? 28 : 32,
       fontWeight: "900",
       letterSpacing: 0,
     },
-    subtitle: {
-      color: withAlpha(colors.textSecondary, 0.78),
-      fontSize: isCompact ? 13 : 14,
-      lineHeight: isCompact ? 18 : 20,
-      fontWeight: "600",
-      letterSpacing: 0,
-    },
-
     overviewShadow: {
-      borderRadius: 22,
+      borderRadius: 20,
       shadowColor: judgmentColor,
       shadowOffset: { width: 0, height: 10 },
       shadowOpacity: 0.12,
@@ -489,22 +355,22 @@ function makeStyles(
     overviewPanel: {
       position: "relative",
       overflow: "hidden",
-      borderRadius: 22,
+      borderRadius: 20,
       borderWidth: 1,
       borderColor: withAlpha(judgmentColor, 0.24),
       backgroundColor: withAlpha(colors.surface2, 0.96),
-      paddingTop: isCompact ? 14 : 16,
-      paddingRight: isCompact ? 14 : 16,
-      paddingBottom: isCompact ? 14 : 16,
-      paddingLeft: isCompact ? 46 : 50,
-      gap: isCompact ? 14 : 16,
+      paddingTop: isCompact ? 10 : 12,
+      paddingRight: isCompact ? 12 : 14,
+      paddingBottom: isCompact ? 10 : 12,
+      paddingLeft: isCompact ? 38 : 42,
+      gap: isCompact ? 10 : 12,
     },
     verdictRail: {
       position: "absolute",
       top: 0,
       bottom: 0,
       left: 0,
-      width: isCompact ? 32 : 36,
+      width: isCompact ? 30 : 34,
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: withAlpha(judgmentColor, isPositiveDelta ? 0.13 : 0.1),
@@ -513,8 +379,8 @@ function makeStyles(
     },
     verdictRailText: {
       position: "absolute",
-      top: isCompact ? 74 : 82,
-      left: isCompact ? -27 : -25,
+      top: isCompact ? 62 : 70,
+      left: isCompact ? -29 : -27,
       width: 88,
       color: withAlpha(judgmentColor, 0.9),
       fontSize: 10,
@@ -532,17 +398,18 @@ function makeStyles(
       gap: 10,
     },
     runBadge: {
-      minHeight: 30,
+      minHeight: 28,
       borderRadius: 999,
       borderWidth: 1,
       borderColor: withAlpha(judgmentColor, 0.28),
       backgroundColor: withAlpha(judgmentColor, 0.1),
-      paddingHorizontal: 10,
-      paddingVertical: 6,
+      paddingHorizontal: 9,
+      paddingVertical: 5,
       flexDirection: "row",
       alignItems: "center",
       gap: 6,
-      maxWidth: "72%",
+      alignSelf: "flex-start",
+      maxWidth: "100%",
     },
     runBadgeText: {
       fontSize: 11,
@@ -570,7 +437,7 @@ function makeStyles(
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      gap: 16,
+      gap: 10,
     },
     deltaBlock: {
       flex: 1,
@@ -589,18 +456,18 @@ function makeStyles(
       flexDirection: "row",
       alignItems: "flex-end",
       gap: 6,
-      minHeight: isCompact ? 70 : 78,
+      minHeight: isCompact ? 56 : 64,
     },
     deltaValue: {
-      fontSize: isCompact ? 66 : 76,
-      lineHeight: isCompact ? 70 : 80,
+      fontSize: isCompact ? 50 : 58,
+      lineHeight: isCompact ? 54 : 62,
       fontWeight: "900",
       letterSpacing: 0,
     },
     deltaUnit: {
       color: withAlpha(colors.textSecondary, 0.78),
-      fontSize: 14,
-      lineHeight: isCompact ? 26 : 30,
+      fontSize: 13,
+      lineHeight: isCompact ? 22 : 25,
       fontWeight: "900",
       letterSpacing: 0,
     },
@@ -618,8 +485,8 @@ function makeStyles(
     },
     judgmentMessage: {
       color: withAlpha(colors.textPrimary, 0.78),
-      fontSize: isCompact ? 12 : 13,
-      lineHeight: isCompact ? 17 : 18,
+      fontSize: isCompact ? 11 : 12,
+      lineHeight: isCompact ? 16 : 17,
       fontWeight: "600",
       maxWidth: 230,
     },
@@ -632,7 +499,7 @@ function makeStyles(
       position: "absolute",
       alignItems: "center",
       justifyContent: "center",
-      width: 82,
+      width: 78,
       gap: 0,
     },
     scoreRingLabel: {
@@ -645,8 +512,8 @@ function makeStyles(
     },
     scoreRingValue: {
       color: colors.textPrimary,
-      fontSize: isCompact ? 25 : 29,
-      lineHeight: isCompact ? 29 : 32,
+      fontSize: isCompact ? 23 : 27,
+      lineHeight: isCompact ? 27 : 30,
       fontWeight: "900",
       letterSpacing: 0,
     },
@@ -658,7 +525,7 @@ function makeStyles(
       letterSpacing: 0,
     },
     statGrid: {
-      minHeight: 54,
+      minHeight: isCompact ? 48 : 52,
       borderRadius: 14,
       borderWidth: 1,
       borderColor: withAlpha(colors.border, 0.2),
@@ -669,8 +536,9 @@ function makeStyles(
     },
     statCell: {
       flex: 1,
+      alignItems: "center",
       paddingHorizontal: 10,
-      paddingVertical: 9,
+      paddingVertical: 8,
       justifyContent: "center",
       gap: 3,
     },
@@ -685,51 +553,15 @@ function makeStyles(
       fontWeight: "800",
       letterSpacing: 0,
       textTransform: "uppercase",
+      textAlign: "center",
     },
     statValue: {
       color: colors.textPrimary,
-      fontSize: isCompact ? 16 : 17,
-      lineHeight: isCompact ? 19 : 20,
-      fontWeight: "900",
-      letterSpacing: 0,
-    },
-    rankStrip: {
-      borderRadius: 14,
-      borderWidth: 1,
-      borderColor: withAlpha(colors.border, 0.26),
-      backgroundColor: withAlpha(colors.bg, 0.28),
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 10,
-    },
-    rankStripLabel: {
-      color: withAlpha(colors.textSecondary, 0.72),
-      fontSize: 10,
-      lineHeight: 14,
-      fontWeight: "800",
-      letterSpacing: 0,
-      textTransform: "uppercase",
-    },
-    rankStripValue: {
-      color: colors.textPrimary,
       fontSize: isCompact ? 15 : 16,
-      lineHeight: isCompact ? 19 : 20,
+      lineHeight: isCompact ? 18 : 19,
       fontWeight: "900",
       letterSpacing: 0,
-      textAlign: "right",
-      flexShrink: 1,
-    },
-
-    detailsPanel: {
-      borderRadius: 18,
-      borderWidth: 1,
-      borderColor: withAlpha(colors.border, 0.28),
-      backgroundColor: withAlpha(colors.surface2, 0.58),
-      padding: isCompact ? 12 : 14,
-      gap: 11,
+      textAlign: "center",
     },
     panelTitleRow: {
       flexDirection: "row",
@@ -738,103 +570,23 @@ function makeStyles(
     },
     panelTitle: {
       color: colors.textPrimary,
-      fontSize: 14,
-      lineHeight: 18,
+      fontSize: isCompact ? 12 : 13,
+      lineHeight: isCompact ? 16 : 17,
       fontWeight: "900",
       letterSpacing: 0,
       textTransform: "uppercase",
     },
-    progressRow: {
-      gap: 7,
-    },
-    progressHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 12,
-    },
-    progressLabel: {
-      color: withAlpha(colors.textSecondary, 0.76),
-      fontSize: 11,
-      lineHeight: 15,
-      fontWeight: "800",
-      letterSpacing: 0,
-      textTransform: "uppercase",
-    },
-    progressValue: {
-      color: colors.textPrimary,
-      fontSize: 13,
-      lineHeight: 17,
-      fontWeight: "900",
-      letterSpacing: 0,
-      textAlign: "right",
-      flexShrink: 1,
-    },
-    progressTrack: {
-      height: 10,
-      borderRadius: 999,
-      overflow: "hidden",
-      backgroundColor: withAlpha(colors.bg, 0.7),
-      borderWidth: 1,
-      borderColor: withAlpha(colors.border, 0.3),
-    },
-    progressFill: {
-      height: "100%",
-      borderRadius: 999,
-    },
-    deltaMathRow: {
-      minHeight: 56,
-      borderRadius: 14,
-      borderWidth: 1,
-      borderColor: withAlpha(colors.border, 0.22),
-      backgroundColor: withAlpha(colors.bg, 0.22),
-      flexDirection: "row",
-      alignItems: "stretch",
-    },
-    deltaMathItem: {
-      flex: 1,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      justifyContent: "center",
-      gap: 3,
-    },
-    deltaMathDivider: {
-      width: 1,
-      backgroundColor: withAlpha(colors.border, 0.24),
-    },
-    deltaMathLabel: {
-      color: withAlpha(colors.textSecondary, 0.72),
-      fontSize: 10,
-      lineHeight: 13,
-      fontWeight: "800",
-      letterSpacing: 0,
-      textTransform: "uppercase",
-    },
-    deltaMathValue: {
-      color: colors.textPrimary,
-      fontSize: 18,
-      lineHeight: 22,
-      fontWeight: "900",
-      letterSpacing: 0,
-    },
-
-    signalPanel: {
+    supportPanel: {
       borderRadius: 18,
       borderWidth: 1,
-      borderColor: withAlpha(CONTRACT_GOLD, 0.2),
-      backgroundColor: withAlpha(CONTRACT_GOLD, 0.055),
-      padding: isCompact ? 12 : 14,
-      gap: 8,
+      borderColor: withAlpha(colors.border, 0.24),
+      backgroundColor: withAlpha(colors.surface2, 0.5),
+      paddingHorizontal: isCompact ? 12 : 14,
+      paddingVertical: isCompact ? 11 : 13,
     },
-    signalContent: {
-      gap: 5,
-    },
-    signalRank: {
-      color: colors.textPrimary,
-      fontSize: isCompact ? 17 : 18,
-      lineHeight: isCompact ? 21 : 22,
-      fontWeight: "900",
-      letterSpacing: 0,
+    supportSection: {
+      gap: isCompact ? 5 : 6,
+      minHeight: 0,
     },
     signalText: {
       color: withAlpha(colors.textPrimary, 0.76),
@@ -844,72 +596,6 @@ function makeStyles(
       letterSpacing: 0,
     },
 
-    planPanel: {
-      borderRadius: 18,
-      borderWidth: 1,
-      borderColor: withAlpha(accentPrimary, 0.18),
-      backgroundColor: withAlpha(accentPrimary, 0.075),
-      padding: isCompact ? 12 : 14,
-      gap: 8,
-    },
-    planTitle: {
-      color: colors.textPrimary,
-      fontSize: isCompact ? 18 : 19,
-      lineHeight: isCompact ? 22 : 23,
-      fontWeight: "900",
-      letterSpacing: 0,
-    },
-    planBody: {
-      color: withAlpha(colors.textPrimary, 0.76),
-      fontSize: isCompact ? 12 : 13,
-      lineHeight: isCompact ? 17 : 19,
-      fontWeight: "600",
-      letterSpacing: 0,
-    },
-    planSteps: {
-      gap: 6,
-      marginTop: 1,
-    },
-    planStep: {
-      minHeight: 34,
-      borderRadius: 12,
-      backgroundColor: withAlpha(colors.bg, 0.24),
-      borderWidth: 1,
-      borderColor: withAlpha(colors.border, 0.18),
-      paddingHorizontal: 9,
-      paddingVertical: 7,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 9,
-    },
-    planStepNumber: {
-      width: 22,
-      height: 22,
-      borderRadius: 11,
-      overflow: "hidden",
-      textAlign: "center",
-      textAlignVertical: "center",
-      backgroundColor: withAlpha(accentPrimary, 0.18),
-      color: accentPrimary,
-      fontSize: 11,
-      lineHeight: 22,
-      fontWeight: "900",
-      flexShrink: 0,
-    },
-    planStepText: {
-      flex: 1,
-      color: colors.textPrimary,
-      fontSize: isCompact ? 12 : 13,
-      lineHeight: isCompact ? 17 : 18,
-      fontWeight: "800",
-      letterSpacing: 0,
-    },
-
-    footer: {
-      paddingTop: isCompact ? 8 : 10,
-      paddingBottom: bottomClearance,
-      backgroundColor: colors.bg,
-    },
     ctaShadow: {
       borderRadius: 16,
       shadowColor: accentPrimary,
@@ -920,7 +606,7 @@ function makeStyles(
       backgroundColor: colors.bg,
     },
     cta: {
-      minHeight: 56,
+      minHeight: isCompact ? 48 : 52,
       borderRadius: 16,
       borderWidth: 1,
       borderColor: withAlpha(accentPrimary, 0.28),
@@ -939,8 +625,8 @@ function makeStyles(
     },
     ctaLabel: {
       color: CTA_FOREGROUND,
-      fontSize: 16,
-      lineHeight: 20,
+      fontSize: 15,
+      lineHeight: 19,
       fontWeight: "900",
       letterSpacing: 0,
     },
@@ -949,8 +635,6 @@ function makeStyles(
 
 export function MidnightEvaluationModal({
   evaluation,
-  currentRank,
-  nextDayPlan,
   onStartNewDay,
   isSaving,
 }: MidnightEvaluationModalProps) {
@@ -975,44 +659,41 @@ export function MidnightEvaluationModal({
       </View>
 
       <View style={styles.content}>
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <View style={styles.main}>
-            <EvaluationHeader
-              evaluation={evaluation}
-              isPositiveDelta={isPositiveDelta}
-              styles={styles}
-              colors={colors}
-            />
+        <View style={styles.sheet}>
+          <EvaluationHeader
+            evaluation={evaluation}
+            isPositiveDelta={isPositiveDelta}
+            styles={styles}
+            colors={colors}
+          />
 
-            <ResultOverview
-              evaluation={evaluation}
-              message={judgmentMessage}
-              isPositiveDelta={isPositiveDelta}
-              isCompact={isCompact}
-              styles={styles}
-              colors={colors}
-            />
+          <ResultOverview
+            evaluation={evaluation}
+            message={judgmentMessage}
+            isPositiveDelta={isPositiveDelta}
+            isCompact={isCompact}
+            styles={styles}
+            colors={colors}
+          />
 
-            <ScoreDetails evaluation={evaluation} styles={styles} />
-            <SignalPanel rank={currentRank} insight={evaluation.insight} styles={styles} />
-            <NextDayPlanPanel plan={nextDayPlan} styles={styles} />
-          </View>
-        </ScrollView>
+          <EvaluationSupportPanel
+            insight={evaluation.insight}
+            styles={styles}
+          />
 
-        <View style={styles.footer}>
           <View style={styles.ctaShadow}>
             <Pressable
               onPress={onStartNewDay}
               disabled={isSaving}
               accessibilityRole="button"
-              accessibilityLabel={isSaving ? "Saving midnight evaluation" : "Start today"}
+              accessibilityLabel={isSaving ? "Saving midnight evaluation" : "Continue after midnight evaluation"}
               style={({ pressed }) => [
                 styles.cta,
                 pressed && styles.ctaPressed,
                 isSaving && styles.ctaDisabled,
               ]}
             >
-              <Text style={styles.ctaLabel}>{isSaving ? "Saving..." : "Start Today"}</Text>
+              <Text style={styles.ctaLabel}>{isSaving ? "Saving..." : "Continue"}</Text>
               <IconSymbol name="chevron.right" size={20} color={CTA_FOREGROUND} />
             </Pressable>
           </View>

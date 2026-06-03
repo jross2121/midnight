@@ -3,12 +3,15 @@
 ## App Identity
 
 - App name: Midnight
-- Android package: `com.jacob.midnight`
+- Android package: `com.jacobross.midnight`
 - Version: `1.0.0`
 - Version code: `1`
 - App category: Productivity or Lifestyle
+- Release source of truth: managed Expo/EAS using `app.json` and `eas.json`
 
 Change the Android package before the first Play Store upload if you want a different permanent app ID. Google Play package names cannot be changed after the app is published.
+
+The local `android/` folder is generated/native output and is ignored by git. Use EAS managed builds for release unless you intentionally switch to a committed native Android workflow.
 
 ## Privacy And Data Safety
 
@@ -38,8 +41,8 @@ Change the Android package before the first Play Store upload if you want a diff
 - `npm.cmd run lint`
 - `npm.cmd run check`
 - Confirm the submitted Android build targets Android 15 / API level 35 or higher.
-- If the native Android folder is not present, run `npx expo prebuild --platform android` first.
-- `cd android && .\gradlew.bat :app:processReleaseManifest :app:compileReleaseKotlin --console=plain --no-daemon`
+- For the managed EAS release path, do not rely on the ignored local `android/` folder as the release source.
+- If switching to a committed native workflow later, regenerate/commit `android/`, configure production signing, then run `cd android && .\gradlew.bat :app:processReleaseManifest :app:compileReleaseKotlin --console=plain --no-daemon`.
 - `eas build --platform android --profile preview`
 - `eas build --platform android --profile production`
 - Upload the internal/closed testing build first and review Play Console warnings before production.
