@@ -18,71 +18,46 @@ type MoreRoute = {
   tone: string;
 };
 
-type MoreGroup = {
-  title: string;
-  routes: MoreRoute[];
-};
-
-const MORE_GROUPS: MoreGroup[] = [
+const MORE_ROUTES: MoreRoute[] = [
   {
-    title: "Guide",
-    routes: [
-      {
-        title: "How Midnight Works",
-        meta: "Rules and terms",
-        body: "Scoring, contracts, ranks, and daily judgment rules.",
-        href: "/(tabs)/guide",
-        icon: "star.fill",
-        tone: HOME_GOLD,
-      },
-    ],
+    title: "Focus Sprint",
+    meta: "Timer",
+    body: "Work on one open quest.",
+    href: "/(tabs)/focus",
+    icon: "timer",
+    tone: "#34D399",
   },
   {
-    title: "Action Tools",
-    routes: [
-      {
-        title: "Focus Sprint",
-        meta: "Task timer",
-        body: "Optional timer for locking onto one open quest.",
-        href: "/(tabs)/focus",
-        icon: "timer",
-        tone: "#34D399",
-      },
-    ],
+    title: "Player Card",
+    meta: "Rank",
+    body: "Your DR path and badges.",
+    href: "/(tabs)/stats",
+    icon: "star.fill",
+    tone: HOME_GOLD,
   },
   {
-    title: "Progress",
-    routes: [
-      {
-        title: "Rank",
-        meta: "Player card",
-        body: "Review rank, DR path, and equipped badge slots.",
-        href: "/(tabs)/stats",
-        icon: "star.fill",
-        tone: HOME_GOLD,
-      },
-      {
-        title: "Awards",
-        meta: "Badge room",
-        body: "Track earned badges and equip your player card.",
-        href: "/(tabs)/achievements",
-        icon: "trophy.fill",
-        tone: "#F472B6",
-      },
-    ],
+    title: "Awards",
+    meta: "Milestones",
+    body: "Earn and equip badges.",
+    href: "/(tabs)/achievements",
+    icon: "trophy.fill",
+    tone: "#F472B6",
   },
   {
-    title: "Controls",
-    routes: [
-      {
-        title: "Settings",
-        meta: "Theme and backups",
-        body: "Reminders, archive, local data, export, and import.",
-        href: "/(tabs)/settings",
-        icon: "gearshape.fill",
-        tone: "#8EA0B2",
-      },
-    ],
+    title: "How It Works",
+    meta: "Guide",
+    body: "Midnight rules in plain language.",
+    href: "/(tabs)/guide",
+    icon: "star.fill",
+    tone: "#60A5FA",
+  },
+  {
+    title: "Settings",
+    meta: "Account",
+    body: "Reminders, appearance, archive, and backups.",
+    href: "/(tabs)/settings",
+    icon: "gearshape.fill",
+    tone: "#8EA0B2",
   },
 ];
 
@@ -94,52 +69,50 @@ export default function MoreScreen() {
   return (
     <SafeAreaView edges={["top"]} style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
-        <ScreenHeader title="More" subtitle="Tools, progress, and controls" icon="ellipsis.circle.fill" />
+        <ScreenHeader title="More" subtitle="Focus, milestones, help, and settings" icon="ellipsis.circle.fill" />
 
-        <View style={styles.groupStack}>
-          {MORE_GROUPS.map((group) => (
-            <View key={group.title} style={styles.routeGroup}>
-              <Text style={styles.groupTitle}>{group.title}</Text>
-              <View style={styles.routeList}>
-                {group.routes.map((item) => (
-                  <Pressable
-                    key={item.href}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Open ${item.title}`}
-                    onPress={() => router.push(item.href)}
-                    style={({ pressed }) => [styles.routeRow, pressed && styles.routeRowPressed]}
-                  >
-                    <View
-                      style={[
-                        styles.routeIcon,
-                        {
-                          borderColor: withAlpha(item.tone, 0.34),
-                          backgroundColor: withAlpha(item.tone, 0.1),
-                        },
-                      ]}
-                    >
-                      <IconSymbol name={item.icon} size={20} color={item.tone} />
-                    </View>
-                    <View style={styles.routeCopy}>
-                      <View style={styles.routeTitleRow}>
-                        <Text style={styles.routeTitle} numberOfLines={1}>
-                          {item.title}
-                        </Text>
-                        <Text style={[styles.routeMeta, { color: item.tone }]} numberOfLines={1}>
-                          {item.meta}
-                        </Text>
-                      </View>
-                      <Text style={styles.routeBody} numberOfLines={2}>
-                        {item.body}
-                      </Text>
-                    </View>
-                    <View style={styles.routeChevron}>
-                      <IconSymbol name="chevron.right" size={20} color={colors.textSecondary} />
-                    </View>
-                  </Pressable>
-                ))}
+        <View style={styles.quickGrid}>
+          {MORE_ROUTES.slice(0, 4).map((item) => (
+            <Pressable
+              key={item.href}
+              accessibilityRole="button"
+              accessibilityLabel={`Open ${item.title}`}
+              onPress={() => router.push(item.href)}
+              style={({ pressed }) => [
+                styles.quickTile,
+                { borderColor: withAlpha(item.tone, 0.26) },
+                pressed && styles.routeRowPressed,
+              ]}
+            >
+              <View style={[styles.routeIcon, { borderColor: withAlpha(item.tone, 0.34), backgroundColor: withAlpha(item.tone, 0.1) }]}>
+                <IconSymbol name={item.icon} size={21} color={item.tone} />
               </View>
-            </View>
+              <Text style={[styles.routeMeta, { color: item.tone }]}>{item.meta}</Text>
+              <Text style={styles.routeTitle} numberOfLines={2}>{item.title}</Text>
+              <Text style={styles.routeBody} numberOfLines={2}>{item.body}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        <View style={styles.appSection}>
+          <Text style={styles.groupTitle}>App</Text>
+          {MORE_ROUTES.slice(4).map((item) => (
+            <Pressable
+              key={item.href}
+              accessibilityRole="button"
+              accessibilityLabel={`Open ${item.title}`}
+              onPress={() => router.push(item.href)}
+              style={({ pressed }) => [styles.routeRow, pressed && styles.routeRowPressed]}
+            >
+              <View style={[styles.routeIcon, { borderColor: withAlpha(item.tone, 0.34), backgroundColor: withAlpha(item.tone, 0.1) }]}>
+                <IconSymbol name={item.icon} size={20} color={item.tone} />
+              </View>
+              <View style={styles.routeCopy}>
+                <Text style={styles.routeTitle}>{item.title}</Text>
+                <Text style={styles.routeBody} numberOfLines={2}>{item.body}</Text>
+              </View>
+              <IconSymbol name="chevron.right" size={20} color={colors.textSecondary} />
+            </Pressable>
           ))}
         </View>
       </ScrollView>
@@ -166,10 +139,12 @@ function createMoreStyles(colors: ThemeColors) {
       paddingBottom: ui.spacing.lg,
       gap: ui.spacing.sm,
     },
-    groupStack: {
-      gap: ui.spacing.sm,
+    quickGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: ui.spacing.xs,
     },
-    routeGroup: {
+    appSection: {
       gap: ui.spacing.xs,
     },
     groupTitle: {
@@ -181,8 +156,16 @@ function createMoreStyles(colors: ThemeColors) {
       textTransform: "uppercase",
       paddingHorizontal: 2,
     },
-    routeList: {
-      gap: ui.spacing.xs,
+    quickTile: {
+      ...tileSurface,
+      width: "48%",
+      flexGrow: 1,
+      minWidth: 130,
+      minHeight: 154,
+      padding: ui.spacing.sm,
+      backgroundColor: withAlpha(colors.surface2, 0.58),
+      alignItems: "flex-start",
+      gap: 4,
     },
     routeRow: {
       ...tileSurface,
@@ -221,7 +204,6 @@ function createMoreStyles(colors: ThemeColors) {
     },
     routeTitle: {
       color: colors.textPrimary,
-      flex: 1,
       fontSize: 16,
       lineHeight: 20,
       fontWeight: "900",
@@ -232,20 +214,13 @@ function createMoreStyles(colors: ThemeColors) {
       lineHeight: 14,
       fontWeight: "900",
       textTransform: "uppercase",
-      textAlign: "right",
-      flexShrink: 0,
+      marginTop: 6,
     },
     routeBody: {
       color: withAlpha(colors.textSecondary, 0.8),
       fontSize: 12,
       lineHeight: 17,
       fontWeight: "700",
-    },
-    routeChevron: {
-      width: 22,
-      alignItems: "flex-end",
-      justifyContent: "center",
-      opacity: 0.72,
     },
   });
 }

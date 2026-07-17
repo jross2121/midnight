@@ -1,9 +1,9 @@
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { withAlpha } from "@/app/(tabs)/_utils/designSystem";
+import { ui, withAlpha } from "@/app/(tabs)/_utils/designSystem";
 import { formatSignedDelta } from "@/app/(tabs)/_utils/discipline";
 import { useTheme, type ThemeColors } from "@/app/(tabs)/_utils/themeContext";
 import React from "react";
-import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle, G } from "react-native-svg";
 
@@ -269,14 +269,17 @@ function makeStyles(
       backgroundColor: withAlpha(colors.textPrimary, 0.06),
     },
     content: {
-      flex: 1,
+      flexGrow: 1,
       justifyContent: "center",
       paddingHorizontal: isCompact ? 12 : 16,
       paddingTop: isCompact ? 10 : 14,
       paddingBottom: bottomClearance,
     },
+    scroll: {
+      flex: 1,
+    },
     sheet: {
-      borderRadius: isCompact ? 22 : 26,
+      borderRadius: ui.radius.xl,
       borderWidth: 1,
       borderColor: withAlpha(judgmentColor, 0.2),
       backgroundColor: withAlpha(colors.surface, 0.96),
@@ -297,7 +300,7 @@ function makeStyles(
     sealShadow: {
       width: isCompact ? 54 : 64,
       height: isCompact ? 54 : 64,
-      borderRadius: isCompact ? 17 : 19,
+      borderRadius: ui.radius.lg,
       shadowColor: judgmentColor,
       shadowOffset: { width: 0, height: 10 },
       shadowOpacity: 0.18,
@@ -307,7 +310,7 @@ function makeStyles(
     },
     sealFrame: {
       flex: 1,
-      borderRadius: isCompact ? 17 : 19,
+      borderRadius: ui.radius.lg,
       overflow: "hidden",
       borderWidth: 1,
       borderColor: withAlpha(judgmentColor, 0.42),
@@ -344,7 +347,7 @@ function makeStyles(
       letterSpacing: 0,
     },
     overviewShadow: {
-      borderRadius: 20,
+      borderRadius: ui.radius.card,
       shadowColor: judgmentColor,
       shadowOffset: { width: 0, height: 10 },
       shadowOpacity: 0.12,
@@ -355,7 +358,7 @@ function makeStyles(
     overviewPanel: {
       position: "relative",
       overflow: "hidden",
-      borderRadius: 20,
+      borderRadius: ui.radius.card,
       borderWidth: 1,
       borderColor: withAlpha(judgmentColor, 0.24),
       backgroundColor: withAlpha(colors.surface2, 0.96),
@@ -526,7 +529,7 @@ function makeStyles(
     },
     statGrid: {
       minHeight: isCompact ? 48 : 52,
-      borderRadius: 14,
+      borderRadius: ui.radius.card,
       borderWidth: 1,
       borderColor: withAlpha(colors.border, 0.2),
       backgroundColor: withAlpha(colors.bg, 0.24),
@@ -577,7 +580,7 @@ function makeStyles(
       textTransform: "uppercase",
     },
     supportPanel: {
-      borderRadius: 18,
+      borderRadius: ui.radius.card,
       borderWidth: 1,
       borderColor: withAlpha(colors.border, 0.24),
       backgroundColor: withAlpha(colors.surface2, 0.5),
@@ -597,7 +600,7 @@ function makeStyles(
     },
 
     ctaShadow: {
-      borderRadius: 16,
+      borderRadius: ui.radius.button,
       shadowColor: accentPrimary,
       shadowOffset: { width: 0, height: 0 },
       shadowOpacity: 0.12,
@@ -607,7 +610,7 @@ function makeStyles(
     },
     cta: {
       minHeight: isCompact ? 48 : 52,
-      borderRadius: 16,
+      borderRadius: ui.radius.button,
       borderWidth: 1,
       borderColor: withAlpha(accentPrimary, 0.28),
       backgroundColor: accentPrimary,
@@ -641,8 +644,8 @@ export function MidnightEvaluationModal({
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const isPositiveDelta = evaluation.drDelta >= 0;
-  const { height } = useWindowDimensions();
-  const isCompact = height < 760;
+  const { height, width } = useWindowDimensions();
+  const isCompact = height < 760 || width < 360;
   const bottomClearance = Math.max(insets.bottom, 10);
   const judgmentMessage = React.useMemo(() => getJudgmentMessage(evaluation.drDelta), [evaluation.drDelta]);
 
@@ -658,7 +661,12 @@ export function MidnightEvaluationModal({
         <View style={styles.backdropRule} />
       </View>
 
-      <View style={styles.content}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
         <View style={styles.sheet}>
           <EvaluationHeader
             evaluation={evaluation}
@@ -698,7 +706,7 @@ export function MidnightEvaluationModal({
             </Pressable>
           </View>
         </View>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

@@ -1,39 +1,28 @@
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useRouter } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Alert, AppState, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ScreenHeader } from "./_components/ScreenHeader";
+import { ScreenLoading } from "./_components/ScreenLoading";
 import { CONTRACT_GOLD, HOME_GOLD } from "./_styles";
-import { getAchievementsAfterQuestCompletion, mergeAchievements } from "./_utils/achievements";
 import { getCategoryDisplayName } from "./_utils/categoryLabels";
 import { localDateKey } from "./_utils/dateHelpers";
 import {
-  defaultAchievements,
   defaultCategories,
-  defaultDisciplineRating,
-  defaultDrHistory,
-  defaultLastCompletionPct,
-  defaultLastDrDelta,
-  defaultLastDrUpdateDate,
   defaultQuests,
 } from "./_utils/defaultData";
 import { createCardSurface, createTileSurface, ui, withAlpha } from "./_utils/designSystem";
-import { levelUp } from "./_utils/gameHelpers";
-import { getQuestXpForDifficulty } from "./_utils/questXp";
+import { completeQuestInStoredState } from "./_utils/questCompletion";
 import { getQuestRepeatLabel, getScheduledQuestsForDate } from "./_utils/recurrence";
+import { readStoredState, updateStoredState } from "./_utils/storedState";
 import { useTheme, type ThemeColors } from "./_utils/themeContext";
 import {
-  STORAGE_KEY,
-  type Achievement,
-  type ArchivedQuest,
   type Category,
-  type DrHistoryEntry,
   type Quest,
-  type StoredState,
 } from "./_utils/types";
 
 const FOCUS_DURATION_OPTIONS = [
@@ -55,76 +44,37 @@ function sortFocusQuests(quests: Quest[]): Quest[] {
   return [...quests].sort((a, b) => {
     if (a.done !== b.done) return Number(a.done) - Number(b.done);
     if (a.contract !== b.contract) return a.contract ? -1 : 1;
-    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
     const weight = { hard: 3, medium: 2, easy: 1 };
     return weight[b.difficulty] - weight[a.difficulty];
   });
 }
 
-function buildStoredState(
-  parsed: Partial<StoredState>,
-  nextValues: {
-    categories: Category[];
-    quests: Quest[];
-    achievements: Achievement[];
-    lifetimeCompletedQuestCount: number;
-  }
-): StoredState {
-  const nextState: StoredState = {
-    categories: nextValues.categories,
-    quests: nextValues.quests,
-    achievements: nextValues.achievements,
-    lifetimeCompletedQuestCount: nextValues.lifetimeCompletedQuestCount,
-    disciplineRating:
-      typeof parsed.disciplineRating === "number" ? parsed.disciplineRating : defaultDisciplineRating,
-    lastDrDelta: typeof parsed.lastDrDelta === "number" ? parsed.lastDrDelta : defaultLastDrDelta,
-    lastCompletionPct:
-      typeof parsed.lastCompletionPct === "number" ? parsed.lastCompletionPct : defaultLastCompletionPct,
-    lastDrUpdateDate:
-      typeof parsed.lastDrUpdateDate === "string" ? parsed.lastDrUpdateDate : defaultLastDrUpdateDate,
-    drHistory: Array.isArray(parsed.drHistory) ? (parsed.drHistory as DrHistoryEntry[]) : defaultDrHistory,
-    lastResetDate: typeof parsed.lastResetDate === "string" ? parsed.lastResetDate : localDateKey(),
-    archivedQuests: Array.isArray(parsed.archivedQuests)
-      ? (parsed.archivedQuests as ArchivedQuest[])
-      : [],
-  };
-
-  if (Array.isArray(parsed.equippedBadgeIds)) {
-    nextState.equippedBadgeIds = parsed.equippedBadgeIds.slice(0, 3);
-  }
-
-  return nextState;
-}
-
 export default function FocusScreen() {
+  const router = useRouter();
   const { colors } = useTheme();
   const styles = useMemo(() => createFocusStyles(colors), [colors]);
   const [categories, setCategories] = useState<Category[]>(defaultCategories);
   const [quests, setQuests] = useState<Quest[]>(defaultQuests);
-  const [achievements, setAchievements] = useState<Achievement[]>(defaultAchievements);
-  const [lifetimeCompletedQuestCount, setLifetimeCompletedQuestCount] = useState(0);
   const [selectedQuestId, setSelectedQuestId] = useState<string | null>(null);
   const [durationSeconds, setDurationSeconds] = useState(DEFAULT_FOCUS_SECONDS);
   const [remainingSeconds, setRemainingSeconds] = useState(DEFAULT_FOCUS_SECONDS);
   const [running, setRunning] = useState(false);
   const [hydrated, setHydrated] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const deadlineRef = useRef<number | null>(null);
+  const navigateBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace("/(tabs)/more");
+  };
 
   const loadFocusState = useCallback(async () => {
     try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
-      const parsed = raw ? (JSON.parse(raw) as Partial<StoredState>) : {};
-      const loadedCategories = Array.isArray(parsed.categories) ? parsed.categories : defaultCategories;
-      const loadedQuests = Array.isArray(parsed.quests) ? parsed.quests : defaultQuests;
-      const loadedAchievements = mergeAchievements(parsed.achievements);
-      const loadedLifetime =
-        typeof parsed.lifetimeCompletedQuestCount === "number"
-          ? Math.max(0, Math.floor(parsed.lifetimeCompletedQuestCount))
-          : 0;
+      const storedState = await readStoredState();
+      const loadedCategories = storedState.categories;
+      const loadedQuests = storedState.quests;
 
       setCategories(loadedCategories);
       setQuests(loadedQuests);
-      setAchievements(loadedAchievements);
-      setLifetimeCompletedQuestCount(loadedLifetime);
       setHydrated(true);
     } catch (error) {
       if (__DEV__) console.warn("Failed to load focus state:", error);
@@ -170,21 +120,40 @@ export default function FocusScreen() {
   }, [activeQuests, selectedQuest]);
 
   useEffect(() => {
+    deadlineRef.current = null;
     setRunning(false);
     setRemainingSeconds(durationSeconds);
   }, [durationSeconds, selectedQuest?.id]);
 
   useEffect(() => {
-    if (!running) return;
-    const interval = setInterval(() => {
-      setRemainingSeconds((current) => Math.max(0, current - 1));
-    }, 1000);
+    if (!running || deadlineRef.current === null) return;
+    const syncRemainingTime = () => {
+      if (deadlineRef.current === null) return;
+      setRemainingSeconds(
+        Math.max(0, Math.ceil((deadlineRef.current - Date.now()) / 1000))
+      );
+    };
+    syncRemainingTime();
+    const interval = setInterval(syncRemainingTime, 500);
 
     return () => clearInterval(interval);
   }, [running]);
 
   useEffect(() => {
+    const subscription = AppState.addEventListener("change", (status) => {
+      if (status === "active" && running && deadlineRef.current !== null) {
+        setRemainingSeconds(
+          Math.max(0, Math.ceil((deadlineRef.current - Date.now()) / 1000))
+        );
+      }
+    });
+
+    return () => subscription.remove();
+  }, [running]);
+
+  useEffect(() => {
     if (running && remainingSeconds === 0) {
+      deadlineRef.current = null;
       setRunning(false);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
@@ -205,75 +174,80 @@ export default function FocusScreen() {
   const toggleSprint = () => {
     if (!selectedQuest) return;
     Haptics.impactAsync(running ? Haptics.ImpactFeedbackStyle.Light : Haptics.ImpactFeedbackStyle.Medium);
-    if (remainingSeconds === 0) {
-      setRemainingSeconds(durationSeconds);
+    if (running) {
+      if (deadlineRef.current !== null) {
+        setRemainingSeconds(
+          Math.max(0, Math.ceil((deadlineRef.current - Date.now()) / 1000))
+        );
+      }
+      deadlineRef.current = null;
+      setRunning(false);
+      return;
     }
-    setRunning((current) => !current);
+
+    const nextRemainingSeconds = remainingSeconds === 0 ? durationSeconds : remainingSeconds;
+    setRemainingSeconds(nextRemainingSeconds);
+    deadlineRef.current = Date.now() + nextRemainingSeconds * 1000;
+    setRunning(true);
   };
 
   const resetSprint = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    deadlineRef.current = null;
     setRunning(false);
     setRemainingSeconds(durationSeconds);
   };
 
   const completeSelectedQuest = async () => {
-    if (!selectedQuest) return;
+    if (!selectedQuest || isCompleting) return;
 
+    setIsCompleting(true);
     try {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
-      const parsed = raw ? (JSON.parse(raw) as Partial<StoredState>) : {};
-      const nextQuests = quests.map((quest) =>
-        quest.id === selectedQuest.id ? { ...quest, done: true } : quest
-      );
-      const previousCategories = categories;
-      const nextCategories = categories.map((category) =>
-        category.id === selectedQuest.categoryId
-          ? levelUp({ ...category, xp: category.xp + getQuestXpForDifficulty(selectedQuest.difficulty) })
-          : category
-      );
-      const nextLifetimeCompletedQuestCount = lifetimeCompletedQuestCount + 1;
-      const nextAchievements = getAchievementsAfterQuestCompletion({
-        achievements,
-        quests: nextQuests,
-        categories: nextCategories,
-        previousCategories,
-        lifetimeCompletedQuestCount: nextLifetimeCompletedQuestCount,
+      let completed = false;
+      const nextState = await updateStoredState((current) => {
+        const result = completeQuestInStoredState(current, selectedQuest.id, localDateKey());
+        completed = result.completed;
+        return result.state;
       });
 
-      const nextState = buildStoredState(parsed, {
-        categories: nextCategories,
-        quests: nextQuests,
-        achievements: nextAchievements,
-        lifetimeCompletedQuestCount: nextLifetimeCompletedQuestCount,
-      });
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
+      if (!completed) {
+        await loadFocusState();
+        return;
+      }
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       const nextActiveQuests = sortFocusQuests(
-        getScheduledQuestsForDate(nextQuests, localDateKey()).filter((quest) => !quest.done)
+        getScheduledQuestsForDate(nextState.quests, localDateKey()).filter((quest) => !quest.done)
       );
-      setQuests(nextQuests);
-      setCategories(nextCategories);
-      setAchievements(nextAchievements);
-      setLifetimeCompletedQuestCount(nextLifetimeCompletedQuestCount);
+      setQuests(nextState.quests);
+      setCategories(nextState.categories);
       setSelectedQuestId(nextActiveQuests[0]?.id ?? null);
+      deadlineRef.current = null;
       setRunning(false);
       setRemainingSeconds(durationSeconds);
     } catch (error) {
       if (__DEV__) console.warn("Failed to complete focused quest:", error);
       Alert.alert("Quest update failed", "Could not complete that quest from Focus Sprint.");
+    } finally {
+      setIsCompleting(false);
     }
   };
 
   if (!hydrated) {
-    return null;
+    return <ScreenLoading label="Loading focus sprint" />;
   }
 
   return (
     <SafeAreaView edges={["top"]} style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
-        <ScreenHeader title="Focus Sprint" subtitle="Single-task timer" icon="timer" />
+        <ScreenHeader
+          title="Focus Sprint"
+          subtitle="Single-task timer"
+          icon="chevron.left"
+          onIconPress={navigateBack}
+          iconAccessibilityLabel="Go back"
+        />
 
         <View style={styles.timerPanel}>
           <View style={styles.timerTopRow}>
@@ -333,6 +307,7 @@ export default function FocusScreen() {
                 disabled={running}
                 accessibilityRole="button"
                 accessibilityLabel={`Set focus sprint to ${option.label}`}
+                accessibilityState={{ selected: active, disabled: running }}
                 style={[
                   styles.durationChip,
                   active && styles.durationChipActive,
@@ -353,6 +328,7 @@ export default function FocusScreen() {
             disabled={!selectedQuest}
             accessibilityRole="button"
             accessibilityLabel={running ? "Pause focus sprint" : "Start focus sprint"}
+            accessibilityState={{ disabled: !selectedQuest }}
             style={[styles.primaryButton, !selectedQuest && styles.controlDisabled]}
           >
             <Text style={styles.primaryButtonText}>
@@ -364,6 +340,7 @@ export default function FocusScreen() {
             disabled={!selectedQuest || remainingSeconds === durationSeconds}
             accessibilityRole="button"
             accessibilityLabel="Reset focus sprint"
+            accessibilityState={{ disabled: !selectedQuest || remainingSeconds === durationSeconds }}
             style={[
               styles.secondaryButton,
               (!selectedQuest || remainingSeconds === durationSeconds) && styles.controlDisabled,
@@ -373,17 +350,18 @@ export default function FocusScreen() {
           </Pressable>
           <Pressable
             onPress={completeSelectedQuest}
-            disabled={!selectedQuest}
+            disabled={!selectedQuest || isCompleting}
             accessibilityRole="button"
             accessibilityLabel={selectedQuest ? `Complete focused task: ${selectedQuest.title}` : "No focused task"}
+            accessibilityState={{ disabled: !selectedQuest || isCompleting }}
             style={[
               styles.secondaryButton,
               focusComplete && styles.completeButton,
-              !selectedQuest && styles.controlDisabled,
+              (!selectedQuest || isCompleting) && styles.controlDisabled,
             ]}
           >
             <Text style={[styles.secondaryButtonText, focusComplete && styles.completeButtonText]}>
-              Complete
+              {isCompleting ? "Saving..." : "Complete"}
             </Text>
           </Pressable>
         </View>
@@ -395,8 +373,22 @@ export default function FocusScreen() {
           </View>
           {activeQuests.length === 0 ? (
             <View style={styles.emptyPanel}>
-              <Text style={styles.emptyTitle}>Run complete</Text>
-              <Text style={styles.emptyMeta}>No active tasks remain for today.</Text>
+              <Text style={styles.emptyTitle}>{quests.length === 0 ? "No tasks yet" : "Run complete"}</Text>
+              <Text style={styles.emptyMeta}>
+                {quests.length === 0
+                  ? "Add a quest from Today before starting a Focus Sprint."
+                  : "No active tasks remain for today."}
+              </Text>
+              {quests.length === 0 ? (
+                <Pressable
+                  style={styles.emptyAction}
+                  onPress={() => router.replace("/(tabs)")}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open Today to add a quest"
+                >
+                  <Text style={styles.emptyActionText}>Open Today</Text>
+                </Pressable>
+              ) : null}
             </View>
           ) : (
             activeQuests.map((quest) => {
@@ -409,6 +401,7 @@ export default function FocusScreen() {
                   disabled={running}
                   accessibilityRole="button"
                   accessibilityLabel={`Focus on ${quest.title}`}
+                  accessibilityState={{ selected, disabled: running }}
                   style={[
                     styles.taskRow,
                     selected && styles.taskRowSelected,
@@ -430,7 +423,7 @@ export default function FocusScreen() {
                     ]}
                   >
                     <IconSymbol
-                      name={quest.contract ? "shield.fill" : quest.pinned ? "star.fill" : "checkmark.circle.fill"}
+                      name={quest.contract ? "shield.fill" : "checkmark.circle.fill"}
                       size={18}
                       color={selected ? questTone : colors.textSecondary}
                     />
@@ -585,7 +578,7 @@ function createFocusStyles(colors: ThemeColors) {
     },
     durationChip: {
       flex: 1,
-      minHeight: 38,
+      minHeight: 44,
       borderRadius: ui.radius.button,
       borderWidth: 1,
       borderColor: withAlpha(colors.border, 0.24),
@@ -613,7 +606,7 @@ function createFocusStyles(colors: ThemeColors) {
     },
     primaryButton: {
       flex: 1.15,
-      minHeight: 42,
+      minHeight: 48,
       borderRadius: ui.radius.button,
       backgroundColor: HOME_GOLD,
       alignItems: "center",
@@ -629,7 +622,7 @@ function createFocusStyles(colors: ThemeColors) {
     },
     secondaryButton: {
       flex: 1,
-      minHeight: 42,
+      minHeight: 48,
       borderRadius: ui.radius.button,
       borderWidth: 1,
       borderColor: withAlpha(colors.border, 0.28),
@@ -751,6 +744,24 @@ function createFocusStyles(colors: ThemeColors) {
       fontSize: 12,
       lineHeight: 16,
       fontWeight: "700",
+      textAlign: "center",
+    },
+    emptyAction: {
+      minHeight: 44,
+      marginTop: ui.spacing.xs,
+      borderRadius: ui.radius.button,
+      borderWidth: 1,
+      borderColor: withAlpha(HOME_GOLD, 0.4),
+      backgroundColor: withAlpha(HOME_GOLD, 0.12),
+      paddingHorizontal: ui.spacing.sm,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    emptyActionText: {
+      color: HOME_GOLD,
+      fontSize: 12,
+      lineHeight: 16,
+      fontWeight: "900",
     },
   });
 }

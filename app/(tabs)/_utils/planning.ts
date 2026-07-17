@@ -127,13 +127,12 @@ export function buildPlanSummary(quests: Quest[]): PlanSummary {
     body:
       nextDelta > projectedDelta
         ? "The next completion improves tonight's DR outcome. Take the smallest exposed quest now."
-        : "Keep stacking completions. Contracts and pinned quests give the day its backbone.",
+        : "Keep stacking completions. Contracts give the day its backbone.",
   };
 }
 
 export function buildNextDayPlan(quests: Quest[], history: DrHistoryEntry[]): NextDayPlan {
   const openContracts = quests.filter((quest) => quest.contract && !quest.done);
-  const openPinned = quests.filter((quest) => quest.pinned && !quest.done);
   const openHard = quests.filter((quest) => quest.difficulty === "hard" && !quest.done);
   const streakSummary = buildStreakSummary(history);
   const latest = history[history.length - 1];
@@ -158,7 +157,7 @@ export function buildNextDayPlan(quests: Quest[], history: DrHistoryEntry[]): Ne
     return {
       title: "Contracts first",
       body: `${openContracts.length} contract${openContracts.length === 1 ? "" : "s"} need priority before any bonus work.`,
-      steps: ["Open contracts", "Smallest visible quest", "Then pinned work"],
+      steps: ["Open contracts", "Smallest visible quest", "Then bonus work"],
     };
   }
 
@@ -167,14 +166,6 @@ export function buildNextDayPlan(quests: Quest[], history: DrHistoryEntry[]): Ne
       title: "Add controlled pressure",
       body: "The floor is holding. Add one hard rep without risking the daily standard.",
       steps: ["Quick first win", "One hard quest", "Close at 85%+"],
-    };
-  }
-
-  if (openPinned.length > 0) {
-    return {
-      title: "Pinned priority",
-      body: "A pinned quest is already telling you where the day should start.",
-      steps: ["Pinned quest", "Contract check", "One easy follow-up"],
     };
   }
 

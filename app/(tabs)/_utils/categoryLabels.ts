@@ -1,3 +1,5 @@
+import { getCategoryArtById } from "./categoryArt";
+
 type CategoryLike = {
   id?: string;
   name?: string;
@@ -33,6 +35,14 @@ export function getCategoryDisplayName(category: CategoryLike): string {
     return "Personal";
   }
   return rawName;
+}
+
+export function getCategoryEmojiById(categoryId: string): string {
+  return getCategoryArtById(categoryId).glyph;
+}
+
+export function getCategoryEmoji(category: CategoryLike): string {
+  return category.id ? getCategoryEmojiById(category.id) : "✦";
 }
 
 export function getMainCategoryDisplayEntries() {

@@ -44,6 +44,7 @@ export function ScreenHeader({
           accessibilityRole="button"
           accessibilityLabel={iconAccessibilityLabel}
           onPress={onIconPress}
+          hitSlop={4}
           style={({ pressed }) => [iconPlateStyle, pressed && styles.iconPressed]}
         >
           <IconSymbol name={icon} size={19} color={accent} />
@@ -72,13 +73,13 @@ function createScreenHeaderStyles(colors: ThemeColors) {
       flexDirection: "row",
       alignItems: "center",
       gap: ui.spacing.sm,
-      paddingBottom: 14,
+      paddingBottom: 12,
       borderBottomWidth: 1,
       borderBottomColor: withAlpha(colors.divider, 0.72),
     },
     iconPlate: {
-      width: 40,
-      height: 40,
+      width: 44,
+      height: 44,
       borderRadius: 8,
       borderWidth: 1,
       alignItems: "center",

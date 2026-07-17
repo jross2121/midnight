@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "rootDir": ".",
+    "outDir": ".test-dist",
+    "noEmitOnError": true
+  },
+  "include": [
+    "app/(tabs)/_utils/dateHelpers.ts",
+    "app/(tabs)/_utils/discipline.ts",
+    "app/(tabs)/_utils/midnightEvaluation.ts",
+    "app/(tabs)/_utils/midnightStateTransition.ts",
+    "app/(tabs)/_utils/questCompletion.ts",
+    "app/(tabs)/_utils/recurrence.ts"
+  ]
+}

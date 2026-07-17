@@ -8,6 +8,7 @@ import { DisciplineCalendar, type DisciplineCalendarDay } from "./_components/Di
 import { DisciplinePatterns } from "./_components/DisciplinePatterns";
 import { RankBadge } from "./_components/RankBadge";
 import { ScreenHeader } from "./_components/ScreenHeader";
+import { ScreenLoading } from "./_components/ScreenLoading";
 import { getMainCategoryDisplayEntries } from "./_utils/categoryLabels";
 import {
     defaultCategories,
@@ -123,7 +124,7 @@ function buildCompactInsight({
   hasHistory: boolean;
   weekDelta: number;
 }): string {
-  if (!hasHistory) return "Signal is building. Win one priority quest to set the baseline.";
+  if (!hasHistory) return "Complete today's board. Your first Midnight Evaluation sets the baseline.";
   if (weekDelta > 0) return "Momentum is rising. Protect it with one clean win.";
   if (weekDelta < 0) return "Pressure is up. Shrink the plan and secure one must-do quest.";
   if (averageCompletionRate >= 80) return "Steady trend. One more quest can push momentum up.";
@@ -208,7 +209,7 @@ export default function InsightsScreen() {
   );
 
   if (!hydrated) {
-    return null;
+    return <ScreenLoading label="Loading insights" />;
   }
 
   const focusedMinDr = getRankMeta(INSIGHTS_UNLOCK_RANK).minDr;
@@ -442,8 +443,8 @@ export default function InsightsScreen() {
       <SafeAreaView edges={["top"]} style={styles.safe}>
         <ScrollView contentContainerStyle={styles.container}>
           <ScreenHeader
-            title="Insights"
-            subtitle="Unlocks at Focused rank"
+            title="Progress"
+            subtitle="Unlocks when your Discipline Rating reaches Focused"
             icon="chart.bar.fill"
             accent={INSIGHTS_UNLOCK_TONE}
           />
@@ -455,7 +456,7 @@ export default function InsightsScreen() {
               </View>
               <View style={styles.lockedCopy}>
                 <Text style={styles.eyebrow}>Rank Unlock</Text>
-                <Text style={styles.lockedTitle}>Reach Focused to open Insights</Text>
+                <Text style={styles.lockedTitle}>Reach Focused to open Progress</Text>
                 <Text style={styles.lockedBody}>
                   Midnight needs enough judgments before it can read your patterns clearly.
                 </Text>
@@ -497,17 +498,44 @@ export default function InsightsScreen() {
     <SafeAreaView edges={["top"]} style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
         <ScreenHeader
-          title="Insights"
-          subtitle="What to improve, what is working"
+          title="Progress"
+          subtitle="See what is working and what to do next"
           icon="chart.bar.fill"
           accent={INSIGHTS_TONE}
         />
 
+        <View style={styles.modeSwitch} accessibilityRole="tablist">
+          {INSIGHT_MODES.map((mode) => {
+            const selected = mode.id === selectedInsightMode;
+
+            return (
+              <Pressable
+                key={mode.id}
+                accessibilityRole="tab"
+                accessibilityLabel={`Show ${mode.label}`}
+                accessibilityState={{ selected }}
+                onPress={() => setSelectedInsightMode(mode.id)}
+                style={({ pressed }) => [
+                  styles.modeButton,
+                  selected && styles.modeButtonSelected,
+                  pressed && styles.modeButtonPressed,
+                ]}
+              >
+                <Text style={[styles.modeButtonText, selected && styles.modeButtonTextSelected]}>
+                  {mode.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {selectedInsightMode === "today" ? (
+          <>
         <View style={styles.dashboardPanel}>
           <View style={styles.dashboardHeader}>
             <View style={styles.dashboardTitleRow}>
               <View style={styles.dashboardTitleCopy}>
-                <Text style={styles.eyebrow}>Dashboard</Text>
+                <Text style={styles.eyebrow}>This week</Text>
                 <Text
                   style={styles.dashboardTitle}
                   numberOfLines={1}
@@ -571,8 +599,8 @@ export default function InsightsScreen() {
         <View style={styles.actionPanel}>
           <View style={styles.cardHeaderRow}>
             <View>
-              <Text style={styles.eyebrow}>Action Plan</Text>
-              <Text style={styles.cardTitle}>Next three moves</Text>
+              <Text style={styles.eyebrow}>What to do next</Text>
+              <Text style={styles.cardTitle}>Three useful adjustments</Text>
             </View>
           </View>
           <View style={styles.actionList}>
@@ -599,36 +627,10 @@ export default function InsightsScreen() {
           </View>
         </View>
 
-        <View style={styles.modeSwitch}>
-          {INSIGHT_MODES.map((mode) => {
-            const selected = mode.id === selectedInsightMode;
-
-            return (
-              <Pressable
-                key={mode.id}
-                accessibilityRole="button"
-                accessibilityLabel={`Show ${mode.label}`}
-                onPress={() => setSelectedInsightMode(mode.id)}
-                style={({ pressed }) => [
-                  styles.modeButton,
-                  selected && styles.modeButtonSelected,
-                  pressed && styles.modeButtonPressed,
-                ]}
-              >
-                <Text style={[styles.modeButtonText, selected && styles.modeButtonTextSelected]}>
-                  {mode.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {selectedInsightMode === "today" ? (
-          <>
         <View style={styles.coachPanel}>
           <View style={styles.cardHeaderRow}>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.eyebrow}>Midnight Coach</Text>
+              <Text style={styles.eyebrow}>Recommended next move</Text>
               <Text style={styles.cardTitle}>{coachResponse.title}</Text>
             </View>
             <View style={[styles.coachMetric, { borderColor: withAlpha(coachToneColor, 0.28) }]}>
@@ -648,6 +650,7 @@ export default function InsightsScreen() {
                   onPress={() => setSelectedCoachPrompt(prompt.id)}
                   accessibilityRole="button"
                   accessibilityLabel={prompt.label}
+                  accessibilityState={{ selected }}
                   style={({ pressed }) => [
                     styles.promptButton,
                     selected && styles.promptButtonSelected,
@@ -681,8 +684,8 @@ export default function InsightsScreen() {
         <View style={styles.categoryPanel}>
           <View style={styles.cardHeaderRow}>
             <View>
-              <Text style={styles.eyebrow}>Category Loadout</Text>
-              <Text style={styles.cardTitle}>Execution Balance</Text>
+              <Text style={styles.eyebrow}>Categories</Text>
+              <Text style={styles.cardTitle}>Today by category</Text>
             </View>
             <Text style={styles.mutedMeta}>{categoryBreakdown.length} domains</Text>
           </View>
@@ -762,8 +765,8 @@ export default function InsightsScreen() {
         <View style={styles.trendPanel}>
           <View style={styles.cardHeaderRow}>
             <View>
-              <Text style={styles.eyebrow}>Trajectory</Text>
-              <Text style={styles.cardTitle}>DR Pulse</Text>
+              <Text style={styles.eyebrow}>Discipline Rating</Text>
+              <Text style={styles.cardTitle}>Recent movement</Text>
             </View>
             <Text style={[styles.trendLabel, { color: trendLabelTone }]}>
               {formatWeekChange(weekDelta, hasSufficientTrend)}
@@ -777,7 +780,7 @@ export default function InsightsScreen() {
               <Text style={styles.drValue}>{currentDrValue}</Text>
               <View style={styles.drValueCopy}>
                 <Text style={styles.drLabel}>Current DR</Text>
-                <Text style={styles.mutedMeta}>Live rank pressure</Text>
+                <Text style={styles.mutedMeta}>Current long-term score</Text>
               </View>
             </View>
             <View style={styles.pulseMetaGrid}>
@@ -812,8 +815,8 @@ export default function InsightsScreen() {
         <View style={styles.card}>
           <View style={styles.cardHeaderRow}>
             <View>
-              <Text style={styles.eyebrow}>Rank History</Text>
-              <Text style={styles.cardTitle}>Recent Judgments</Text>
+              <Text style={styles.eyebrow}>Daily results</Text>
+              <Text style={styles.cardTitle}>Latest evaluations</Text>
             </View>
             <Text style={styles.mutedMeta}>Latest {Math.min(8, recentJudgments.length)}</Text>
           </View>
@@ -853,7 +856,7 @@ export default function InsightsScreen() {
         <View style={styles.card}>
           <View style={styles.cardHeaderRow}>
             <View>
-              <Text style={styles.eyebrow}>Consistency Heat</Text>
+              <Text style={styles.eyebrow}>30-day view</Text>
               <Text style={styles.cardTitle}>Discipline Calendar</Text>
             </View>
             <Text style={styles.mutedMeta}>30 days</Text>
@@ -864,8 +867,8 @@ export default function InsightsScreen() {
         <View style={styles.card}>
           <View style={styles.cardHeaderRow}>
             <View>
-              <Text style={styles.eyebrow}>Behavior Notes</Text>
-              <Text style={styles.cardTitle}>Discipline Patterns</Text>
+              <Text style={styles.eyebrow}>Patterns</Text>
+              <Text style={styles.cardTitle}>What your history shows</Text>
             </View>
           </View>
           <DisciplinePatterns days={disciplineCalendarDays} colors={colors} />
@@ -921,7 +924,7 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
     },
     modeButton: {
       flex: 1,
-      minHeight: 38,
+      minHeight: 44,
       borderRadius: ui.radius.button,
       alignItems: "center",
       justifyContent: "center",
@@ -1331,7 +1334,7 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
     },
     promptButton: {
       width: "48.7%",
-      minHeight: 34,
+      minHeight: 44,
       borderRadius: ui.radius.button,
       borderWidth: 1,
       borderColor: withAlpha(colors.border, 0.24),

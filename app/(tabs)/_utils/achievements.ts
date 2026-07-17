@@ -1,7 +1,10 @@
 import { localDateKey } from "./dateHelpers";
 import { defaultAchievements } from "./defaultData";
+import type { MidnightEvaluationData } from "./midnightEvaluation";
+import { buildStreakSummary } from "./planning";
 import { getScheduledQuestsForDate } from "./recurrence";
-import type { Achievement, Category, Quest } from "./types";
+import { getRankFromDR, getRankMeta } from "./rank";
+import type { Achievement, Category, DrHistoryEntry, Quest } from "./types";
 
 type StoredAchievementSnapshot = Pick<Achievement, "id"> & Partial<Pick<Achievement, "unlockedAt">>;
 
@@ -12,6 +15,14 @@ type CompletionAchievementArgs = {
   previousCategories: Category[];
   lifetimeCompletedQuestCount: number;
   dateKey?: string;
+};
+
+type EvaluationAchievementArgs = {
+  achievements: Achievement[];
+  drHistory: DrHistoryEntry[];
+  disciplineRating: number;
+  evaluation: MidnightEvaluationData;
+  unlockedAt?: string;
 };
 
 export function isAchievement(value: unknown): value is StoredAchievementSnapshot {
@@ -100,6 +111,40 @@ export function getAchievementsAfterQuestCompletion({
   if (categories.some((category) => category.level >= 10)) unlock("level_10");
   if (categories.length > 0 && categories.every((category) => category.level >= 3)) unlock("all_categories");
   if (categories.length > 0 && categories.every((category) => category.level >= 5)) unlock("all_categories_5");
+
+  return nextAchievements;
+}
+
+export function getAchievementsAfterMidnightEvaluation({
+  achievements,
+  drHistory,
+  disciplineRating,
+  evaluation,
+  unlockedAt = new Date().toISOString(),
+}: EvaluationAchievementArgs): Achievement[] {
+  const streakSummary = buildStreakSummary(drHistory);
+  const rankTier = getRankMeta(getRankFromDR(disciplineRating)).tier;
+  let nextAchievements = achievements;
+  const unlock = (id: string) => {
+    nextAchievements = unlockAchievementById(nextAchievements, id, unlockedAt);
+  };
+
+  if (streakSummary.solidDayStreak >= 3) unlock("three_solid_days");
+  if (streakSummary.solidDayStreak >= 7) unlock("solid_7");
+  if (streakSummary.solidDayStreak >= 14) unlock("solid_14");
+  if (streakSummary.solidDayStreak >= 21) unlock("solid_21");
+  if (streakSummary.contractStreak >= 3) unlock("contract_3");
+  if (streakSummary.contractStreak >= 7) unlock("contract_7");
+  if (streakSummary.contractStreak >= 14) unlock("contract_14");
+  if (streakSummary.contractStreak >= 21) unlock("contract_21");
+  if (drHistory.filter((entry) => entry.pct >= 100).length >= 3) unlock("perfect_3");
+  if (evaluation.comebackBonus > 0) unlock("comeback_day");
+  if (rankTier >= 2) unlock("rank_climber");
+  if (rankTier >= 3) unlock("rank_focused");
+  if (rankTier >= 4) unlock("rank_driven");
+  if (rankTier >= 5) unlock("rank_relentless");
+  if (rankTier >= 6) unlock("rank_elite");
+  if (rankTier >= 7) unlock("rank_grand");
 
   return nextAchievements;
 }

@@ -5,7 +5,6 @@ import { useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import { Alert, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Footer } from "./_components/Footer";
 import { ScreenHeader } from "./_components/ScreenHeader";
 import { CONTRACT_GOLD, HOME_GOLD, createStyles } from "./_styles";
 import { localDateKey } from "./_utils/dateHelpers";
@@ -32,6 +31,11 @@ import {
   type ReminderSettings,
 } from "./_utils/reminders";
 import { parseImportPayload, type DataExportPayload } from "./_utils/storageImport";
+import {
+  readStoredState,
+  transactStoredState,
+  updateStoredState,
+} from "./_utils/storedState";
 import { useTheme } from "./_utils/themeContext";
 import { STORAGE_KEY, type ArchivedQuest, type Quest, type StoredState } from "./_utils/types";
 
@@ -76,6 +80,10 @@ export default function SettingsScreen() {
   const [reminderPermission, setReminderPermission] =
     useState<ReminderPermissionStatus>("undetermined");
   const [remindersSaving, setRemindersSaving] = useState(false);
+  const navigateBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace("/(tabs)/more");
+  };
   const isLightTheme = theme === "light";
   const settingsDividerColor = isLightTheme ? "#E2E8F0" : "#1A2633";
   const settingsGoldBorder = isLightTheme ? "#F0C96E" : "#5B421B";
@@ -94,14 +102,8 @@ export default function SettingsScreen() {
 
   const loadArchive = useCallback(async () => {
     try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
-      if (!raw) {
-        setArchivedQuests([]);
-        return;
-      }
-
-      const parsed = JSON.parse(raw) as Partial<StoredState>;
-      setArchivedQuests(Array.isArray(parsed.archivedQuests) ? parsed.archivedQuests : []);
+      const storedState = await readStoredState();
+      setArchivedQuests(storedState.archivedQuests);
     } catch (error) {
       if (__DEV__) console.warn("Failed to load quest archive:", error);
       setArchivedQuests([]);
@@ -220,8 +222,9 @@ export default function SettingsScreen() {
           <Pressable
             onPress={() => toggleReminderSlot(enabledKey)}
             disabled={remindersSaving}
-            accessibilityRole="button"
+            accessibilityRole="switch"
             accessibilityLabel={`${enabled ? "Disable" : "Enable"} ${title}`}
+            accessibilityState={{ checked: enabled, disabled: remindersSaving }}
             style={({ pressed }) => [
               {
                 alignSelf: "flex-start",
@@ -231,6 +234,10 @@ export default function SettingsScreen() {
                 borderRadius: 8,
                 paddingVertical: 7,
                 paddingHorizontal: 10,
+                minHeight: 44,
+                minWidth: 56,
+                alignItems: "center",
+                justifyContent: "center",
                 opacity: remindersSaving ? 0.5 : pressed ? 0.78 : 1,
               },
             ]}
@@ -253,10 +260,12 @@ export default function SettingsScreen() {
             disabled={controlsDisabled}
             accessibilityRole="button"
             accessibilityLabel={`Move ${title} earlier`}
+            accessibilityState={{ disabled: controlsDisabled }}
+            hitSlop={5}
             style={({ pressed }) => [
               {
-                width: 38,
-                height: 34,
+                width: 44,
+                height: 44,
                 alignItems: "center",
                 justifyContent: "center",
                 borderRadius: 8,
@@ -274,7 +283,7 @@ export default function SettingsScreen() {
           <View
             style={{
               minWidth: 92,
-              height: 34,
+              height: 44,
               alignItems: "center",
               justifyContent: "center",
               borderRadius: 8,
@@ -292,10 +301,12 @@ export default function SettingsScreen() {
             disabled={controlsDisabled}
             accessibilityRole="button"
             accessibilityLabel={`Move ${title} later`}
+            accessibilityState={{ disabled: controlsDisabled }}
+            hitSlop={5}
             style={({ pressed }) => [
               {
-                width: 38,
-                height: 34,
+                width: 44,
+                height: 44,
                 alignItems: "center",
                 justifyContent: "center",
                 borderRadius: 8,
@@ -316,13 +327,10 @@ export default function SettingsScreen() {
   };
 
   const saveArchiveState = async (
-    updater: (state: Partial<StoredState>) => Partial<StoredState>
+    updater: (state: StoredState) => StoredState
   ) => {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    const parsed = raw ? (JSON.parse(raw) as Partial<StoredState>) : {};
-    const nextState = updater(parsed);
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
-    setArchivedQuests(Array.isArray(nextState.archivedQuests) ? nextState.archivedQuests : []);
+    const nextState = await updateStoredState(updater);
+    setArchivedQuests(nextState.archivedQuests);
   };
 
   const restoreArchivedQuest = async (questId: string) => {
@@ -354,7 +362,7 @@ export default function SettingsScreen() {
             repeat === "weekly"
               ? normalizeScheduledWeekday(archivedQuest.scheduledWeekday)
               : undefined,
-          pinned: archivedQuest.pinned,
+          pinned: false,
           contract: archivedQuest.contract,
           done: false,
           paused: false,
@@ -407,8 +415,8 @@ export default function SettingsScreen() {
 
   const generateExportPayload = async () => {
     try {
-      const [rawState, rawEvaluationHistory, lastEvaluatedDate] = await Promise.all([
-        AsyncStorage.getItem(STORAGE_KEY),
+      const [savedState, rawEvaluationHistory, lastEvaluatedDate] = await Promise.all([
+        readStoredState(),
         AsyncStorage.getItem(DAILY_EVALUATION_HISTORY_STORAGE_KEY),
         AsyncStorage.getItem(MIDNIGHT_EVALUATION_STORAGE_KEY),
       ]);
@@ -418,7 +426,7 @@ export default function SettingsScreen() {
         version: 1,
         exportedAt: new Date().toISOString(),
         storageKey: STORAGE_KEY,
-        state: rawState ? (JSON.parse(rawState) as Partial<StoredState>) : null,
+        state: savedState,
         evaluationHistory: rawEvaluationHistory ? (JSON.parse(rawEvaluationHistory) as unknown[]) : null,
         lastEvaluatedDate,
         reminders: savedReminders,
@@ -442,22 +450,17 @@ export default function SettingsScreen() {
         return;
       }
 
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(backup.state));
-
-      if (Array.isArray(backup.evaluationHistory)) {
-        await AsyncStorage.setItem(
-          DAILY_EVALUATION_HISTORY_STORAGE_KEY,
-          JSON.stringify(backup.evaluationHistory)
-        );
-      } else {
-        await AsyncStorage.removeItem(DAILY_EVALUATION_HISTORY_STORAGE_KEY);
-      }
-
-      if (typeof backup.lastEvaluatedDate === "string") {
-        await AsyncStorage.setItem(MIDNIGHT_EVALUATION_STORAGE_KEY, backup.lastEvaluatedDate);
-      } else {
-        await AsyncStorage.removeItem(MIDNIGHT_EVALUATION_STORAGE_KEY);
-      }
+      await transactStoredState(() => ({
+        state: backup.state,
+        result: undefined,
+        additionalEntries: [
+          [
+            DAILY_EVALUATION_HISTORY_STORAGE_KEY,
+            JSON.stringify(backup.evaluationHistory ?? []),
+          ],
+          [MIDNIGHT_EVALUATION_STORAGE_KEY, backup.lastEvaluatedDate ?? ""],
+        ],
+      }));
 
       let importedRemindersPaused = false;
 
@@ -513,34 +516,30 @@ export default function SettingsScreen() {
     try {
       const raw = await AsyncStorage.getItem(STORAGE_KEY);
       if (!raw) {
-        Alert.alert("No saved profile", "Open Home once before running the simulation.");
+        Alert.alert("No saved profile", "Open Today once before running the simulation.");
         return;
       }
 
-      const parsed = JSON.parse(raw) as Partial<StoredState>;
       const yesterday = getYesterdayDateKey();
 
-      await AsyncStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          ...parsed,
-          lastResetDate: yesterday,
-          lastDrDelta:
-            typeof parsed.lastDrDelta === "number" ? parsed.lastDrDelta : defaultLastDrDelta,
-          lastCompletionPct:
-            typeof parsed.lastCompletionPct === "number"
-              ? parsed.lastCompletionPct
-              : defaultLastCompletionPct,
-          lastDrUpdateDate:
-            typeof parsed.lastDrUpdateDate === "string"
-              ? parsed.lastDrUpdateDate
-              : defaultLastDrUpdateDate,
-        })
-      );
+      await updateStoredState((current) => ({
+        ...current,
+        lastResetDate: yesterday,
+        lastDrDelta:
+          typeof current.lastDrDelta === "number" ? current.lastDrDelta : defaultLastDrDelta,
+        lastCompletionPct:
+          typeof current.lastCompletionPct === "number"
+            ? current.lastCompletionPct
+            : defaultLastCompletionPct,
+        lastDrUpdateDate:
+          typeof current.lastDrUpdateDate === "string"
+            ? current.lastDrUpdateDate
+            : defaultLastDrUpdateDate,
+      }));
 
       await AsyncStorage.removeItem(MIDNIGHT_EVALUATION_STORAGE_KEY);
 
-      Alert.alert("Simulation armed", "Returning to Home will show Midnight Evaluation.");
+      Alert.alert("Simulation armed", "Returning to Today will show Midnight Evaluation.");
       router.replace("/(tabs)");
     } catch (error) {
       if (__DEV__) console.warn("Failed to simulate midnight evaluation:", error);
@@ -575,12 +574,18 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView edges={["top"]} style={[styles.safe, { backgroundColor: colors.bg }]}>
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
         <ScreenHeader
           title="Settings"
           subtitle="Controls and backups"
-          icon="gearshape.fill"
-          style={{ marginBottom: 18 }}
+          icon="chevron.left"
+          onIconPress={navigateBack}
+          iconAccessibilityLabel="Go back"
+          style={{ marginBottom: 12 }}
         />
 
         {renderSettingsSectionLabel("Appearance", 0)}
@@ -601,8 +606,9 @@ export default function SettingsScreen() {
             </View>
             <Pressable
               onPress={toggleTheme}
-              accessibilityRole="button"
+              accessibilityRole="switch"
               accessibilityLabel={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+              accessibilityState={{ checked: theme === "dark" }}
               style={({ pressed }) => [
                 {
                   backgroundColor: SETTINGS_ACCENT,
@@ -610,7 +616,9 @@ export default function SettingsScreen() {
                   paddingHorizontal: 14,
                   borderRadius: 8,
                   minWidth: 72,
+                  minHeight: 44,
                   alignItems: "center",
+                  justifyContent: "center",
                   opacity: pressed ? 0.8 : 1,
                 },
               ]}
@@ -644,8 +652,9 @@ export default function SettingsScreen() {
             <Pressable
               onPress={toggleReminderMaster}
               disabled={remindersSaving}
-              accessibilityRole="button"
+              accessibilityRole="switch"
               accessibilityLabel={`${reminderSettings.enabled ? "Disable" : "Enable"} reminders`}
+              accessibilityState={{ checked: reminderSettings.enabled, disabled: remindersSaving }}
               style={({ pressed }) => [
                 {
                   backgroundColor: reminderSettings.enabled
@@ -657,7 +666,9 @@ export default function SettingsScreen() {
                   paddingHorizontal: 12,
                   borderRadius: 8,
                   minWidth: 78,
+                  minHeight: 44,
                   alignItems: "center",
+                  justifyContent: "center",
                   opacity: remindersSaving ? 0.5 : pressed ? 0.78 : 1,
                 },
               ]}
@@ -773,6 +784,8 @@ export default function SettingsScreen() {
                     borderRadius: 8,
                     paddingVertical: 7,
                     paddingHorizontal: 10,
+                    minHeight: 44,
+                    justifyContent: "center",
                     opacity: pressed ? 0.75 : 1,
                   },
                 ]}
@@ -819,6 +832,8 @@ export default function SettingsScreen() {
                         borderRadius: 8,
                         paddingVertical: 8,
                         paddingHorizontal: 10,
+                        minHeight: 44,
+                        justifyContent: "center",
                         alignSelf: "center",
                         opacity: pressed ? 0.82 : 1,
                       },
@@ -858,6 +873,8 @@ export default function SettingsScreen() {
                   borderRadius: 8,
                   paddingVertical: 10,
                   paddingHorizontal: 14,
+                  minHeight: 44,
+                  justifyContent: "center",
                   opacity: pressed ? 0.82 : 1,
                 },
               ]}
@@ -877,6 +894,7 @@ export default function SettingsScreen() {
               disabled={importButtonDisabled}
               accessibilityRole="button"
               accessibilityLabel="Import backup"
+              accessibilityState={{ disabled: importButtonDisabled }}
               style={({ pressed }) => [
                 {
                   borderWidth: 1,
@@ -884,6 +902,8 @@ export default function SettingsScreen() {
                   borderRadius: 8,
                   paddingVertical: 10,
                   paddingHorizontal: 14,
+                  minHeight: 44,
+                  justifyContent: "center",
                   opacity: importButtonDisabled ? 0.46 : pressed ? 0.75 : 1,
                 },
               ]}
@@ -903,6 +923,7 @@ export default function SettingsScreen() {
               textAlignVertical="top"
               autoCapitalize="none"
               autoCorrect={false}
+              accessibilityLabel="Generated backup JSON"
               style={{
                 minHeight: 118,
                 marginTop: 12,
@@ -929,6 +950,7 @@ export default function SettingsScreen() {
               textAlignVertical="top"
               autoCapitalize="none"
               autoCorrect={false}
+              accessibilityLabel="Backup JSON to import"
               style={{
                 minHeight: 118,
                 marginTop: 10,
@@ -969,6 +991,8 @@ export default function SettingsScreen() {
                     borderRadius: 8,
                     paddingVertical: 10,
                     paddingHorizontal: 14,
+                    minHeight: 44,
+                    justifyContent: "center",
                     opacity: pressed ? 0.82 : 1,
                     alignSelf: "flex-start",
                   },
@@ -982,7 +1006,6 @@ export default function SettingsScreen() {
             </View>
           </>
         ) : null}
-        <Footer />
       </ScrollView>
     </SafeAreaView>
   );

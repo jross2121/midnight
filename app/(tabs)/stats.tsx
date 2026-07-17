@@ -1,12 +1,14 @@
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
+import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CONTRACT_GOLD } from "./_styles";
 import { RankBadge } from "./_components/RankBadge";
 import { ScreenHeader } from "./_components/ScreenHeader";
+import { ScreenLoading } from "./_components/ScreenLoading";
 import { mergeAchievements } from "./_utils/achievements";
 import { defaultAchievements } from "./_utils/defaultData";
 import { createCardSurface, createTileSurface, ui, withAlpha } from "./_utils/designSystem";
@@ -227,12 +229,17 @@ function normalizeEquippedBadgeIds(value: unknown, unlockedAchievements: Achieve
 }
 
 export default function StatsScreen() {
+  const router = useRouter();
   const { colors, theme } = useTheme();
   const styles = useMemo(() => createDisciplineStyles(colors, theme), [colors, theme]);
   const [disciplineRating, setDisciplineRating] = useState<number>(0);
   const [achievements, setAchievements] = useState<Achievement[]>(defaultAchievements);
   const [equippedBadgeIds, setEquippedBadgeIds] = useState<(string | null)[]>(createBadgeSlots([]));
   const [hydrated, setHydrated] = useState(false);
+  const navigateBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace("/(tabs)/more");
+  };
 
   const loadData = useCallback(async () => {
     try {
@@ -279,7 +286,7 @@ export default function StatsScreen() {
   );
 
   if (!hydrated) {
-    return null;
+    return <ScreenLoading label="Loading player card" />;
   }
 
   const isLightTheme = theme === "light";
@@ -314,8 +321,10 @@ export default function StatsScreen() {
         <ScreenHeader
           title="Player Card"
           subtitle="Rank, showcase, and climb path"
-          icon="star.fill"
+          icon="chevron.left"
           accent={rankTone}
+          onIconPress={navigateBack}
+          iconAccessibilityLabel="Go back"
         />
 
         <View style={[styles.playerCard, { borderColor: rankGoldBorder }]}>
@@ -375,9 +384,16 @@ export default function StatsScreen() {
                 const collectionLabel = meta ? COLLECTION_LABELS[meta.collection] : track.label;
 
                 return (
-                  <View
+                  <Pressable
                     key={track.id}
-                    style={[
+                    onPress={() => router.push("/(tabs)/achievements")}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      achievement
+                        ? `Open Awards to change ${achievement.name}`
+                        : `Open Awards to equip a ${track.title.toLowerCase()} badge`
+                    }
+                    style={({ pressed }) => [
                       styles.trackSlot,
                       achievement
                         ? {
@@ -385,6 +401,7 @@ export default function StatsScreen() {
                             backgroundColor: trackVisual.surface,
                           }
                         : null,
+                      pressed && styles.trackSlotPressed,
                     ]}
                   >
                     <View style={[styles.trackSlotRail, { backgroundColor: trackVisual.primary }]} />
@@ -418,7 +435,7 @@ export default function StatsScreen() {
                     >
                       {achievement ? "Equipped" : "Empty"}
                     </Text>
-                  </View>
+                  </Pressable>
                 );
               })}
             </View>
@@ -738,6 +755,9 @@ function createDisciplineStyles(colors: ThemeColors, theme: Theme) {
       paddingHorizontal: ui.spacing.xs,
       paddingVertical: ui.spacing.xs,
       overflow: "hidden",
+    },
+    trackSlotPressed: {
+      opacity: 0.76,
     },
     trackSlotRail: {
       width: 4,

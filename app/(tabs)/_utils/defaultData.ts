@@ -2,23 +2,15 @@ import type { Achievement, Category, DrHistoryEntry, Quest, QuestTemplate } from
 import { getQuestXpForDifficulty } from "./questXp";
 
 export const defaultCategories: Category[] = [
-  { id: "health", name: "Health", level: 3, xp: 40, xpToNext: 120 },
-  { id: "money", name: "Money", level: 2, xp: 75, xpToNext: 110 },
-  { id: "career", name: "Career", level: 4, xp: 10, xpToNext: 140 },
-  { id: "social", name: "Social", level: 1, xp: 25, xpToNext: 90 },
-  { id: "home", name: "Home", level: 2, xp: 15, xpToNext: 110 },
-  { id: "fun", name: "Personal", level: 5, xp: 60, xpToNext: 160 },
+  { id: "health", name: "Health", level: 1, xp: 0, xpToNext: 90 },
+  { id: "money", name: "Money", level: 1, xp: 0, xpToNext: 90 },
+  { id: "career", name: "Career", level: 1, xp: 0, xpToNext: 90 },
+  { id: "social", name: "Social", level: 1, xp: 0, xpToNext: 90 },
+  { id: "home", name: "Home", level: 1, xp: 0, xpToNext: 90 },
+  { id: "fun", name: "Personal", level: 1, xp: 0, xpToNext: 90 },
 ];
 
-export const defaultQuests: Quest[] = [
-  { id: "q1", title: "Workout (20 min)", categoryId: "health", xp: getQuestXpForDifficulty("medium"), target: "20 min", difficulty: "medium", repeat: "daily", done: false, pinned: false, contract: true },
-  { id: "q2", title: "Drink water (8 cups)", categoryId: "health", xp: getQuestXpForDifficulty("easy"), target: "8 cups", difficulty: "easy", repeat: "daily", done: false, pinned: false },
-  { id: "q3", title: "No impulse buys today", categoryId: "money", xp: getQuestXpForDifficulty("easy"), target: "$0", difficulty: "easy", repeat: "daily", done: false, pinned: false },
-  { id: "q4", title: "Apply to 1 job", categoryId: "career", xp: getQuestXpForDifficulty("hard"), target: "1", difficulty: "hard", repeat: "weekdays", done: false, pinned: false, contract: true },
-  { id: "q5", title: "Clean for 10 minutes", categoryId: "home", xp: getQuestXpForDifficulty("easy"), target: "10 min", difficulty: "easy", repeat: "daily", done: false, pinned: false },
-  { id: "q6", title: "Text/call someone you care about", categoryId: "social", xp: getQuestXpForDifficulty("medium"), target: "1 person", difficulty: "medium", repeat: "daily", done: false, pinned: false },
-  { id: "q7", title: "Relax guilt-free (30 min)", categoryId: "fun", xp: getQuestXpForDifficulty("easy"), target: "30 min", difficulty: "easy", repeat: "daily", done: false, pinned: false },
-];
+export const defaultQuests: Quest[] = [];
 
 export const questTemplates: QuestTemplate[] = [
   { id: "first_win", title: "First win before noon", categoryId: "health", xp: getQuestXpForDifficulty("easy"), target: "1 small action", difficulty: "easy", repeat: "once" },

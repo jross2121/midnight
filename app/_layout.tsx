@@ -3,6 +3,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -67,7 +68,13 @@ export default function RootLayout() {
   }, []);
 
   if (hasSeenOnboarding === null) {
-    return null;
+    return (
+      <View style={launchStyles.screen} accessibilityRole="progressbar" accessibilityLabel="Opening Midnight">
+        <Text style={launchStyles.brand}>MIDNIGHT</Text>
+        <ActivityIndicator size="small" color={HOME_GOLD} />
+        <StatusBar style="light" />
+      </View>
+    );
   }
 
   return (
@@ -84,3 +91,19 @@ export default function RootLayout() {
     </SafeAreaProvider>
   );
 }
+
+const launchStyles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: '#0A0F14',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 18,
+  },
+  brand: {
+    color: HOME_GOLD,
+    fontSize: 26,
+    lineHeight: 31,
+    fontWeight: '900',
+  },
+});

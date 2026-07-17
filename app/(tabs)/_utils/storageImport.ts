@@ -8,7 +8,11 @@ import {
   defaultQuests,
 } from "./defaultData";
 import { mergeAchievements } from "./achievements";
-import { localDateKey } from "./dateHelpers";
+import { isValidDateKey, localDateKey } from "./dateHelpers";
+import {
+  normalizeEvaluationHistory,
+  type DailyEvaluationHistoryItem,
+} from "./evaluationHistory";
 import { getQuestXpForDifficulty } from "./questXp";
 import { normalizeQuestRepeat, normalizeScheduledWeekday } from "./recurrence";
 import { normalizeReminderSettings, type ReminderSettings } from "./reminders";
@@ -33,12 +37,10 @@ export type DataExportPayload = {
 
 export type ParsedImportPayload = {
   state: StoredState;
-  evaluationHistory?: unknown[];
+  evaluationHistory?: DailyEvaluationHistoryItem[];
   lastEvaluatedDate?: string | null;
   reminders?: ReminderSettings;
 };
-
-const DATE_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -60,7 +62,7 @@ function safePercent(value: unknown, fallback: number): number {
 }
 
 function safeDateKey(value: unknown, fallback: string): string {
-  return typeof value === "string" && DATE_KEY_PATTERN.test(value) ? value : fallback;
+  return isValidDateKey(value) ? value : fallback;
 }
 
 function normalizeDifficulty(value: unknown): Quest["difficulty"] {
@@ -80,7 +82,11 @@ function normalizeCategory(value: unknown, fallback: Category): Category {
   };
 }
 
-function normalizeQuest(value: unknown, fallbackCategoryId: string): Quest | null {
+function normalizeQuest(
+  value: unknown,
+  fallbackCategoryId: string,
+  categoryIds: ReadonlySet<string>
+): Quest | null {
   if (!isObject(value)) return null;
 
   const title = safeString(value.title, "");
@@ -92,7 +98,9 @@ function normalizeQuest(value: unknown, fallbackCategoryId: string): Quest | nul
   return {
     id: safeString(value.id, `q${Date.now()}-${Math.random().toString(36).slice(2, 8)}`),
     title,
-    categoryId: safeString(value.categoryId, fallbackCategoryId),
+    categoryId: categoryIds.has(safeString(value.categoryId, fallbackCategoryId))
+      ? safeString(value.categoryId, fallbackCategoryId)
+      : fallbackCategoryId,
     xp: getQuestXpForDifficulty(difficulty),
     target: typeof value.target === "string" ? value.target : "",
     difficulty,
@@ -100,14 +108,18 @@ function normalizeQuest(value: unknown, fallbackCategoryId: string): Quest | nul
     scheduledWeekday:
       repeat === "weekly" ? normalizeScheduledWeekday(value.scheduledWeekday) : undefined,
     done: Boolean(value.done),
-    pinned: Boolean(value.pinned),
+    pinned: false,
     contract: Boolean(value.contract),
     paused: Boolean(value.paused),
   };
 }
 
-function normalizeArchivedQuest(value: unknown, fallbackCategoryId: string): ArchivedQuest | null {
-  const quest = normalizeQuest(value, fallbackCategoryId);
+function normalizeArchivedQuest(
+  value: unknown,
+  fallbackCategoryId: string,
+  categoryIds: ReadonlySet<string>
+): ArchivedQuest | null {
+  const quest = normalizeQuest(value, fallbackCategoryId, categoryIds);
   if (!quest || !isObject(value)) return null;
 
   return {
@@ -125,10 +137,10 @@ function normalizeDrHistory(value: unknown): DrHistoryEntry[] {
   const normalizedHistory: DrHistoryEntry[] = [];
 
   for (const rawEntry of value) {
-    if (!isObject(rawEntry) || typeof rawEntry.date !== "string") continue;
+    if (!isObject(rawEntry) || !isValidDateKey(rawEntry.date)) continue;
 
     const entry: DrHistoryEntry = {
-      date: safeDateKey(rawEntry.date, localDateKey()),
+      date: rawEntry.date,
       dr: safeNumber(rawEntry.dr, defaultDisciplineRating),
       delta:
         typeof rawEntry.delta === "number" && Number.isFinite(rawEntry.delta)
@@ -150,10 +162,17 @@ function normalizeDrHistory(value: unknown): DrHistoryEntry[] {
       entry.comebackBonus = Math.floor(rawEntry.comebackBonus);
     }
 
-    normalizedHistory.push(entry);
+    const existingIndex = normalizedHistory.findIndex((item) => item.date === entry.date);
+    if (existingIndex >= 0) {
+      normalizedHistory[existingIndex] = entry;
+    } else {
+      normalizedHistory.push(entry);
+    }
   }
 
-  return normalizedHistory.slice(-90);
+  return normalizedHistory
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-90);
 }
 
 function normalizeEquippedBadgeIds(value: unknown): (string | null)[] | undefined {
@@ -174,16 +193,32 @@ export function buildStoredStateFromImport(value: Partial<StoredState>): StoredS
     : defaultCategories;
   const categories = importedCategories.length > 0 ? importedCategories : defaultCategories;
   const fallbackCategoryId = categories[0]?.id ?? defaultCategories[0].id;
+  const categoryIds = new Set(categories.map((category) => category.id));
 
-  const quests = Array.isArray(value.quests)
+  const normalizedQuests = Array.isArray(value.quests)
     ? value.quests
-        .map((quest) => normalizeQuest(quest, fallbackCategoryId))
+        .map((quest) => normalizeQuest(quest, fallbackCategoryId, categoryIds))
         .filter((quest): quest is Quest => quest !== null)
     : defaultQuests;
+  const seenQuestIds = new Set<string>();
+  let activeContractCount = 0;
+  const quests = normalizedQuests.map((quest, index) => {
+    let id = quest.id;
+    let duplicateIndex = index + 1;
+    while (seenQuestIds.has(id)) {
+      id = `${quest.id}-imported-${duplicateIndex}`;
+      duplicateIndex += 1;
+    }
+    seenQuestIds.add(id);
+
+    const canKeepContract = !quest.contract || quest.paused || activeContractCount < 3;
+    if (quest.contract && !quest.paused && canKeepContract) activeContractCount += 1;
+    return { ...quest, id, contract: canKeepContract ? quest.contract : false };
+  });
 
   const archivedQuests = Array.isArray(value.archivedQuests)
     ? value.archivedQuests
-        .map((quest) => normalizeArchivedQuest(quest, fallbackCategoryId))
+        .map((quest) => normalizeArchivedQuest(quest, fallbackCategoryId, categoryIds))
         .filter((quest): quest is ArchivedQuest => quest !== null)
         .slice(0, 100)
     : [];
@@ -200,7 +235,9 @@ export function buildStoredStateFromImport(value: Partial<StoredState>): StoredS
         : defaultLastDrDelta,
     lastCompletionPct: safePercent(value.lastCompletionPct, defaultLastCompletionPct),
     lastDrUpdateDate:
-      typeof value.lastDrUpdateDate === "string" ? value.lastDrUpdateDate : defaultLastDrUpdateDate,
+      value.lastDrUpdateDate === "" || isValidDateKey(value.lastDrUpdateDate)
+        ? value.lastDrUpdateDate
+        : defaultLastDrUpdateDate,
     drHistory: normalizeDrHistory(value.drHistory),
     lastResetDate: safeDateKey(value.lastResetDate, today),
     achievements: mergeAchievements(value.achievements),
@@ -224,6 +261,8 @@ export function parseImportPayload(value: unknown): ParsedImportPayload | null {
 
   if (!isObject(value)) return null;
   const payload = value as Partial<DataExportPayload>;
+  if (typeof payload.version !== "undefined" && payload.version !== 1) return null;
+  if (typeof payload.storageKey !== "undefined" && payload.storageKey !== STORAGE_KEY) return null;
   if (!isStoredStateCandidate(payload.state)) return null;
 
   const parsed: ParsedImportPayload = {
@@ -231,12 +270,12 @@ export function parseImportPayload(value: unknown): ParsedImportPayload | null {
   };
 
   if (Array.isArray(payload.evaluationHistory)) {
-    parsed.evaluationHistory = payload.evaluationHistory.filter(isObject).slice(-180);
+    parsed.evaluationHistory = normalizeEvaluationHistory(payload.evaluationHistory);
   }
 
   if (Object.prototype.hasOwnProperty.call(payload, "lastEvaluatedDate")) {
     parsed.lastEvaluatedDate =
-      typeof payload.lastEvaluatedDate === "string" && DATE_KEY_PATTERN.test(payload.lastEvaluatedDate)
+      isValidDateKey(payload.lastEvaluatedDate)
         ? payload.lastEvaluatedDate
         : null;
   }

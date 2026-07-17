@@ -19,12 +19,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Circle, Svg } from "react-native-svg";
 
 import { AddQuestForm } from "./_components/AddQuestForm";
-import { DayScoreRing } from "./_components/DayScoreRing";
 import { EditQuestForm } from "./_components/EditQuestForm";
 import { MidnightEvaluationModal } from "./_components/MidnightEvaluationModal";
 import { QuestCard } from "./_components/QuestCard";
 import { CONTRACT_GOLD, HOME_GOLD, createStyles } from "./_styles";
-import { getAchievementsAfterQuestCompletion, mergeAchievements, unlockAchievementById } from "./_utils/achievements";
+import { mergeAchievements } from "./_utils/achievements";
 import { getCategoryDisplayName } from "./_utils/categoryLabels";
 import { diffDays, localDateKey, parseDateKey } from "./_utils/dateHelpers";
 import { withAlpha } from "./_utils/designSystem";
@@ -46,29 +45,29 @@ import {
   getDRChangeFromPercent,
 } from "./_utils/discipline";
 import {
-  appendEvaluationHistoryItem,
+  appendEvaluationHistoryEntry,
   buildCategoryStatsFromQuests,
   DAILY_EVALUATION_HISTORY_STORAGE_KEY,
   getStrongestAndWeakestCategories,
+  readEvaluationHistory,
 } from "./_utils/evaluationHistory";
-import { levelUp } from "./_utils/gameHelpers";
 import {
   buildMidnightEvaluation,
   MIDNIGHT_EVALUATION_STORAGE_KEY,
   shouldShowMidnightEvaluation,
   type MidnightEvaluationData,
 } from "./_utils/midnightEvaluation";
-import { buildStreakSummary } from "./_utils/planning";
+import { applyMidnightStateTransition } from "./_utils/midnightStateTransition";
 import {
   findDailyQuestLimitConflict,
   formatQuestLimitDate,
   getUpcomingDateKeys,
   type QuestLimitConflict,
 } from "./_utils/questLimits";
+import { completeQuestInStoredState } from "./_utils/questCompletion";
 import { getQuestXpForDifficulty } from "./_utils/questXp";
 import {
   getCompletedOneTimeArchives,
-  getQuestRepeatLabel,
   getScheduledQuestsForDate,
   getTodayWeekday,
   isQuestScheduledForDate,
@@ -78,6 +77,12 @@ import {
   rollQuestsForNewDay,
 } from "./_utils/recurrence";
 import { getNextRank, getRankFromDR, getRankMeta } from "./_utils/rank";
+import {
+  readStoredState,
+  replaceStoredState,
+  transactStoredState,
+  updateStoredState,
+} from "./_utils/storedState";
 import { useTheme } from "./_utils/themeContext";
 import type {
   Achievement,
@@ -88,7 +93,6 @@ import type {
   QuestRepeat,
   StoredState,
 } from "./_utils/types";
-import { STORAGE_KEY } from "./_utils/types";
 
 function applyDrChange(current: number, delta: number): number {
   return Math.max(0, current + delta);
@@ -212,7 +216,7 @@ export default function HomeScreen() {
         ...quest,
         difficulty: normalizeDifficulty(quest.difficulty),
         xp: getQuestXpForDifficulty(normalizeDifficulty(quest.difficulty)),
-        pinned: Boolean(quest.pinned),
+        pinned: false,
         contract: Boolean(quest.contract),
         paused: Boolean(quest.paused),
         target: typeof quest.target === "string" ? quest.target : "",
@@ -220,10 +224,6 @@ export default function HomeScreen() {
       localDateKey()
     ),
   }), [normalizeDifficulty]);
-
-  const unlockAchievement = (achievementId: string) => {
-    setAchievements((prev) => unlockAchievementById(prev, achievementId));
-  };
 
   const showQuestLimitAlert = (conflict: QuestLimitConflict) => {
     Alert.alert(
@@ -245,16 +245,10 @@ export default function HomeScreen() {
       const today = localDateKey();
 
       try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
-
-        if (!raw) {
-          setLastResetDate(today);
-          setHydrated(true);
-          return;
-        }
-
-        const parsed = JSON.parse(raw) as Partial<StoredState>;
-        const lastEvaluatedDate = await AsyncStorage.getItem(MIDNIGHT_EVALUATION_STORAGE_KEY);
+        const [parsed, lastEvaluatedDate] = await Promise.all([
+          readStoredState(),
+          AsyncStorage.getItem(MIDNIGHT_EVALUATION_STORAGE_KEY),
+        ]);
 
         const loadedCategories =
           Array.isArray(parsed.categories) && parsed.categories.length
@@ -270,7 +264,7 @@ export default function HomeScreen() {
             {
               ...quest,
               difficulty: normalizeDifficulty(quest.difficulty),
-              pinned: Boolean(quest.pinned),
+              pinned: false,
               contract: Boolean(quest.contract),
               paused: Boolean(quest.paused),
               target: typeof quest.target === "string" ? quest.target : "",
@@ -300,11 +294,16 @@ export default function HomeScreen() {
         const previousCompletionForBonus = loadedHistory.length > 0 ? loadedLastCompletionPct : null;
 
         const gap = diffDays(savedResetDate, today);
-        const shouldGateForEvaluation = shouldShowMidnightEvaluation(
-          savedResetDate,
-          today,
-          lastEvaluatedDate
+        const resetDateAlreadyScored = loadedHistory.some(
+          (entry) => entry.date === savedResetDate
         );
+        const shouldGateForEvaluation =
+          shouldShowMidnightEvaluation(savedResetDate, today, lastEvaluatedDate) &&
+          !resetDateAlreadyScored;
+
+        if (resetDateAlreadyScored && lastEvaluatedDate !== savedResetDate) {
+          await AsyncStorage.setItem(MIDNIGHT_EVALUATION_STORAGE_KEY, savedResetDate);
+        }
 
         let nextDR = loadedDR;
         let nextLastDrDelta = loadedLastDrDelta;
@@ -314,29 +313,32 @@ export default function HomeScreen() {
 
         if (gap >= 1 && !shouldGateForEvaluation) {
           // Day 1 (the "previous day" based on saved quests)
-          const previousDayQuests = getScheduledQuestsForDate(normalizedLoadedQuests, savedResetDate);
-          const donePrev = previousDayQuests.filter((q) => q.done).length;
-          const pctPrev = getCompletionPercent(
-            donePrev,
-            getDailyScoringTarget(previousDayQuests.length, DAILY_STANDARD)
-          );
-          const deltaPrev = getDRChangeFromPercent(pctPrev, previousDayQuests.length, DAILY_STANDARD);
-          nextDR = applyDrChange(nextDR, deltaPrev);
-          nextHistory = [
-            ...nextHistory,
-            {
-              date: savedResetDate,
-              dr: nextDR,
-              delta: deltaPrev,
-              pct: pctPrev,
-              title: "Auto Judgment",
-            },
-          ];
+          if (!nextHistory.some((entry) => entry.date === savedResetDate)) {
+            const previousDayQuests = getScheduledQuestsForDate(normalizedLoadedQuests, savedResetDate);
+            const donePrev = previousDayQuests.filter((q) => q.done).length;
+            const pctPrev = getCompletionPercent(
+              donePrev,
+              getDailyScoringTarget(previousDayQuests.length, DAILY_STANDARD)
+            );
+            const deltaPrev = getDRChangeFromPercent(pctPrev, previousDayQuests.length, DAILY_STANDARD);
+            nextDR = applyDrChange(nextDR, deltaPrev);
+            nextHistory = [
+              ...nextHistory,
+              {
+                date: savedResetDate,
+                dr: nextDR,
+                delta: deltaPrev,
+                pct: pctPrev,
+                title: "Auto Judgment",
+              },
+            ];
+          }
 
           // Additional missed days (if you were away multiple days)
           // Treat each missed day as 0% => -8
           for (let i = 1; i < gap; i++) {
             const missedDate = addDaysToDateKey(savedResetDate, i);
+            if (nextHistory.some((entry) => entry.date === missedDate)) continue;
             nextDR = applyDrChange(nextDR, -8);
             nextHistory.push({
               date: missedDate,
@@ -404,12 +406,8 @@ export default function HomeScreen() {
 
     (async () => {
       try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        const persisted = raw ? (JSON.parse(raw) as Partial<StoredState>) : {};
-        const persistedEquippedBadgeIds = Array.isArray(persisted.equippedBadgeIds)
-          ? persisted.equippedBadgeIds.slice(0, 3)
-          : undefined;
-        const state: StoredState = {
+        await updateStoredState((current) => ({
+          ...current,
           categories,
           quests,
           lastResetDate,
@@ -421,11 +419,7 @@ export default function HomeScreen() {
           drHistory,
           lifetimeCompletedQuestCount,
           archivedQuests,
-        };
-        if (persistedEquippedBadgeIds) {
-          state.equippedBadgeIds = persistedEquippedBadgeIds;
-        }
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        }));
       } catch (e) {
         if (__DEV__) console.warn("Failed to save storage:", e);
       }
@@ -451,139 +445,64 @@ export default function HomeScreen() {
     setIsSavingEvaluation(true);
 
     try {
-      const drBeforeEvaluation = disciplineRating;
+      const evaluation = pendingEvaluation;
       const today = localDateKey();
-      const gap = diffDays(pendingEvaluation.date, today);
-      const drAfterEvaluation = applyDrChange(drBeforeEvaluation, pendingEvaluation.drDelta);
-      const rankAfterEvaluation = getRankFromDR(drAfterEvaluation);
-      const evaluatedQuests = getScheduledQuestsForDate(quests, pendingEvaluation.date);
+      const evaluatedAt = new Date().toISOString();
+      const evaluatedQuests = getScheduledQuestsForDate(quests, evaluation.date);
       const { strongestCategory, weakestCategory } = getStrongestAndWeakestCategories(evaluatedQuests);
       const categoryStats = buildCategoryStatsFromQuests(evaluatedQuests);
       const completionRate =
-        pendingEvaluation.totalCount > 0
-          ? Math.round((pendingEvaluation.completedCount / pendingEvaluation.totalCount) * 100)
+        evaluation.totalCount > 0
+          ? Math.round((evaluation.completedCount / evaluation.totalCount) * 100)
           : 0;
-
-      let nextDR = drAfterEvaluation;
-      let nextHistory: DrHistoryEntry[] = [
-        ...drHistory,
-        {
-          date: pendingEvaluation.date,
-          dr: nextDR,
-          delta: pendingEvaluation.drDelta,
-          pct: pendingEvaluation.completionPercent,
-          title: pendingEvaluation.runTitle,
-          contractCompletedCount: pendingEvaluation.contractCompletedCount,
-          contractTotalCount: pendingEvaluation.contractTotalCount,
-          comebackBonus: pendingEvaluation.comebackBonus,
-        },
-      ];
-
-      for (let i = 1; i < gap; i += 1) {
-        const missedDate = addDaysToDateKey(pendingEvaluation.date, i);
-        nextDR = applyDrChange(nextDR, -8);
-        nextHistory.push({
-          date: missedDate,
-          dr: nextDR,
-          delta: -8,
-          pct: 0,
-          title: "Midnight Claimed",
-          contractCompletedCount: 0,
-          contractTotalCount: 0,
-          comebackBonus: 0,
+      const transition = await transactStoredState(async (current) => {
+        const nextTransition = applyMidnightStateTransition(
+          current,
+          evaluation,
+          today,
+          evaluatedAt
+        );
+        const evaluationHistory = await readEvaluationHistory();
+        const nextEvaluationHistory = appendEvaluationHistoryEntry(evaluationHistory, {
+          date: evaluation.date,
+          completedQuestCount: evaluation.completedCount,
+          totalQuestCount: evaluation.totalCount,
+          completionRate,
+          runTitle: evaluation.runTitle,
+          contractCompletedCount: evaluation.contractCompletedCount,
+          contractTotalCount: evaluation.contractTotalCount,
+          comebackBonus: evaluation.comebackBonus,
+          drBefore: nextTransition.drBeforeEvaluation,
+          drChange: evaluation.drDelta,
+          drAfter: nextTransition.drAfterEvaluation,
+          currentRank: nextTransition.rankAfterEvaluation,
+          strongestCategory,
+          weakestCategory,
+          categoryStats,
         });
-      }
 
-      if (nextHistory.length > 30) {
-        nextHistory = nextHistory.slice(-30);
-      }
-
-      const latestEntry = nextHistory[nextHistory.length - 1];
-      const nextStreakSummary = buildStreakSummary(nextHistory);
-      setDisciplineRating(nextDR);
-      setDrHistory(nextHistory);
-      setLastDrDelta(latestEntry?.delta ?? pendingEvaluation.drDelta);
-      setLastCompletionPct(latestEntry?.pct ?? pendingEvaluation.completionPercent);
-      setLastDrUpdateDate(today);
-      setArchivedQuests((prev) =>
-        [
-          ...getCompletedOneTimeArchives(quests, new Date().toISOString()),
-          ...prev,
-        ].slice(0, 100)
-      );
-      setQuests((prev) => rollQuestsForNewDay(prev));
-      setLastResetDate(today);
-      setPendingEvaluation(null);
-
-      await appendEvaluationHistoryItem({
-        date: pendingEvaluation.date,
-        completedQuestCount: pendingEvaluation.completedCount,
-        totalQuestCount: pendingEvaluation.totalCount,
-        completionRate,
-        runTitle: pendingEvaluation.runTitle,
-        contractCompletedCount: pendingEvaluation.contractCompletedCount,
-        contractTotalCount: pendingEvaluation.contractTotalCount,
-        comebackBonus: pendingEvaluation.comebackBonus,
-        drBefore: drBeforeEvaluation,
-        drChange: pendingEvaluation.drDelta,
-        drAfter: drAfterEvaluation,
-        currentRank: rankAfterEvaluation,
-        strongestCategory,
-        weakestCategory,
-        categoryStats,
+        return {
+          state: nextTransition.state,
+          result: nextTransition,
+          additionalEntries: [
+            [DAILY_EVALUATION_HISTORY_STORAGE_KEY, JSON.stringify(nextEvaluationHistory)],
+            [MIDNIGHT_EVALUATION_STORAGE_KEY, evaluation.date],
+          ],
+        };
       });
 
-      await AsyncStorage.setItem(MIDNIGHT_EVALUATION_STORAGE_KEY, pendingEvaluation.date);
-
-      if (nextStreakSummary.solidDayStreak >= 3) {
-        unlockAchievement("three_solid_days");
-      }
-      if (nextStreakSummary.solidDayStreak >= 7) {
-        unlockAchievement("solid_7");
-      }
-      if (nextStreakSummary.solidDayStreak >= 14) {
-        unlockAchievement("solid_14");
-      }
-      if (nextStreakSummary.solidDayStreak >= 21) {
-        unlockAchievement("solid_21");
-      }
-      if (nextStreakSummary.contractStreak >= 3) {
-        unlockAchievement("contract_3");
-      }
-      if (nextStreakSummary.contractStreak >= 7) {
-        unlockAchievement("contract_7");
-      }
-      if (nextStreakSummary.contractStreak >= 14) {
-        unlockAchievement("contract_14");
-      }
-      if (nextStreakSummary.contractStreak >= 21) {
-        unlockAchievement("contract_21");
-      }
-      if (nextHistory.filter((entry) => entry.pct >= 100).length >= 3) {
-        unlockAchievement("perfect_3");
-      }
-      if (pendingEvaluation.comebackBonus > 0) {
-        unlockAchievement("comeback_day");
-      }
-      const rankTier = getRankMeta(rankAfterEvaluation).tier;
-      if (rankTier >= 2) {
-        unlockAchievement("rank_climber");
-      }
-      if (rankTier >= 3) {
-        unlockAchievement("rank_focused");
-      }
-      if (rankTier >= 4) {
-        unlockAchievement("rank_driven");
-      }
-      if (rankTier >= 5) {
-        unlockAchievement("rank_relentless");
-      }
-      if (rankTier >= 6) {
-        unlockAchievement("rank_elite");
-      }
-      if (rankTier >= 7) {
-        unlockAchievement("rank_grand");
-      }
+      setCategories(transition.state.categories);
+      setQuests(transition.state.quests);
+      setAchievements(transition.state.achievements);
+      setDisciplineRating(transition.state.disciplineRating);
+      setLastDrDelta(transition.state.lastDrDelta);
+      setLastCompletionPct(transition.state.lastCompletionPct);
+      setLastDrUpdateDate(transition.state.lastDrUpdateDate);
+      setDrHistory(transition.state.drHistory);
+      setLifetimeCompletedQuestCount(transition.state.lifetimeCompletedQuestCount);
+      setArchivedQuests(transition.state.archivedQuests);
+      setLastResetDate(transition.state.lastResetDate);
+      setPendingEvaluation(null);
     } catch (error) {
       if (__DEV__) console.warn("Failed to commit midnight evaluation:", error);
     } finally {
@@ -604,10 +523,7 @@ export default function HomeScreen() {
       (async () => {
         try {
           const today = localDateKey();
-          const raw = await AsyncStorage.getItem(STORAGE_KEY);
-          if (!raw) return;
-
-          const parsed = JSON.parse(raw) as Partial<StoredState>;
+          const parsed = await readStoredState();
           const savedResetDate =
             typeof parsed.lastResetDate === "string" ? parsed.lastResetDate : today;
           const savedCategories =
@@ -620,7 +536,7 @@ export default function HomeScreen() {
               {
                 ...quest,
                 difficulty: normalizeDifficulty(quest.difficulty),
-                pinned: Boolean(quest.pinned),
+                pinned: false,
                 contract: Boolean(quest.contract),
                 paused: Boolean(quest.paused),
                 target: typeof quest.target === "string" ? quest.target : "",
@@ -771,14 +687,36 @@ export default function HomeScreen() {
     [contractQuests]
   );
   const contractStatusText = useMemo(() => {
-    if (contractQuests.length === 0) return "Choose up to 3 contracts before midnight.";
-    if (contractDoneCount === contractQuests.length) return "Contract protected. Midnight has less to take.";
-    return `${contractQuests.length - contractDoneCount} contract${contractQuests.length - contractDoneCount === 1 ? "" : "s"} still exposed.`;
+    if (contractQuests.length === 0) {
+      return "Optional: mark up to three must-do quests as contracts from any quest menu.";
+    }
+    if (contractDoneCount === contractQuests.length) {
+      return "Every contract is complete. Your contract streak is protected.";
+    }
+    const remaining = contractQuests.length - contractDoneCount;
+    return `Complete ${remaining} more before midnight to protect your contract streak.`;
   }, [contractDoneCount, contractQuests.length]);
   const dayScorePercent = useMemo(
     () => getCompletionPercent(doneCount, dayScoreTarget),
     [dayScoreTarget, doneCount]
   );
+  const remainingForStandard = Math.max(0, dayScoreTarget - doneCount);
+  const todayHeadline =
+    totalQuestCount === 0
+      ? "Give today one clear win"
+      : remainingForStandard > 0
+        ? `${remainingForStandard} ${remainingForStandard === 1 ? "quest" : "quests"} to meet your standard`
+        : doneCount === totalQuestCount
+          ? "Everything is complete"
+          : "Your daily standard is met";
+  const todaySummary =
+    totalQuestCount === 0
+      ? "Add a small, concrete action. Midnight only judges what is scheduled today."
+      : remainingForStandard > 0
+        ? `Complete ${dayScoreTarget} of today's ${totalQuestCount} quests to reach a full Day Score.`
+        : doneCount === totalQuestCount
+          ? "You cleared the board. Midnight will record the result after the day ends."
+          : "Extra completions can finish the board, but your scoring target is already covered.";
   const rankName = useMemo(() => getRankFromDR(disciplineRating), [disciplineRating]);
   const rankLabel = rankName.toUpperCase();
   const nextRank = useMemo(() => getNextRank(disciplineRating), [disciplineRating]);
@@ -819,7 +757,6 @@ export default function HomeScreen() {
       [...todaysQuests].sort((a, b) => {
         if (a.done !== b.done) return Number(a.done) - Number(b.done);
         if (a.contract !== b.contract) return a.contract ? -1 : 1;
-        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
         if (a.difficulty !== b.difficulty) {
           const weight = { hard: 3, medium: 2, easy: 1 };
           return weight[b.difficulty] - weight[a.difficulty];
@@ -837,16 +774,10 @@ export default function HomeScreen() {
         quests: sortedQuests.filter((quest) => quest.contract),
       },
       {
-        id: "pinned",
-        title: "Pinned",
-        tone: HOME_GOLD,
-        quests: sortedQuests.filter((quest) => !quest.contract && quest.pinned),
-      },
-      {
         id: "open",
-        title: "Open",
+        title: "Other quests",
         tone: colors.textSecondary,
-        quests: sortedQuests.filter((quest) => !quest.contract && !quest.pinned),
+        quests: sortedQuests.filter((quest) => !quest.contract),
       },
     ],
     [colors.textSecondary, sortedQuests]
@@ -854,12 +785,17 @@ export default function HomeScreen() {
 
   const nextMove = useMemo(() => sortedQuests.find((quest) => !quest.done) ?? null, [sortedQuests]);
   const nextMoveReason = useMemo(() => {
-    if (!nextMove) return "All quests cleared. Keep the day clean until Midnight Evaluation.";
-    if (nextMove.contract) return "Protected work. Finish it first so the contract holds at midnight.";
-    if (nextMove.pinned) return "Pinned priority. Clear it before optional work.";
-    if (nextMove.difficulty === "hard") return "Hard quest. Finish it while energy is available.";
-    return "Best next action for making today count.";
-  }, [nextMove]);
+    if (!nextMove && quests.length === 0) {
+      return "Add one small quest you can finish today. That is enough to begin.";
+    }
+    if (!nextMove && totalQuestCount === 0) {
+      return "No active quests are scheduled today. Add one here or adjust the week in Plan.";
+    }
+    if (!nextMove) return "All quests are complete. Your result will be recorded after midnight.";
+    if (nextMove.contract) return "This is a contract, so it is the safest thing to finish first.";
+    if (nextMove.difficulty === "hard") return "This is the hardest open quest. Do it while your energy is available.";
+    return "This is the clearest next action on today's board.";
+  }, [nextMove, quests.length, totalQuestCount]);
   const completeQuest = (questId: string) => {
     const quest = quests.find((q) => q.id === questId);
     if (!quest || quest.done) return;
@@ -867,29 +803,28 @@ export default function HomeScreen() {
     // Add haptic feedback
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    const xpAwarded = quest.xp;
-
-    const updatedQuests = quests.map((q) =>
-      q.id === questId ? { ...q, done: true } : q
+    const result = completeQuestInStoredState(
+      {
+        categories,
+        quests,
+        achievements,
+        disciplineRating,
+        lastDrDelta,
+        lastCompletionPct,
+        lastDrUpdateDate,
+        drHistory,
+        lastResetDate,
+        lifetimeCompletedQuestCount,
+        archivedQuests,
+      },
+      questId,
+      todayDateKey
     );
 
-    const updatedCategories = categories.map((c) =>
-      c.id === quest.categoryId ? levelUp({ ...c, xp: c.xp + xpAwarded }) : c
-    );
-    const nextLifetimeCompletedCount = lifetimeCompletedQuestCount + 1;
-    const updatedAchievements = getAchievementsAfterQuestCompletion({
-      achievements,
-      quests: updatedQuests,
-      categories: updatedCategories,
-      previousCategories: categories,
-      lifetimeCompletedQuestCount: nextLifetimeCompletedCount,
-      dateKey: todayDateKey,
-    });
-
-    setQuests(updatedQuests);
-    setCategories(updatedCategories);
-    setLifetimeCompletedQuestCount(nextLifetimeCompletedCount);
-    setAchievements(updatedAchievements);
+    setQuests(result.state.quests);
+    setCategories(result.state.categories);
+    setLifetimeCompletedQuestCount(result.state.lifetimeCompletedQuestCount);
+    setAchievements(result.state.achievements);
     setOpenQuestId(null);
   };
 
@@ -969,12 +904,6 @@ export default function HomeScreen() {
     );
   };
 
-  const togglePin = (questId: string) => {
-    setQuests((prev) =>
-      prev.map((q) => (q.id === questId ? { ...q, pinned: !q.pinned } : q))
-    );
-  };
-
   const toggleContract = (questId: string) => {
     setQuests((prev) => {
       const selectedCount = prev.filter((q) => q.contract && !q.paused).length;
@@ -986,7 +915,7 @@ export default function HomeScreen() {
       return prev.map((q) => {
         if (q.id !== questId) return q;
         if (q.contract) return { ...q, contract: false };
-        return { ...q, contract: true, pinned: true };
+        return { ...q, contract: true, pinned: false };
       });
     });
   };
@@ -1005,12 +934,26 @@ export default function HomeScreen() {
   const resetDemo = async () => {
     const resetCategories = defaultCategories.map((c) => ({
       ...c,
-      level: 0,
+      level: 1,
       xp: 0,
       xpToNext: 90,
     }));
+    const resetState: StoredState = {
+      categories: resetCategories,
+      quests: defaultQuests,
+      achievements: defaultAchievements,
+      disciplineRating: defaultDisciplineRating,
+      lastDrDelta: defaultLastDrDelta,
+      lastCompletionPct: defaultLastCompletionPct,
+      lastDrUpdateDate: defaultLastDrUpdateDate,
+      drHistory: defaultDrHistory,
+      lifetimeCompletedQuestCount: 0,
+      archivedQuests: [],
+      lastResetDate: localDateKey(),
+    };
     setCategories(resetCategories);
     setQuests(defaultQuests);
+    setAchievements(defaultAchievements);
 
     // wipe DR
     setDisciplineRating(defaultDisciplineRating);
@@ -1033,26 +976,12 @@ export default function HomeScreen() {
     setNewScheduledWeekday(getTodayWeekday());
     setLastResetDate(localDateKey());
 
-    // Save reset state to AsyncStorage
     try {
-      await AsyncStorage.removeItem(MIDNIGHT_EVALUATION_STORAGE_KEY);
-      await AsyncStorage.removeItem(DAILY_EVALUATION_HISTORY_STORAGE_KEY);
-      await AsyncStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          categories: resetCategories,
-          quests: defaultQuests,
-          achievements: defaultAchievements,
-          disciplineRating: defaultDisciplineRating,
-          lastDrDelta: defaultLastDrDelta,
-          lastCompletionPct: defaultLastCompletionPct,
-          lastDrUpdateDate: defaultLastDrUpdateDate,
-          drHistory: defaultDrHistory,
-          lifetimeCompletedQuestCount: 0,
-          archivedQuests: [],
-          lastResetDate: localDateKey(),
-        })
-      );
+      await replaceStoredState(resetState);
+      await AsyncStorage.multiRemove([
+        MIDNIGHT_EVALUATION_STORAGE_KEY,
+        DAILY_EVALUATION_HISTORY_STORAGE_KEY,
+      ]);
     } catch (e) {
       console.error("Failed to save reset state:", e);
     }
@@ -1098,11 +1027,11 @@ export default function HomeScreen() {
 
   const confirmResetDemo = () => {
     Alert.alert(
-      "Reset all demo data?",
-      "This clears quests, ranks, achievements, and evaluation history on this device.",
+      "Reset all profile data?",
+      "This clears quests, DR, awards, equipped badges, and evaluation history on this device.",
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Reset Demo", style: "destructive", onPress: resetDemo },
+        { text: "Reset Profile", style: "destructive", onPress: resetDemo },
       ]
     );
   };
@@ -1120,217 +1049,193 @@ export default function HomeScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       <SafeAreaView edges={["top"]} style={[styles.safe, { backgroundColor: "transparent" }]}>
-        <ScrollView contentContainerStyle={styles.container}>
+        <ScrollView
+          contentContainerStyle={styles.container}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+        >
           <View style={[styles.sectionBand, styles.sectionBandTight]}>
             <View style={styles.homeTopBar}>
               <Pressable
                 style={styles.homeTitleWrap}
                 onLongPress={() => __DEV__ && setShowDevActions((prev) => !prev)}
-                accessibilityRole="button"
-                accessibilityLabel="Midnight performance log"
+                accessible={__DEV__}
+                accessibilityRole={__DEV__ ? "button" : undefined}
+                accessibilityLabel={__DEV__ ? "Show developer actions" : undefined}
               >
                 <View style={styles.brandTitleRow}>
                   <MoonMark size={16} color={HOME_GOLD} cutoutColor={colors.bg} />
                   <Text style={[styles.title, { color: colors.textPrimary }]}>MIDNIGHT</Text>
                 </View>
-                <Text style={styles.homeSubtitle}>Performance Log</Text>
+                <Text style={styles.homeSubtitle}>Today</Text>
               </Pressable>
               <View style={styles.homeMetaPill}>
-                <Text style={styles.homeMetaText}>Daily Run</Text>
+                <Text style={styles.homeMetaText}>Live</Text>
               </View>
             </View>
 
-            <View style={styles.missionHero}>
-              <View style={styles.missionHeroHeader}>
-                <View>
-                  <Text style={styles.missionEyebrow}>Today&apos;s Run</Text>
-                  <Text style={styles.missionTitle}>
-                    {contractDoneCount === contractQuests.length && contractQuests.length > 0
-                      ? "Contract secure"
-                      : "Mission active"}
-                  </Text>
+            <View style={styles.todayHero}>
+              <View style={styles.todayHeroTop}>
+                <View style={styles.todayHeroCopy}>
+                  <Text style={styles.todayEyebrow}>Tonight&apos;s judgment</Text>
+                  <Text style={styles.todayHeadline}>{todayHeadline}</Text>
+                  <Text style={styles.todaySummary}>{todaySummary}</Text>
                 </View>
-                <View style={styles.missionCountdownPill}>
-                  <Text style={styles.missionCountdownLabel}>Midnight</Text>
-                  <Text style={styles.missionCountdownValue}>{countdownToMidnight}</Text>
+                <View style={styles.todayScorePlate}>
+                  <Text style={styles.todayScoreValue}>{dayScorePercent}%</Text>
+                  <Text style={styles.todayScoreLabel}>Day Score</Text>
                 </View>
               </View>
 
-              <View style={styles.missionHeroBody}>
-                <View style={styles.missionRingSlot}>
-                  <DayScoreRing
-                    completionPercent={dayScorePercent}
-                    completedCount={doneCount}
-                    totalCount={dayScoreTarget}
-                    colors={colors}
-                  />
-                </View>
-
-                <View style={styles.missionStatsPanel}>
-                  <View style={styles.missionStatRow}>
-                    <Text style={styles.missionStatLabel}>DR</Text>
-                    <Animated.Text
-                      style={[
-                        styles.missionDrValue,
-                        {
-                          opacity: drHeroAnim,
-                          transform: [
-                            {
-                              scale: drHeroAnim.interpolate({
-                                inputRange: [0, 1],
-                                outputRange: [0.985, 1],
-                              }),
-                            },
-                          ],
-                        },
-                      ]}
-                    >
-                      {disciplineRating}
-                    </Animated.Text>
-                  </View>
-                  <View style={styles.statusRankBadge}>
-                    <Text
-                      style={styles.statusRankBadgeText}
-                      numberOfLines={1}
-                      adjustsFontSizeToFit
-                      minimumFontScale={0.72}
-                    >
-                      {rankLabel}
-                    </Text>
-                  </View>
-                  <Text style={styles.statusRankNext}>
-                    {nextRank ? `+${nextRank.remainingDr} to ${nextRank.name.toUpperCase()}` : "TOP RANK"}
-                  </Text>
-
-                  <View style={styles.rankProgressBlock}>
-                    <View style={styles.rankProgressTrack}>
-                      <Animated.View
-                        style={[
-                          styles.rankProgressFill,
-                          { width: animatedRankProgressWidth, backgroundColor: HOME_GOLD },
-                        ]}
-                      />
-                    </View>
-                  </View>
-                </View>
+              <View style={styles.todayProgressTrack}>
+                <View style={[styles.todayProgressFill, { width: `${dayScorePercent}%` }]} />
               </View>
 
-              <View style={styles.missionSignalGrid}>
-                <View style={styles.missionSignalTile}>
-                  <Text style={styles.missionSignalLabel}>Score</Text>
-                  <Text style={styles.missionSignalValue}>{dayScorePercent}%</Text>
+              <View style={styles.todayMetricRow}>
+                <View style={styles.todayMetric}>
+                  <Text style={styles.todayMetricValue}>{doneCount}/{dayScoreTarget}</Text>
+                  <Text style={styles.todayMetricLabel}>Toward standard</Text>
                 </View>
-                <View style={styles.missionSignalTile}>
-                  <Text style={styles.missionSignalLabel}>Standard</Text>
-                  <Text style={styles.missionSignalValue}>
-                    {doneCount}/{dayScoreTarget}
-                  </Text>
-                </View>
-                <View style={styles.missionSignalTile}>
-                  <Text style={styles.missionSignalLabel}>Last Judge</Text>
-                  <Text
+                <View style={styles.todayMetricDivider} />
+                <View style={styles.todayMetric}>
+                  <Animated.Text
                     style={[
-                      styles.missionSignalValue,
+                      styles.todayMetricValue,
+                      styles.todayDrValue,
                       {
-                        color:
-                          lastDrDelta > 0
-                            ? colors.positive
-                            : lastDrDelta < 0
-                              ? colors.negative
-                              : colors.textPrimary,
+                        opacity: drHeroAnim,
+                        transform: [{ scale: drHeroAnim }],
                       },
                     ]}
                   >
-                    {lastDrDelta > 0 ? `+${lastDrDelta}` : lastDrDelta}
+                    {disciplineRating}
+                  </Animated.Text>
+                  <Text style={styles.todayMetricLabel}>Discipline Rating</Text>
+                </View>
+                <View style={styles.todayMetricDivider} />
+                <View style={styles.todayMetric}>
+                  <Text style={styles.todayMetricValue} numberOfLines={1} adjustsFontSizeToFit>
+                    {countdownToMidnight}
                   </Text>
+                  <Text style={styles.todayMetricLabel}>Until midnight</Text>
                 </View>
               </View>
 
-              <View style={styles.contractPanel}>
-                <View style={styles.contractHeaderRow}>
-                  <View style={styles.contractTitleRow}>
-                    <View style={styles.contractArtBadge}>
-                      <IconSymbol name="shield.fill" size={18} color={CONTRACT_GOLD} />
-                    </View>
-                    <View>
-                      <Text style={styles.contractEyebrow}>Midnight Contract</Text>
-                      <Text style={styles.contractTitle}>
-                        {contractDoneCount} / {contractQuests.length || 3} protected
-                      </Text>
-                    </View>
+              <View style={styles.todayRankStrip}>
+                <View style={styles.todayRankCopy}>
+                  <Text style={styles.todayRankName}>{rankLabel}</Text>
+                  <Text style={styles.todayRankNext}>
+                    {nextRank ? `${nextRank.remainingDr} DR to ${nextRank.name}` : "Highest rank reached"}
+                  </Text>
+                </View>
+                <View style={styles.todayRankTrack}>
+                  <Animated.View style={[styles.todayRankFill, { width: animatedRankProgressWidth }]} />
+                </View>
+              </View>
+
+              <Text style={styles.todayRuleText}>
+                After midnight, today&apos;s completion rate changes your Discipline Rating once.
+              </Text>
+            </View>
+
+            <View style={styles.nextMoveCard}>
+              <View style={styles.nextMoveTopRow}>
+                <View style={styles.nextMoveIdentity}>
+                  <View
+                    style={[
+                      styles.nextMoveArtBadge,
+                      {
+                        backgroundColor: withAlpha(nextMove?.contract ? CONTRACT_GOLD : HOME_GOLD, 0.11),
+                        borderColor: withAlpha(nextMove?.contract ? CONTRACT_GOLD : HOME_GOLD, 0.32),
+                      },
+                    ]}
+                  >
+                    <IconSymbol
+                      name={nextMove?.contract ? "shield.fill" : totalQuestCount === 0 ? "plus" : "checkmark.circle.fill"}
+                      size={22}
+                      color={nextMove?.contract ? CONTRACT_GOLD : HOME_GOLD}
+                    />
                   </View>
-                  <View style={styles.contractCounterPill}>
-                    <Text style={styles.contractCounterText}>{contractQuests.length}/3</Text>
+                  <View style={styles.nextMoveTextWrap}>
+                    <Text style={styles.nextMoveEyebrow}>Do this next</Text>
+                    <Text style={styles.nextMoveTitle} numberOfLines={2}>
+                      {nextMove
+                        ? nextMove.title
+                        : totalQuestCount === 0
+                          ? "Add your first quest"
+                          : "Today is complete"}
+                    </Text>
                   </View>
                 </View>
+                {nextMove?.contract ? (
+                  <View style={styles.nextMoveBadge}>
+                    <IconSymbol name="shield.fill" size={12} color={CONTRACT_GOLD} />
+                    <Text style={styles.nextMoveBadgeText}>Contract</Text>
+                  </View>
+                ) : null}
+              </View>
+              <Text style={styles.nextMoveReason}>{nextMoveReason}</Text>
+              {nextMove ? (
+                <Pressable
+                  style={styles.nextMoveButtonWide}
+                  onPress={() => completeQuest(nextMove.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Complete ${nextMove.title}`}
+                >
+                  <IconSymbol name="checkmark" size={18} color={colors.bg} />
+                  <Text style={styles.nextMoveButtonText}>Mark complete</Text>
+                </Pressable>
+              ) : totalQuestCount === 0 ? (
+                <Pressable
+                  style={styles.nextMoveButtonWide}
+                  onPress={() => setShowAdd(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Add a quest for today"
+                >
+                  <IconSymbol name="plus" size={18} color={colors.bg} />
+                  <Text style={styles.nextMoveButtonText}>Add a quest</Text>
+                </Pressable>
+              ) : (
+                <View style={styles.nextMoveCompleteRow}>
+                  <IconSymbol name="checkmark.circle.fill" size={20} color={colors.positive} />
+                  <Text style={styles.nextMoveCompleteText}>Nothing else needs your attention.</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.contractPanel}>
+              <View style={styles.contractHeaderRow}>
+                <View style={styles.contractTitleRow}>
+                  <View style={styles.contractArtBadge}>
+                    <IconSymbol name="shield.fill" size={18} color={CONTRACT_GOLD} />
+                  </View>
+                  <View style={styles.contractCopy}>
+                    <Text style={styles.contractEyebrow}>Contracts</Text>
+                    <Text style={styles.contractTitle}>
+                      {contractQuests.length === 0
+                        ? "No must-do quests selected"
+                        : `${contractDoneCount} of ${contractQuests.length} protected`}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.contractCounterPill}>
+                  <Text style={styles.contractCounterText}>{contractQuests.length}/3</Text>
+                </View>
+              </View>
+              {contractQuests.length > 0 ? (
                 <View style={styles.contractProgressTrack}>
                   <View
                     style={[
                       styles.contractProgressFill,
                       {
-                        width: `${contractQuests.length > 0 ? Math.round((contractDoneCount / contractQuests.length) * 100) : 0}%`,
+                        width: `${Math.round((contractDoneCount / contractQuests.length) * 100)}%`,
                         backgroundColor: CONTRACT_GOLD,
                       },
                     ]}
                   />
                 </View>
-                <Text style={styles.contractStatusText}>{contractStatusText}</Text>
-              </View>
-
-              <View style={styles.nextMoveCard}>
-                <View style={styles.nextMoveTopRow}>
-                  <View style={styles.nextMoveIdentity}>
-                    <View
-                      style={[
-                        styles.nextMoveArtBadge,
-                        {
-                          backgroundColor: withAlpha(nextMove?.contract ? CONTRACT_GOLD : HOME_GOLD, 0.11),
-                          borderColor: withAlpha(nextMove?.contract ? CONTRACT_GOLD : HOME_GOLD, 0.32),
-                        },
-                      ]}
-                    >
-                      <IconSymbol
-                        name={nextMove?.contract ? "shield.fill" : "checkmark.circle.fill"}
-                        size={22}
-                        color={nextMove?.contract ? CONTRACT_GOLD : HOME_GOLD}
-                      />
-                    </View>
-                    <View style={styles.nextMoveTextWrap}>
-                      <Text style={styles.nextMoveEyebrow}>Next Move</Text>
-                      <Text style={styles.nextMoveTitle} numberOfLines={2}>
-                        {nextMove ? nextMove.title : "Run complete"}
-                      </Text>
-                    </View>
-                  </View>
-                  {nextMove ? (
-                    <Pressable
-                      style={styles.nextMoveButton}
-                      onPress={() => completeQuest(nextMove.id)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Complete next move: ${nextMove.title}`}
-                    >
-                      <Text style={styles.nextMoveButtonText}>Complete</Text>
-                    </Pressable>
-                  ) : (
-                    <View style={styles.nextMoveCompletePill}>
-                      <Text style={styles.nextMoveCompleteText}>Clear</Text>
-                    </View>
-                  )}
-                </View>
-                {nextMove?.contract ? (
-                  <View style={styles.nextMoveBadge}>
-                    <IconSymbol name="shield.fill" size={12} color={CONTRACT_GOLD} />
-                    <Text style={styles.nextMoveBadgeText}>Contract Target</Text>
-                  </View>
-                ) : null}
-                <Text style={styles.nextMoveMeta}>
-                  {nextMove
-                    ? `${categoryName(nextMove.categoryId)} - ${nextMove.difficulty.toUpperCase()} - ${nextMove.xp} XP - ${getQuestRepeatLabel(nextMove)}`
-                    : "No exposed quests remain."}
-                </Text>
-                <Text style={styles.nextMoveReason}>{nextMoveReason}</Text>
-              </View>
-
+              ) : null}
+              <Text style={styles.contractStatusText}>{contractStatusText}</Text>
             </View>
 
             {__DEV__ && showDevActions ? (
@@ -1347,9 +1252,9 @@ export default function HomeScreen() {
                   style={styles.devActionChip}
                   onPress={confirmResetDemo}
                   accessibilityRole="button"
-                  accessibilityLabel="Reset all demo data"
+                  accessibilityLabel="Reset all profile data"
                 >
-                  <Text style={styles.devActionText}>Reset Demo</Text>
+                  <Text style={styles.devActionText}>Reset Profile</Text>
                 </Pressable>
               </View>
             ) : null}
@@ -1363,9 +1268,9 @@ export default function HomeScreen() {
                     <IconSymbol name="flag.fill" size={18} color={HOME_GOLD} />
                   </View>
                   <View style={styles.queueHeaderCopy}>
-                    <Text style={styles.queueEyebrow}>Quest Queue</Text>
+                    <Text style={styles.queueEyebrow}>Today&apos;s quests</Text>
                     <Text style={styles.queueHeadline}>
-                      {doneCount}/{totalQuestCount} cleared
+                      {totalQuestCount === 0 ? "Build your day" : `${doneCount} of ${totalQuestCount} complete`}
                     </Text>
                   </View>
                 </View>
@@ -1380,34 +1285,10 @@ export default function HomeScreen() {
                 </Pressable>
               </View>
 
-              <View style={styles.queueSummaryRow}>
-                {questQueueGroups.map((group) => {
-                  const openInGroup = group.quests.filter((quest) => !quest.done).length;
-                  return (
-                    <View
-                      key={`queue-summary-${group.id}`}
-                      style={[
-                        styles.queueSummaryChip,
-                        {
-                          borderColor: withAlpha(group.tone, 0.26),
-                          backgroundColor: withAlpha(group.tone, 0.075),
-                        },
-                      ]}
-                    >
-                      <View style={[styles.queueSummaryDot, { backgroundColor: group.tone }]} />
-                      <Text style={styles.queueSummaryLabel} numberOfLines={1}>
-                        {group.title}
-                      </Text>
-                      <Text style={[styles.queueSummaryCount, { color: group.tone }]}>
-                        {openInGroup}/{group.quests.length}
-                      </Text>
-                    </View>
-                  );
-                })}
-              </View>
-
               <Text style={styles.queueHelpText}>
-                What to do today: protect contracts first, clear pinned priorities, then finish open quests.
+                {totalQuestCount > 0
+                  ? "Tap the circle when you finish. Tap a quest to edit it or make it a contract."
+                  : "Add one clear action you can finish before midnight."}
               </Text>
               {hiddenScheduledQuestCount > 0 || pausedQuestCount > 0 ? (
                 <View style={styles.queueNoticeStack}>
@@ -1440,6 +1321,7 @@ export default function HomeScreen() {
                 onRepeatChange={setNewRepeat}
                 onScheduledWeekdayChange={setNewScheduledWeekday}
                 onAdd={addQuest}
+                onClose={() => setShowAdd(false)}
               />
             )}
 
@@ -1475,17 +1357,7 @@ export default function HomeScreen() {
                   .map((group) => {
                     const completedInGroup = group.quests.filter((quest) => quest.done).length;
                     return (
-                      <View
-                        key={group.id}
-                        style={[
-                          styles.questQueueGroup,
-                          {
-                            borderColor: withAlpha(group.tone, 0.16),
-                            borderLeftColor: withAlpha(group.tone, 0.74),
-                            backgroundColor: withAlpha(group.tone, 0.035),
-                          },
-                        ]}
-                      >
+                      <View key={group.id} style={styles.questQueueGroup}>
                         <View style={styles.questQueueHeader}>
                           <View style={styles.questQueueTitleRow}>
                             <View style={[styles.questQueueDot, { backgroundColor: group.tone }]} />
@@ -1517,7 +1389,6 @@ export default function HomeScreen() {
                                 setEditingQuestId(questId);
                                 setOpenQuestId(null);
                               }}
-                              onPin={togglePin}
                               onContract={toggleContract}
                               onDelete={deleteQuest}
                             />
@@ -1527,11 +1398,6 @@ export default function HomeScreen() {
                     );
                   })
               )}
-            </View>
-            <View style={styles.homeHintCard}>
-              <Text style={styles.homeHintText}>
-                DR updates after Midnight Evaluation; today, just complete the board.
-              </Text>
             </View>
           </View>
         </ScrollView>

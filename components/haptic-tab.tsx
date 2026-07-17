@@ -17,14 +17,7 @@ export function HapticTab(props: BottomTabBarButtonProps) {
         props.style,
         styles.button,
         {
-          backgroundColor: isActive ? withAlpha(HOME_GOLD, 0.05) : 'transparent',
-          borderColor: isActive ? withAlpha(HOME_GOLD, 0.16) : 'transparent',
-          borderWidth: isActive ? 0.8 : 0,
-          shadowColor: HOME_GOLD,
-          shadowOpacity: isActive ? 0.06 : 0,
-          shadowRadius: isActive ? 8 : 0,
-          elevation: isActive ? 1 : 0,
-          transform: [{ scale: isActive ? 1.03 : 1 }],
+          backgroundColor: isActive ? withAlpha(HOME_GOLD, 0.07) : 'transparent',
         },
       ]}
       onPressIn={(ev) => {
@@ -45,12 +38,9 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
     marginVertical: 0,
     borderRadius: 9,
-    shadowOffset: { width: 0, height: 0 },
-    shadowRadius: 6,
-    elevation: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 42,
+    minHeight: 44,
     overflow: 'hidden',
   },
   activeIndicator: {

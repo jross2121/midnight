@@ -29,18 +29,18 @@ type FirstDayStep = {
 
 const GUIDE_SECTIONS: GuideSection[] = [
   {
-    title: "Daily Run",
-    label: "Home",
-    body: "Home is today's board. Finish quests before midnight; Midnight evaluates the day after it ends.",
+    title: "Today",
+    label: "Do",
+    body: "Today is your live board. Finish its quests before midnight; Midnight records the result after the day ends.",
     icon: "house.fill",
-    summary: "Finish before midnight. Pins and contracts first.",
+    summary: "Finish before midnight. Contracts first, then open quests.",
   },
   {
     title: "Contracts",
     label: "Pressure",
-    body: "Contracts are the quests you choose to protect. Use them for work that would actually matter if the day went badly.",
+    body: "Contracts are quests you choose to protect. They highlight must-do work and build contract streaks and awards; they do not add a separate DR penalty.",
     icon: "shield.fill",
-    summary: "Three active max. Misses affect evaluation.",
+    summary: "Three active max. Protect only work that truly matters.",
   },
   {
     title: "Plan",
@@ -52,7 +52,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
   {
     title: "Progress",
     label: "Climb",
-    body: "DR is Discipline Rating, the long-term score. Rank, insights, awards, and the player card come from evaluated days.",
+    body: "DR is Discipline Rating, the long-term consistency score. Each Midnight Evaluation moves DR; rank follows its current tier, while awards mark milestones.",
     icon: "trophy.fill",
     summary: "Rank follows DR. Equip badges from Awards.",
   },
@@ -65,7 +65,7 @@ const FIRST_DAY_STEPS: FirstDayStep[] = [
   },
   {
     title: "2. Finish before midnight",
-    body: "Tap Complete as you finish. Contracts and pinned quests should happen before optional work.",
+    body: "Tap Complete as you finish. Contracts should happen before optional work.",
   },
   {
     title: "3. Review the judgment",
@@ -75,15 +75,21 @@ const FIRST_DAY_STEPS: FirstDayStep[] = [
 
 const GLOSSARY: GlossaryItem[] = [
   { term: "DR", definition: "Discipline Rating. The long-term score that moves after each Midnight Evaluation and determines rank." },
-  { term: "Daily Standard", definition: "The completion target for a stable day. You do not need a huge board to improve." },
+  { term: "Daily Standard", definition: "Midnight scores up to seven scheduled quests. Completing seven can earn a perfect score even when the board is larger." },
   { term: "Resting", definition: "A paused quest. It stays in Plan but does not count on today's board." },
-  { term: "Evaluation", definition: "The midnight review that scores yesterday's scheduled quests and records DR movement." },
+  { term: "Evaluation", definition: "The review shown after a day ends. It scores yesterday's scheduled quests and records DR movement; an empty scheduled day scores zero." },
+  { term: "Rank", definition: "The tier linked to your current DR. It changes only when DR crosses a rank threshold." },
+  { term: "Awards", definition: "Milestones unlocked by quest totals, strong days, contracts, streaks, category levels, and ranks." },
 ];
 
 export default function GuideScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const styles = useMemo(() => createGuideStyles(colors), [colors]);
+  const navigateBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace("/(tabs)/more");
+  };
 
   return (
     <SafeAreaView edges={["top"]} style={styles.safe}>
@@ -92,8 +98,8 @@ export default function GuideScreen() {
           title="How Midnight Works"
           subtitle="Rules, terms, and flow"
           icon="chevron.left"
-          onIconPress={() => router.push("/(tabs)/more")}
-          iconAccessibilityLabel="Back to More"
+          onIconPress={navigateBack}
+          iconAccessibilityLabel="Go back"
         />
 
         <View style={styles.introCard}>

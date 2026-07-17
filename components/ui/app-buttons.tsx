@@ -5,24 +5,36 @@ import { AppThemeTokens } from "@/constants/theme";
 import React from "react";
 import { Pressable, StyleSheet, Text, type PressableProps, type StyleProp, type ViewStyle } from "react-native";
 
+const PRIMARY_BUTTON_FOREGROUND = "#101722";
+
 type AppButtonProps = {
   label: string;
   style?: StyleProp<ViewStyle>;
 } & Omit<PressableProps, "style">;
 
-function BaseButton({ label, style, disabled, ...props }: AppButtonProps & { variant: "primary" | "secondary" }) {
+function BaseButton({
+  label,
+  style,
+  disabled,
+  variant,
+  accessibilityLabel,
+  accessibilityState,
+  ...props
+}: AppButtonProps & { variant: "primary" | "secondary" }) {
   const { colors } = useTheme();
 
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityState={{ ...accessibilityState, disabled: Boolean(disabled) }}
       disabled={disabled}
       style={({ pressed }) => [
         styles.base,
-        props.variant === "primary"
+        variant === "primary"
           ? {
-              backgroundColor: withAlpha(HOME_GOLD, 0.14),
-              borderColor: withAlpha(HOME_GOLD, 0.45),
+              backgroundColor: HOME_GOLD,
+              borderColor: HOME_GOLD,
             }
           : {
               backgroundColor: colors.surface2,
@@ -38,7 +50,7 @@ function BaseButton({ label, style, disabled, ...props }: AppButtonProps & { var
         style={[
           styles.label,
           {
-            color: props.variant === "primary" ? HOME_GOLD : colors.text,
+            color: variant === "primary" ? PRIMARY_BUTTON_FOREGROUND : colors.text,
           },
         ]}
       >

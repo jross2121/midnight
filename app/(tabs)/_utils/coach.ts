@@ -78,7 +78,6 @@ function getCategoryPressure(quests: Quest[]): {
 function buildNextMoveResponse(input: CoachInput): CoachResponse {
   const openQuests = input.todaysQuests.filter((quest) => !quest.done);
   const openContracts = openQuests.filter((quest) => quest.contract);
-  const openPinned = openQuests.filter((quest) => quest.pinned);
   const openEasy = openQuests.filter((quest) => quest.difficulty === "easy");
   const completedCount = input.todaysQuests.filter((quest) => quest.done).length;
   const totalCount = input.todaysQuests.length;
@@ -103,17 +102,6 @@ function buildNextMoveResponse(input: CoachInput): CoachResponse {
       metricLabel: "Open contracts",
       metricValue: `${openContracts.length}`,
       tone: "warning",
-    };
-  }
-
-  if (openPinned.length > 0) {
-    return {
-      title: "Start with the pinned quest",
-      body: `${openPinned[0].title} is already marked as priority. Clear it before the board spreads out.`,
-      bullets: ["Finish the pinned quest", "Then take one easy quest", "Stop at the daily standard if energy dips"],
-      metricLabel: "Progress",
-      metricValue: `${completionPct}%`,
-      tone: completionPct >= 60 ? "positive" : "neutral",
     };
   }
 

@@ -10,7 +10,9 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "check": "npm run typecheck && npm run lint"
+    "test:logic": "tsc -p tsconfig.logic-tests.json && node --test tests/logic.test.cjs",
+    "test": "npm run test:logic",
+    "check": "npm run typecheck && npm run lint && npm run test"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",

@@ -8,7 +8,7 @@ Midnight is designed as a local-first daily discipline tracker. The app stores y
 
 Midnight stores app data locally using device storage. This can include:
 
-- quest titles, categories, schedules, difficulty, pinned status, and contract status
+- quest titles, categories, schedules, difficulty, completion status, and contract status
 - completion history, Discipline Rating, ranks, streaks, and awards
 - archived quests
 - reminder preferences and local notification schedule identifiers

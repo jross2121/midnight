@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { getCategoryDisplayNameById } from "./categoryLabels";
+import { isValidDateKey } from "./dateHelpers";
 import type { Quest } from "./types";
 
 export const DAILY_EVALUATION_HISTORY_STORAGE_KEY = "lifeRpg:daily-evaluation-history:v1";
@@ -71,22 +72,35 @@ function isDailyEvaluationHistoryItem(value: unknown): value is DailyEvaluationH
   const candidate = value as Partial<DailyEvaluationHistoryItem>;
 
   return (
-    typeof candidate.date === "string" &&
-    typeof candidate.completedQuestCount === "number" &&
-    typeof candidate.totalQuestCount === "number" &&
-    typeof candidate.completionRate === "number" &&
+    isValidDateKey(candidate.date) &&
+    typeof candidate.completedQuestCount === "number" && Number.isFinite(candidate.completedQuestCount) &&
+    typeof candidate.totalQuestCount === "number" && Number.isFinite(candidate.totalQuestCount) &&
+    typeof candidate.completionRate === "number" && Number.isFinite(candidate.completionRate) &&
     (typeof candidate.runTitle === "undefined" || typeof candidate.runTitle === "string") &&
     (typeof candidate.contractCompletedCount === "undefined" || typeof candidate.contractCompletedCount === "number") &&
     (typeof candidate.contractTotalCount === "undefined" || typeof candidate.contractTotalCount === "number") &&
     (typeof candidate.comebackBonus === "undefined" || typeof candidate.comebackBonus === "number") &&
-    typeof candidate.drBefore === "number" &&
-    typeof candidate.drChange === "number" &&
-    typeof candidate.drAfter === "number" &&
+    typeof candidate.drBefore === "number" && Number.isFinite(candidate.drBefore) &&
+    typeof candidate.drChange === "number" && Number.isFinite(candidate.drChange) &&
+    typeof candidate.drAfter === "number" && Number.isFinite(candidate.drAfter) &&
     typeof candidate.currentRank === "string" &&
     (typeof candidate.strongestCategory === "string" || candidate.strongestCategory === null) &&
     (typeof candidate.weakestCategory === "string" || candidate.weakestCategory === null) &&
     (typeof candidate.categoryStats === "undefined" || isCategoryStats(candidate.categoryStats))
   );
+}
+
+export function normalizeEvaluationHistory(value: unknown): DailyEvaluationHistoryItem[] {
+  if (!Array.isArray(value)) return [];
+
+  const byDate = new Map<string, DailyEvaluationHistoryItem>();
+  for (const entry of value) {
+    if (isDailyEvaluationHistoryItem(entry)) byDate.set(entry.date, entry);
+  }
+
+  return Array.from(byDate.values())
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-180);
 }
 
 export async function readEvaluationHistory(): Promise<DailyEvaluationHistoryItem[]> {
@@ -95,9 +109,7 @@ export async function readEvaluationHistory(): Promise<DailyEvaluationHistoryIte
     if (!raw) return [];
 
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-
-    return parsed.filter((entry): entry is DailyEvaluationHistoryItem => isDailyEvaluationHistoryItem(entry));
+    return normalizeEvaluationHistory(parsed);
   } catch {
     return [];
   }
@@ -110,17 +122,12 @@ export function hasEvaluationHistoryEntryForDate(
   return history.some((entry) => entry.date === date);
 }
 
-export async function appendEvaluationHistoryItem(
+export function appendEvaluationHistoryEntry(
+  history: DailyEvaluationHistoryItem[],
   item: DailyEvaluationHistoryItem
-): Promise<DailyEvaluationHistoryItem[]> {
-  const history = await readEvaluationHistory();
-  if (hasEvaluationHistoryEntryForDate(history, item.date)) {
-    return history;
-  }
-
-  const nextHistory = [...history, item];
-  await AsyncStorage.setItem(DAILY_EVALUATION_HISTORY_STORAGE_KEY, JSON.stringify(nextHistory));
-  return nextHistory;
+): DailyEvaluationHistoryItem[] {
+  if (hasEvaluationHistoryEntryForDate(history, item.date)) return history;
+  return normalizeEvaluationHistory([...history, item]);
 }
 
 export function getStrongestAndWeakestCategories(quests: Quest[]): {

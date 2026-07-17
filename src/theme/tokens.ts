@@ -12,15 +12,15 @@ export const midnightTokens = {
       negative: "#d06a74",
     },
     light: {
-      bg0: "#EEF2F6",
+      bg0: "#F1F4F8",
       bg1: "#FFFFFF",
-      surface: "#FFFFFF",
-      border: "#CBD5E1",
-      textPrimary: "#0F172A",
-      textSecondary: "#64748B",
-      accent: "#B7791F",
-      positive: "#15803D",
-      negative: "rgba(239, 68, 68, 0.75)",
+      surface: "#F8FAFC",
+      border: "#B8C3D0",
+      textPrimary: "#111827",
+      textSecondary: "#526173",
+      accent: "#A86410",
+      positive: "#147A3D",
+      negative: "#B4232A",
     },
   },
   spacing: {
@@ -31,9 +31,9 @@ export const midnightTokens = {
     s4: 32,
   },
   radius: {
-    r1: 10,
-    r2: 14,
-    r3: 18,
+    r1: 8,
+    r2: 10,
+    r3: 12,
   },
   typography: {
     h1: {

@@ -1,11 +1,12 @@
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
+import { useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ScreenHeader } from "./_components/ScreenHeader";
+import { ScreenLoading } from "./_components/ScreenLoading";
 import { CONTRACT_GOLD } from "./_styles";
 import { mergeAchievements } from "./_utils/achievements";
 import {
@@ -20,9 +21,9 @@ import { createCardSurface, createTileSurface, ui, withAlpha } from "./_utils/de
 import { buildStreakSummary } from "./_utils/planning";
 import { getScheduledQuestsForDate } from "./_utils/recurrence";
 import { getRankFromDR, getRankMeta } from "./_utils/rank";
+import { readStoredState, updateStoredState } from "./_utils/storedState";
 import { useTheme, type ThemeColors } from "./_utils/themeContext";
-import type { Achievement, Category, DrHistoryEntry, Quest, StoredState } from "./_utils/types";
-import { STORAGE_KEY } from "./_utils/types";
+import type { Achievement, Category, DrHistoryEntry, Quest } from "./_utils/types";
 
 type IconSymbolName = React.ComponentProps<typeof IconSymbol>["name"];
 
@@ -688,6 +689,7 @@ const localAwardArtStyles = StyleSheet.create({
 });
 
 export default function AchievementsScreen() {
+  const router = useRouter();
   const { colors } = useTheme();
   const styles = useMemo(() => createAchievementStyles(colors), [colors]);
   const [achievements, setAchievements] = useState<Achievement[]>(defaultAchievements);
@@ -700,18 +702,17 @@ export default function AchievementsScreen() {
   const [selectedAwardId, setSelectedAwardId] = useState<string | null>(null);
   const [equippedBadgeIds, setEquippedBadgeIds] = useState<(string | null)[]>(createEquippedBadgeSlots([]));
   const [hydrated, setHydrated] = useState(false);
+  const navigateBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace("/(tabs)/more");
+  };
 
   const persistEquippedBadgeIds = useCallback(async (nextEquippedBadgeIds: (string | null)[]) => {
     try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
-      const parsed = raw ? (JSON.parse(raw) as Partial<StoredState>) : {};
-      await AsyncStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          ...parsed,
-          equippedBadgeIds: nextEquippedBadgeIds,
-        })
-      );
+      await updateStoredState((current) => ({
+        ...current,
+        equippedBadgeIds: nextEquippedBadgeIds,
+      }));
     } catch (error) {
       if (__DEV__) console.warn("Failed to equip badge:", error);
     }
@@ -719,13 +720,7 @@ export default function AchievementsScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
-      if (!raw) {
-        setHydrated(true);
-        return;
-      }
-
-      const parsed = JSON.parse(raw) as Partial<StoredState>;
+      const parsed = await readStoredState();
       const loadedAchievements = mergeAchievements(parsed.achievements);
       setAchievements(loadedAchievements);
       setEquippedBadgeIds(normalizeEquippedBadgeIds(parsed.equippedBadgeIds, loadedAchievements));
@@ -785,7 +780,7 @@ export default function AchievementsScreen() {
     [achievements, categories, disciplineRating, drHistory, lifetimeCompletedQuestCount, quests]
   );
 
-  if (!hydrated) return null;
+  if (!hydrated) return <ScreenLoading label="Loading awards" />;
 
   const unlockedCount = enrichedAchievements.filter((item) => item.unlocked).length;
   const totalCount = enrichedAchievements.length;
@@ -855,8 +850,10 @@ export default function AchievementsScreen() {
         <ScreenHeader
           title="Awards"
           subtitle="Quest, Consistency, and Legacy badge collection"
-          icon="trophy.fill"
+          icon="chevron.left"
           accent={AWARD_PAGE_ACCENT}
+          onIconPress={navigateBack}
+          iconAccessibilityLabel="Go back"
         />
 
         <View style={styles.heroPanel}>
@@ -949,6 +946,7 @@ export default function AchievementsScreen() {
                 onPress={() => setSelectedCollection(collection.id)}
                 accessibilityRole="button"
                 accessibilityLabel={`Show ${collection.label} awards`}
+                accessibilityState={{ selected: active }}
                 style={[
                   styles.collectionChip,
                   active && {
@@ -1071,6 +1069,7 @@ export default function AchievementsScreen() {
                       ? `${selectedAward.achievement.name} is equipped to your player card`
                       : `Equip ${selectedAward.achievement.name} to your player card`
                   }
+                  accessibilityState={{ disabled: selectedAwardEquipped }}
                   style={({ pressed }) => [
                     styles.detailActionButton,
                     {
@@ -1111,6 +1110,7 @@ export default function AchievementsScreen() {
                     ? `Equip badge ${item.achievement.name}`
                     : `View award ${item.achievement.name}`
                 }
+                accessibilityState={{ selected: selectedAward?.achievement.id === item.achievement.id }}
                 style={({ pressed }) => [
                   styles.awardCard,
                   item.unlocked || item.ready
@@ -1493,7 +1493,7 @@ function createAchievementStyles(colors: ThemeColors) {
     },
     detailActionButton: {
       alignSelf: "flex-start",
-      minHeight: 34,
+      minHeight: 44,
       borderRadius: ui.radius.button,
       borderWidth: 1,
       paddingHorizontal: ui.spacing.sm,
