@@ -5,25 +5,25 @@ import React, { useCallback, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ScreenHeader } from "./_components/ScreenHeader";
-import { ScreenLoading } from "./_components/ScreenLoading";
-import { CONTRACT_GOLD } from "./_styles";
-import { mergeAchievements } from "./_utils/achievements";
+import { ScreenHeader } from "@/src/components/ScreenHeader";
+import { ScreenLoading } from "@/src/components/ScreenLoading";
+import { CONTRACT_GOLD } from "@/src/styles";
+import { mergeAchievements } from "@/src/utils/achievements";
 import {
   defaultAchievements,
   defaultCategories,
   defaultDisciplineRating,
   defaultDrHistory,
   defaultQuests,
-} from "./_utils/defaultData";
-import { localDateKey } from "./_utils/dateHelpers";
-import { createCardSurface, createTileSurface, ui, withAlpha } from "./_utils/designSystem";
-import { buildStreakSummary } from "./_utils/planning";
-import { getScheduledQuestsForDate } from "./_utils/recurrence";
-import { getRankFromDR, getRankMeta } from "./_utils/rank";
-import { readStoredState, updateStoredState } from "./_utils/storedState";
-import { useTheme, type ThemeColors } from "./_utils/themeContext";
-import type { Achievement, Category, DrHistoryEntry, Quest } from "./_utils/types";
+} from "@/src/utils/defaultData";
+import { localDateKey } from "@/src/utils/dateHelpers";
+import { createCardSurface, createTileSurface, ui, withAlpha } from "@/src/utils/designSystem";
+import { buildStreakSummary } from "@/src/utils/planning";
+import { getScheduledQuestsForDate } from "@/src/utils/recurrence";
+import { getRankFromDR, getRankMeta } from "@/src/utils/rank";
+import { readStoredState, updateStoredState } from "@/src/utils/storedState";
+import { useTheme, type ThemeColors } from "@/src/utils/themeContext";
+import type { Achievement, Category, DrHistoryEntry, Quest } from "@/src/utils/types";
 
 type IconSymbolName = React.ComponentProps<typeof IconSymbol>["name"];
 
@@ -81,7 +81,7 @@ const AWARD_TRACKS: {
   {
     id: "all",
     label: "All",
-    body: "Every earned and locked badge.",
+    body: "Every earned and locked award.",
     collections: ["quests", "contracts", "streaks", "rank", "mastery", "rare"],
     icon: "trophy.fill",
     primary: "#F5B84B",
@@ -105,7 +105,7 @@ const AWARD_TRACKS: {
   {
     id: "legacy",
     label: "Legacy",
-    body: "Rank climbs, category mastery, rare feats, and long-run badges.",
+    body: "Rank climbs, category mastery, rare feats, and long-run awards.",
     collections: ["rank", "mastery", "rare"],
     icon: "trophy.fill",
     primary: "#F472B6",
@@ -136,7 +136,7 @@ const AWARD_META: Record<string, AwardMeta> = {
   quest_100: {
     collection: "quests",
     rarity: "Elite",
-    hint: "This is a long-run consistency badge.",
+    hint: "This is a long-run consistency award.",
   },
   hard_mode: {
     collection: "quests",
@@ -283,7 +283,7 @@ const AWARD_META: Record<string, AwardMeta> = {
 const FALLBACK_AWARD_META: AwardMeta = {
   collection: "quests",
   rarity: "Core",
-  hint: "Keep completing quests to reveal this badge.",
+  hint: "Keep completing quests to reveal this award.",
 };
 
 const AWARD_PAGE_ACCENT = "#F5B84B";
@@ -303,7 +303,7 @@ function getAwardTrackVisual(track: AwardTrack): AwardVisual {
       primary: track.primary,
       soft: "#123D33",
       deep: "#0B241F",
-      label: "Quest Badge",
+      label: "Quest award",
     };
   }
 
@@ -313,7 +313,7 @@ function getAwardTrackVisual(track: AwardTrack): AwardVisual {
       primary: track.primary,
       soft: "#4A1835",
       deep: "#2A1020",
-      label: "Legacy Badge",
+      label: "Legacy award",
     };
   }
 
@@ -322,7 +322,7 @@ function getAwardTrackVisual(track: AwardTrack): AwardVisual {
     primary: track.primary,
     soft: "#3A2A12",
     deep: "#20170B",
-    label: "Consistency Badge",
+    label: "Consistency award",
   };
 }
 
@@ -849,7 +849,7 @@ export default function AchievementsScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         <ScreenHeader
           title="Awards"
-          subtitle="Quest, Consistency, and Legacy badge collection"
+          subtitle="Milestones you unlock and equip"
           icon="chevron.left"
           accent={AWARD_PAGE_ACCENT}
           onIconPress={navigateBack}
@@ -859,7 +859,7 @@ export default function AchievementsScreen() {
         <View style={styles.heroPanel}>
           <View style={styles.heroTopRow}>
             <View style={styles.heroCopy}>
-              <Text style={styles.eyebrow}>Badge Vault</Text>
+              <Text style={styles.eyebrow}>Award vault</Text>
               <Text style={styles.heroTitle}>{unlockedCount}/{totalCount} unlocked</Text>
             </View>
             <View style={styles.heroPercentBadge}>
@@ -902,7 +902,7 @@ export default function AchievementsScreen() {
             accessibilityRole="button"
             accessibilityLabel={
               featuredAward.unlocked
-                ? `Equip badge ${featuredAward.achievement.name}`
+                ? `Equip award ${featuredAward.achievement.name}`
                 : `View award ${featuredAward.achievement.name}`
             }
             style={({ pressed }) => [styles.featuredPanel, pressed && styles.pressed]}
@@ -910,7 +910,7 @@ export default function AchievementsScreen() {
             <AwardEmblem item={featuredAward} size="large" />
             <View style={styles.featuredCopy}>
               <Text style={styles.eyebrow}>
-                {featuredAward.unlocked ? "Latest Badge" : "Closest Badge"}
+                {featuredAward.unlocked ? "Latest award" : "Closest award"}
               </Text>
               <Text style={styles.featuredTitle}>{featuredAward.achievement.name}</Text>
               <Text style={styles.featuredText}>
@@ -977,7 +977,7 @@ export default function AchievementsScreen() {
           <View style={styles.nextPanel}>
             <View style={styles.cardHeaderRow}>
               <View>
-                <Text style={styles.eyebrow}>Next Unlocks</Text>
+                <Text style={styles.eyebrow}>Next unlocks</Text>
                 <Text style={styles.sectionTitle}>Closest awards</Text>
               </View>
             </View>
@@ -1032,7 +1032,7 @@ export default function AchievementsScreen() {
             <AwardEmblem item={selectedAward} size="large" />
             <View style={styles.detailCopy}>
               <View style={styles.detailTopLine}>
-                <Text style={styles.eyebrow}>{getAwardTrack(selectedAward.meta).label} Badge</Text>
+                <Text style={styles.eyebrow}>{getAwardTrack(selectedAward.meta).label} award</Text>
                 <Text
                   style={[
                     styles.detailStatus,
@@ -1056,7 +1056,7 @@ export default function AchievementsScreen() {
                     ? `Earned ${formatDate(selectedAward.achievement.unlockedAt)}`
                     : "Earned"
                   : selectedAward.ready
-                    ? "Requirement met. Complete one matching action to stamp this badge."
+                    ? "Requirement met. Complete one matching action to stamp this award."
                   : selectedAward.meta.hint}
               </Text>
               {selectedAward.unlocked ? (
@@ -1087,7 +1087,7 @@ export default function AchievementsScreen() {
                       { color: getAwardVisual(selectedAward.meta).primary },
                     ]}
                   >
-                    {selectedAwardEquipped ? "Equipped To Card" : "Equip To Card"}
+                    {selectedAwardEquipped ? "Equipped on card" : "Equip to card"}
                   </Text>
                 </Pressable>
               ) : null}
@@ -1107,7 +1107,7 @@ export default function AchievementsScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={
                   item.unlocked
-                    ? `Equip badge ${item.achievement.name}`
+                    ? `Equip award ${item.achievement.name}`
                     : `View award ${item.achievement.name}`
                 }
                 accessibilityState={{ selected: selectedAward?.achievement.id === item.achievement.id }}

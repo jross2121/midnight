@@ -40,6 +40,7 @@ const MAPPING = {
   'briefcase.fill': 'work',
   'bubble.left.fill': 'forum',
   'sparkles': 'auto-awesome',
+  'moon.fill': 'bedtime',
   'circle': 'radio-button-unchecked',
 } as IconMapping;
 

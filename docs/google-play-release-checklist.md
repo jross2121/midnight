@@ -29,7 +29,7 @@ The local `android/` folder is generated/native output and is ignored by git. Us
 
 - Final app icon and adaptive icon.
 - Feature graphic.
-- Phone screenshots for key screens: Home, Plan, Quest Queue, Rank, Awards, Insights, Settings.
+- Phone screenshots for key screens: Today, Plan, Progress, Player Card, Awards, and Settings.
 - Short description.
 - Full description.
 - Use `docs/google-play-store-listing-draft.md` as starting copy.
@@ -40,6 +40,7 @@ The local `android/` folder is generated/native output and is ignored by git. Us
 - `npm.cmd run typecheck`
 - `npm.cmd run lint`
 - `npm.cmd run check`
+- Complete the current phone pass in `docs/phase-6-qa.md`.
 - Confirm the submitted Android build targets Android 15 / API level 35 or higher.
 - For the managed EAS release path, do not rely on the ignored local `android/` folder as the release source.
 - If switching to a committed native workflow later, regenerate/commit `android/`, configure production signing, then run `cd android && .\gradlew.bat :app:processReleaseManifest :app:compileReleaseKotlin --console=plain --no-daemon`.
@@ -53,12 +54,16 @@ The local `android/` folder is generated/native output and is ignored by git. Us
 - Test archive restore/clear.
 - Test reminder permission request, enable/disable, and each reminder slot.
 - Test Focus Sprint start, pause, reset, duration change, and quest completion.
-- Test completing the same type of quest from Home and Focus Sprint, including achievement unlocks.
-- Test Awards filters, next unlocks, selected award details, and new trophy progress.
+- Test completing the same type of quest from Today and Focus Sprint, including Award unlocks and same-day undo.
+- Test Awards filters, next unlocks, selected Award details, equip flow, and collection progress.
 - Test midnight evaluation flow.
 - Test missed-day handling after a 1-day gap and a 2+ day gap.
 - Test recurring quests: once, daily, weekdays, and weekly.
-- Verify first-run onboarding and Guide explain quests, contracts, DR, ranks, and awards without outside context.
+- Test Recovery Day arm, cancel, cooldown, midnight freeze, and XP behavior.
+- Test daily reflection save, edit, removal, rollover, export, and import.
+- Verify reminder taps open Plan or Today as described and cannot bypass onboarding after a profile reset.
+- Verify first-run onboarding and Guide explain quests, contracts, DR, ranks, and Awards without outside context.
+- Test with TalkBack, Android Reduce Motion, and a large system font size.
 - Test dark and light theme.
 - Verify dev-only tools are hidden in release builds.
 

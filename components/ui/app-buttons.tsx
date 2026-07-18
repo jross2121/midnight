@@ -1,6 +1,6 @@
-import { HOME_GOLD } from "@/app/(tabs)/_styles";
-import { withAlpha } from "@/app/(tabs)/_utils/designSystem";
-import { useTheme } from "@/app/(tabs)/_utils/themeContext";
+import { HOME_GOLD } from "@/src/styles";
+import { withAlpha } from "@/src/utils/designSystem";
+import { useTheme } from "@/src/utils/themeContext";
 import { AppThemeTokens } from "@/constants/theme";
 import React from "react";
 import { Pressable, StyleSheet, Text, type PressableProps, type StyleProp, type ViewStyle } from "react-native";

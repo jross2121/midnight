@@ -4,8 +4,8 @@ import * as Haptics from 'expo-haptics';
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { HOME_GOLD } from '@/app/(tabs)/_styles';
-import { withAlpha } from '@/app/(tabs)/_utils/designSystem';
+import { HOME_GOLD } from '@/src/styles';
+import { withAlpha } from '@/src/utils/designSystem';
 
 export function HapticTab(props: BottomTabBarButtonProps) {
   const isActive = !!props.accessibilityState?.selected;

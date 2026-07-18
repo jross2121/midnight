@@ -3,22 +3,25 @@ import { useFocusEffect } from "@react-navigation/native";
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
-import { Alert, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Alert, Linking, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ScreenHeader } from "./_components/ScreenHeader";
-import { CONTRACT_GOLD, HOME_GOLD, createStyles } from "./_styles";
-import { localDateKey } from "./_utils/dateHelpers";
-import { defaultLastCompletionPct, defaultLastDrDelta, defaultLastDrUpdateDate } from "./_utils/defaultData";
-import { withAlpha } from "./_utils/designSystem";
-import { DAILY_EVALUATION_HISTORY_STORAGE_KEY } from "./_utils/evaluationHistory";
-import { MIDNIGHT_EVALUATION_STORAGE_KEY } from "./_utils/midnightEvaluation";
+import { ScreenHeader } from "@/src/components/ScreenHeader";
+import { CONTRACT_GOLD, HOME_GOLD, createStyles } from "@/src/styles";
+import { localDateKey } from "@/src/utils/dateHelpers";
+import { defaultLastCompletionPct, defaultLastDrDelta, defaultLastDrUpdateDate } from "@/src/utils/defaultData";
+import { withAlpha } from "@/src/utils/designSystem";
+import {
+  DAILY_EVALUATION_HISTORY_STORAGE_KEY,
+  readEvaluationHistory,
+} from "@/src/utils/evaluationHistory";
+import { MIDNIGHT_EVALUATION_STORAGE_KEY } from "@/src/utils/midnightEvaluation";
 import {
   findDailyQuestLimitConflict,
   formatQuestLimitDate,
   getUpcomingDateKeys,
-} from "./_utils/questLimits";
-import { getQuestXpForDifficulty } from "./_utils/questXp";
-import { normalizeQuestRepeat, normalizeScheduledWeekday } from "./_utils/recurrence";
+} from "@/src/utils/questLimits";
+import { getQuestXpForDifficulty } from "@/src/utils/questXp";
+import { normalizeQuestRepeat, normalizeScheduledWeekday } from "@/src/utils/recurrence";
 import {
   adjustReminderTime,
   DEFAULT_REMINDER_SETTINGS,
@@ -26,18 +29,31 @@ import {
   getReminderPermissionStatus,
   loadReminderSettings,
   requestReminderPermissions,
+  sendTestReminder,
   syncReminderSchedule,
   type ReminderPermissionStatus,
   type ReminderSettings,
-} from "./_utils/reminders";
-import { parseImportPayload, type DataExportPayload } from "./_utils/storageImport";
+} from "@/src/utils/reminders";
+import { getEnabledReminderCount } from "@/src/utils/reminderLogic";
+import {
+  buildStoredStateFromImport,
+  parseImportPayload,
+  type DataExportPayload,
+} from "@/src/utils/storageImport";
 import {
   readStoredState,
+  replaceStoredState,
   transactStoredState,
   updateStoredState,
-} from "./_utils/storedState";
-import { useTheme } from "./_utils/themeContext";
-import { STORAGE_KEY, type ArchivedQuest, type Quest, type StoredState } from "./_utils/types";
+} from "@/src/utils/storedState";
+import { useTheme } from "@/src/utils/themeContext";
+import {
+  ONBOARDING_STORAGE_KEY,
+  STORAGE_KEY,
+  type ArchivedQuest,
+  type Quest,
+  type StoredState,
+} from "@/src/utils/types";
 
 const SETTINGS_ACCENT = HOME_GOLD;
 const SETTINGS_BUTTON_TEXT = "#15131A";
@@ -80,6 +96,8 @@ export default function SettingsScreen() {
   const [reminderPermission, setReminderPermission] =
     useState<ReminderPermissionStatus>("undetermined");
   const [remindersSaving, setRemindersSaving] = useState(false);
+  const [reminderTesting, setReminderTesting] = useState(false);
+  const [profileResetting, setProfileResetting] = useState(false);
   const navigateBack = () => {
     if (router.canGoBack()) router.back();
     else router.replace("/(tabs)/more");
@@ -166,6 +184,42 @@ export default function SettingsScreen() {
 
   const toggleReminderMaster = () => {
     saveReminderUpdate((settings) => ({ ...settings, enabled: !settings.enabled }));
+  };
+
+  const testReminderDelivery = async () => {
+    if (reminderTesting || remindersSaving) return;
+    setReminderTesting(true);
+
+    try {
+      let permission = reminderPermission;
+      if (permission !== "granted") {
+        permission = await requestReminderPermissions();
+        setReminderPermission(permission);
+      }
+
+      if (permission !== "granted") {
+        Alert.alert(
+          "Notifications are blocked",
+          "Allow notifications in device settings, then return here and try again.",
+          [
+            { text: "Not now", style: "cancel" },
+            { text: "Open settings", onPress: () => void Linking.openSettings() },
+          ]
+        );
+        return;
+      }
+
+      await sendTestReminder();
+      Alert.alert(
+        "Test reminder sent",
+        "It should appear in a moment. Tap it to confirm that Midnight opens Today."
+      );
+    } catch (error) {
+      if (__DEV__) console.warn("Failed to send test reminder:", error);
+      Alert.alert("Test failed", "Midnight could not send a test notification on this device.");
+    } finally {
+      setReminderTesting(false);
+    }
   };
 
   const toggleReminderSlot = (key: ReminderEnabledKey) => {
@@ -415,9 +469,9 @@ export default function SettingsScreen() {
 
   const generateExportPayload = async () => {
     try {
-      const [savedState, rawEvaluationHistory, lastEvaluatedDate] = await Promise.all([
+      const [savedState, evaluationHistory, lastEvaluatedDate] = await Promise.all([
         readStoredState(),
-        AsyncStorage.getItem(DAILY_EVALUATION_HISTORY_STORAGE_KEY),
+        readEvaluationHistory(),
         AsyncStorage.getItem(MIDNIGHT_EVALUATION_STORAGE_KEY),
       ]);
       const savedReminders = await loadReminderSettings();
@@ -427,7 +481,7 @@ export default function SettingsScreen() {
         exportedAt: new Date().toISOString(),
         storageKey: STORAGE_KEY,
         state: savedState,
-        evaluationHistory: rawEvaluationHistory ? (JSON.parse(rawEvaluationHistory) as unknown[]) : null,
+        evaluationHistory,
         lastEvaluatedDate,
         reminders: savedReminders,
       };
@@ -441,15 +495,23 @@ export default function SettingsScreen() {
   };
 
   const importData = async () => {
+    let backup: ReturnType<typeof parseImportPayload>;
+
     try {
       const parsed = JSON.parse(importPayload);
-      const backup = parseImportPayload(parsed);
+      backup = parseImportPayload(parsed);
+    } catch (error) {
+      if (__DEV__) console.warn("Failed to parse imported data:", error);
+      Alert.alert("Import failed", "That text is not valid JSON. Paste a complete Midnight backup and try again.");
+      return;
+    }
 
-      if (!backup) {
-        Alert.alert("Import failed", "Paste a valid Midnight backup JSON before importing.");
-        return;
-      }
+    if (!backup) {
+      Alert.alert("Import failed", "This is not a supported Midnight backup.");
+      return;
+    }
 
+    try {
       await transactStoredState(() => ({
         state: backup.state,
         result: undefined,
@@ -461,10 +523,20 @@ export default function SettingsScreen() {
           [MIDNIGHT_EVALUATION_STORAGE_KEY, backup.lastEvaluatedDate ?? ""],
         ],
       }));
+    } catch (error) {
+      if (__DEV__) console.warn("Failed to replace imported profile:", error);
+      Alert.alert(
+        "Import failed",
+        "Your existing profile was not replaced. Check available device storage, then try again."
+      );
+      return;
+    }
 
-      let importedRemindersPaused = false;
+    let importedRemindersPaused = false;
+    let importedRemindersFailed = false;
 
-      if (backup.reminders) {
+    if (backup.reminders) {
+      try {
         let importedReminders = backup.reminders;
         let permission = reminderPermission;
 
@@ -481,22 +553,37 @@ export default function SettingsScreen() {
         const syncedPermission = await syncReminderSchedule(importedReminders);
         setReminderSettings(importedReminders);
         setReminderPermission(syncedPermission);
+      } catch (error) {
+        importedRemindersFailed = true;
+        if (__DEV__) console.warn("Profile imported but reminders could not be restored:", error);
+        const [savedSettings, permission] = await Promise.all([
+          loadReminderSettings(),
+          getReminderPermissionStatus(),
+        ]);
+        setReminderSettings(savedSettings);
+        setReminderPermission(permission);
       }
+    }
 
+    try {
       setImportPayload("");
       setShowImportBox(false);
       setExportPayload("");
       await loadArchive();
-      const importCompleteMessage = importedRemindersPaused
-        ? "Your saved quests, stats, archive, and history were restored. Reminders were restored but left paused until notifications are allowed."
-        : backup.reminders
-          ? "Your saved quests, stats, archive, history, and reminders were restored."
-          : "Your saved quests, stats, archive, and history were restored.";
-      Alert.alert("Import complete", importCompleteMessage);
     } catch (error) {
-      if (__DEV__) console.warn("Failed to import data:", error);
-      Alert.alert("Import failed", "Could not read that JSON backup.");
+      if (__DEV__) console.warn("Profile imported but Settings could not refresh:", error);
     }
+
+    const profileCopy =
+      "Your quests, progress, awards, archive, reflections, Recovery Days, and history were restored.";
+    const importCompleteMessage = importedRemindersFailed
+      ? `${profileCopy} Reminder scheduling could not be finished; review Reminders before relying on them.`
+      : importedRemindersPaused
+        ? `${profileCopy} Reminders were restored but left paused until notifications are allowed.`
+        : backup.reminders
+          ? `${profileCopy} Reminder settings were also restored.`
+          : `${profileCopy} Your existing reminder settings were kept.`;
+    Alert.alert(importedRemindersFailed ? "Profile restored; check reminders" : "Import complete", importCompleteMessage);
   };
 
   const confirmImportData = () => {
@@ -504,10 +591,49 @@ export default function SettingsScreen() {
 
     Alert.alert(
       "Import backup?",
-      "This replaces the saved quests, stats, archive, history, and reminder settings on this device.",
+      "This replaces saved quests, progress, awards, archive, reflections, Recovery Days, and history on this device. A full backup also replaces reminder settings.",
       [
         { text: "Cancel", style: "cancel" },
         { text: "Import", style: "destructive", onPress: importData },
+      ]
+    );
+  };
+
+  const resetProfile = async () => {
+    if (profileResetting) return;
+    setProfileResetting(true);
+    try {
+      const emptyState = buildStoredStateFromImport({});
+      await replaceStoredState(emptyState);
+      await AsyncStorage.multiRemove([
+        MIDNIGHT_EVALUATION_STORAGE_KEY,
+        DAILY_EVALUATION_HISTORY_STORAGE_KEY,
+        ONBOARDING_STORAGE_KEY,
+      ]);
+      setArchivedQuests([]);
+      setExportPayload("");
+      setImportPayload("");
+      setShowImportBox(false);
+      Alert.alert(
+        "Profile reset",
+        "Your quests and progress were cleared. Appearance and reminder preferences were kept.",
+        [{ text: "Start fresh", onPress: () => router.replace("/onboarding") }]
+      );
+    } catch (error) {
+      if (__DEV__) console.warn("Failed to reset profile:", error);
+      Alert.alert("Reset failed", "Midnight could not safely clear your profile.");
+    } finally {
+      setProfileResetting(false);
+    }
+  };
+
+  const confirmResetProfile = () => {
+    Alert.alert(
+      "Reset Midnight profile?",
+      "This permanently clears every quest, category level, XP total, Discipline Rating, award, equipped award, archive item, reflection, Recovery Day, and evaluation record on this device. This cannot be undone. Your theme and reminder preferences will remain.",
+      [
+        { text: "Keep profile", style: "cancel" },
+        { text: "Reset everything", style: "destructive", onPress: resetProfile },
       ]
     );
   };
@@ -552,7 +678,8 @@ export default function SettingsScreen() {
       ? colors.positive
       : reminderPermission === "denied"
         ? colors.negative
-        : colors.textSecondary;
+      : colors.textSecondary;
+  const enabledReminderCount = getEnabledReminderCount(reminderSettings);
   const importFieldVisible = showImportBox || importPayload.trim().length > 0;
   const importButtonDisabled = importFieldVisible && importPayload.trim().length === 0;
   const renderSettingsSectionLabel = (label: string, marginTop = 16) => (
@@ -601,7 +728,7 @@ export default function SettingsScreen() {
                 Theme
               </Text>
               <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 6 }]}>
-                Current: <Text style={{ fontWeight: "700" }}>{theme === "dark" ? "Dark Mode" : "Light Mode"}</Text>
+                Current: <Text style={{ fontWeight: "700" }}>{theme === "dark" ? "Dark mode" : "Light mode"}</Text>
               </Text>
             </View>
             <Pressable
@@ -689,28 +816,57 @@ export default function SettingsScreen() {
           </Text>
           <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 6 }]}>
             {reminderSettings.enabled
-              ? "Scheduled slots will repeat daily on this device."
+              ? enabledReminderCount > 0
+                ? `${enabledReminderCount} reminder${enabledReminderCount === 1 ? "" : "s"} scheduled daily on this device.`
+                : "Reminders are enabled, but every reminder slot is turned off."
               : "Slots are saved, but notifications stay paused until enabled."}
           </Text>
 
+          <Pressable
+            onPress={testReminderDelivery}
+            disabled={reminderTesting || remindersSaving}
+            accessibilityRole="button"
+            accessibilityLabel="Send a test Midnight reminder"
+            accessibilityHint="Sends a notification that opens the Today screen"
+            style={({ pressed }) => [
+              {
+                alignSelf: "flex-start",
+                minHeight: 44,
+                marginTop: 12,
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: settingsGoldBorder,
+                backgroundColor: withAlpha(SETTINGS_ACCENT, 0.08),
+                paddingHorizontal: 13,
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: reminderTesting || remindersSaving ? 0.5 : pressed ? 0.76 : 1,
+              },
+            ]}
+          >
+            <Text style={{ color: SETTINGS_ACCENT, fontSize: 12, fontWeight: "900" }}>
+              {reminderTesting ? "Sending…" : "Send test reminder"}
+            </Text>
+          </Pressable>
+
           {renderReminderRow(
-            "Morning Plan",
-            "Start the day with a clean quest board.",
+            "Morning plan",
+            "Start the day with a clean quest board. Opens Plan.",
             "morningEnabled",
             "morningHour",
             "morningMinute"
           )}
           {renderReminderRow(
-            "Contract Warning",
-            "Catch contract quests before the day resets.",
+            "Contract warning",
+            "Catch contract quests before the day resets. Opens Today.",
             "contractEnabled",
             "contractHour",
             "contractMinute",
             CONTRACT_GOLD
           )}
           {renderReminderRow(
-            "Next Move",
-            "A midday nudge when momentum needs help.",
+            "Next move",
+            "A midday nudge when momentum needs help. Opens Today.",
             "nextMoveEnabled",
             "nextMoveHour",
             "nextMoveMinute"
@@ -731,11 +887,34 @@ export default function SettingsScreen() {
             Midnight v{getAppVersionCopy()}
           </Text>
           <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 8 }]}>
-            Daily Discipline Tracker focused on consistency, accountability, and measurable progress.
+            A daily discipline tracker focused on consistency, accountability, and measurable progress.
           </Text>
+          <Pressable
+            onPress={() => router.push({ pathname: "/onboarding", params: { replay: "1" } })}
+            accessibilityRole="button"
+            accessibilityLabel="Replay Midnight introduction"
+            style={({ pressed }) => [
+              {
+                alignSelf: "flex-start",
+                minHeight: 44,
+                marginTop: 12,
+                paddingHorizontal: 12,
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: settingsGoldBorder,
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: pressed ? 0.76 : 1,
+              },
+            ]}
+          >
+            <Text style={{ color: SETTINGS_ACCENT, fontWeight: "900", fontSize: 12 }}>
+              Replay introduction
+            </Text>
+          </Pressable>
         </View>
 
-        {renderSettingsSectionLabel("Device Data")}
+        {renderSettingsSectionLabel("Device data")}
         <View
           style={[
             styles.card,
@@ -743,10 +922,10 @@ export default function SettingsScreen() {
           ]}
         >
           <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
-            Data & Privacy
+            Data & privacy
           </Text>
           <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 10 }]}>
-            Midnight stores quests, stats, awards, archive, reminders, and theme settings on this device.
+            Midnight stores quests, stats, awards, reflections, archive, reminders, and theme settings on this device.
           </Text>
           <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 8 }]}>
             This build does not use accounts, ads, analytics SDKs, or server sync.
@@ -766,7 +945,7 @@ export default function SettingsScreen() {
           <View style={styles.cardTop}>
             <View>
               <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
-                Quest Archive
+                Quest archive
               </Text>
               <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 6 }]}>
                 {archivedQuests.length} stored quest{archivedQuests.length === 1 ? "" : "s"}
@@ -857,7 +1036,7 @@ export default function SettingsScreen() {
           ]}
         >
           <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
-            Data Portability
+            Data portability
           </Text>
           <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 8 }]}>
             Export a JSON backup or import one to restore this device.
@@ -880,7 +1059,7 @@ export default function SettingsScreen() {
               ]}
             >
               <Text style={{ color: SETTINGS_BUTTON_TEXT, fontWeight: "900", fontSize: 12 }}>
-                Generate Export
+                Generate export
               </Text>
             </Pressable>
             <Pressable
@@ -909,7 +1088,7 @@ export default function SettingsScreen() {
               ]}
             >
               <Text style={{ color: SETTINGS_ACCENT, fontWeight: "900", fontSize: 12 }}>
-                {importFieldVisible ? "Import Backup" : "Paste Import"}
+                {importFieldVisible ? "Import backup" : "Paste import"}
               </Text>
             </Pressable>
           </View>
@@ -969,6 +1148,44 @@ export default function SettingsScreen() {
           ) : null}
         </View>
 
+        {renderSettingsSectionLabel("Recovery")}
+        <View
+          style={[
+            styles.card,
+            settingsCardSurface,
+            { borderColor: withAlpha(colors.negative, 0.38) },
+          ]}
+        >
+          <Text style={[styles.cardTitle, { color: colors.negative }]}>Reset profile</Text>
+          <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 8 }]}>Clear all quests and progress from this device and return to a new profile. Export a backup first if you may want this data later.</Text>
+          <Pressable
+            onPress={confirmResetProfile}
+            disabled={profileResetting}
+            accessibilityRole="button"
+            accessibilityLabel="Reset all profile data"
+            accessibilityState={{ disabled: profileResetting }}
+            style={({ pressed }) => [
+              {
+                alignSelf: "flex-start",
+                minHeight: 44,
+                marginTop: 12,
+                paddingHorizontal: 14,
+                borderRadius: 8,
+                borderWidth: 1,
+                borderColor: withAlpha(colors.negative, 0.52),
+                backgroundColor: withAlpha(colors.negative, 0.1),
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: profileResetting ? 0.46 : pressed ? 0.76 : 1,
+              },
+            ]}
+          >
+            <Text style={{ color: colors.negative, fontWeight: "900", fontSize: 12 }}>
+              {profileResetting ? "Resetting…" : "Reset profile"}
+            </Text>
+          </Pressable>
+        </View>
+
         {__DEV__ ? (
           <>
             {renderSettingsSectionLabel("Developer")}
@@ -978,7 +1195,7 @@ export default function SettingsScreen() {
                 settingsCardSurface,
               ]}
             >
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Developer Tools</Text>
+              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Developer tools</Text>
               <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 8 }]}>Run Midnight Evaluation without changing device date.</Text>
               <Pressable
                 onPress={simulateMidnightEvaluation}

@@ -5,17 +5,17 @@ import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { CONTRACT_GOLD } from "./_styles";
-import { RankBadge } from "./_components/RankBadge";
-import { ScreenHeader } from "./_components/ScreenHeader";
-import { ScreenLoading } from "./_components/ScreenLoading";
-import { mergeAchievements } from "./_utils/achievements";
-import { defaultAchievements } from "./_utils/defaultData";
-import { createCardSurface, createTileSurface, ui, withAlpha } from "./_utils/designSystem";
-import { DR_RANK_THRESHOLDS, getNextRank, getRankFromDR, getRankMeta } from "./_utils/rank";
-import { useTheme, type Theme, type ThemeColors } from "./_utils/themeContext";
-import type { Achievement, StoredState } from "./_utils/types";
-import { STORAGE_KEY } from "./_utils/types";
+import { CONTRACT_GOLD } from "@/src/styles";
+import { RankBadge } from "@/src/components/RankBadge";
+import { ScreenHeader } from "@/src/components/ScreenHeader";
+import { ScreenLoading } from "@/src/components/ScreenLoading";
+import { mergeAchievements } from "@/src/utils/achievements";
+import { defaultAchievements } from "@/src/utils/defaultData";
+import { createCardSurface, createTileSurface, ui, withAlpha } from "@/src/utils/designSystem";
+import { DR_RANK_THRESHOLDS, getNextRank, getRankFromDR, getRankMeta } from "@/src/utils/rank";
+import { useTheme, type Theme, type ThemeColors } from "@/src/utils/themeContext";
+import type { Achievement, StoredState } from "@/src/utils/types";
+import { STORAGE_KEY } from "@/src/utils/types";
 
 type IconSymbolName = React.ComponentProps<typeof IconSymbol>["name"];
 type BadgeCollection = "quests" | "contracts" | "streaks" | "rank" | "mastery" | "rare";
@@ -52,7 +52,7 @@ const BADGE_TRACKS: BadgeTrack[] = [
     id: "quest",
     label: "Quest",
     title: "Quest",
-    subtitle: "Quest badge slot",
+    subtitle: "Quest award slot",
     emptyLabel: "Quest slot open",
     icon: "flag.fill",
     collections: ["quests"],
@@ -61,7 +61,7 @@ const BADGE_TRACKS: BadgeTrack[] = [
     id: "consistency",
     label: "Consistency",
     title: "Consistency",
-    subtitle: "Consistency badge slot",
+    subtitle: "Consistency award slot",
     emptyLabel: "Consistency slot open",
     icon: "shield.fill",
     collections: ["contracts", "streaks"],
@@ -70,7 +70,7 @@ const BADGE_TRACKS: BadgeTrack[] = [
     id: "legacy",
     label: "Legacy",
     title: "Legacy",
-    subtitle: "Legacy badge slot",
+    subtitle: "Legacy award slot",
     emptyLabel: "Legacy slot open",
     icon: "trophy.fill",
     collections: ["rank", "mastery", "rare"],
@@ -320,7 +320,7 @@ export default function StatsScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         <ScreenHeader
           title="Player Card"
-          subtitle="Rank, showcase, and climb path"
+          subtitle="Your rank identity and equipped awards"
           icon="chevron.left"
           accent={rankTone}
           onIconPress={navigateBack}
@@ -335,7 +335,7 @@ export default function StatsScreen() {
               </View>
             </View>
             <View style={styles.profileCopy}>
-              <Text style={styles.eyebrow}>Current Rank</Text>
+              <Text style={styles.eyebrow}>Current rank</Text>
               <Text style={styles.rankName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.76}>
                 {rankName}
               </Text>
@@ -351,7 +351,7 @@ export default function StatsScreen() {
               <Text style={[styles.identityValue, { color: rankTone }]}>{disciplineRating}</Text>
             </View>
             <View style={styles.identityTile}>
-              <Text style={styles.identityLabel}>Badges</Text>
+              <Text style={styles.identityLabel}>Awards</Text>
               <Text style={styles.identityValue} numberOfLines={1}>
                 {earnedBadgeCount} earned
               </Text>
@@ -360,7 +360,7 @@ export default function StatsScreen() {
 
           <View style={styles.progressBlock}>
             <View style={styles.progressHeader}>
-              <Text style={styles.progressLabel}>Tier Progress</Text>
+              <Text style={styles.progressLabel}>Tier progress</Text>
               <Text style={[styles.progressValue, { color: rankTone }]}>{rankProgressPercent}%</Text>
             </View>
             <View style={styles.rankProgressTrack}>
@@ -371,8 +371,8 @@ export default function StatsScreen() {
           <View style={styles.loadoutPanel}>
             <View style={styles.loadoutHeader}>
               <View>
-                <Text style={styles.eyebrow}>Badge Showcase</Text>
-                <Text style={styles.sectionTitle}>Equipped Slots</Text>
+                <Text style={styles.eyebrow}>Award showcase</Text>
+                <Text style={styles.sectionTitle}>Equipped awards</Text>
               </View>
               <Text style={styles.miniMeta}>{equippedBadgeCount}/3 equipped</Text>
             </View>
@@ -391,7 +391,7 @@ export default function StatsScreen() {
                     accessibilityLabel={
                       achievement
                         ? `Open Awards to change ${achievement.name}`
-                        : `Open Awards to equip a ${track.title.toLowerCase()} badge`
+                        : `Open Awards to equip a ${track.title.toLowerCase()} award`
                     }
                     style={({ pressed }) => [
                       styles.trackSlot,
@@ -445,7 +445,7 @@ export default function StatsScreen() {
         <View style={styles.rankPathPanel}>
           <View style={styles.cardHeaderRow}>
             <View>
-              <Text style={styles.eyebrow}>Rank Path</Text>
+              <Text style={styles.eyebrow}>Rank path</Text>
               <Text style={styles.sectionTitle}>
                 {nextRank ? `${nextRank.remainingDr} DR to ${nextRank.name}` : "Top rank secured"}
               </Text>

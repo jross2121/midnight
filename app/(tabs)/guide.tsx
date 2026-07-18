@@ -4,10 +4,10 @@ import React, { useMemo } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ScreenHeader } from "./_components/ScreenHeader";
-import { CONTRACT_GOLD, HOME_GOLD } from "./_styles";
-import { createTileSurface, ui, withAlpha } from "./_utils/designSystem";
-import { useTheme, type ThemeColors } from "./_utils/themeContext";
+import { ScreenHeader } from "@/src/components/ScreenHeader";
+import { CONTRACT_GOLD, HOME_GOLD } from "@/src/styles";
+import { createTileSurface, ui, withAlpha } from "@/src/utils/designSystem";
+import { useTheme, type ThemeColors } from "@/src/utils/themeContext";
 
 type GuideSection = {
   title: string;
@@ -47,14 +47,21 @@ const GUIDE_SECTIONS: GuideSection[] = [
     label: "Shape",
     body: "Plan decides what belongs on the board. It shows today, week load, and quests waiting outside today.",
     icon: "calendar",
-    summary: "Quick Add, week load, and resting quests.",
+    summary: "Quick add, week load, and resting quests.",
   },
   {
     title: "Progress",
     label: "Climb",
     body: "DR is Discipline Rating, the long-term consistency score. Each Midnight Evaluation moves DR; rank follows its current tier, while awards mark milestones.",
     icon: "trophy.fill",
-    summary: "Rank follows DR. Equip badges from Awards.",
+    summary: "Progress shows performance. Player Card shows rank; Awards stores milestones.",
+  },
+  {
+    title: "Recovery Day",
+    label: "Reset",
+    body: "A Recovery Day freezes DR and both streaks for one day. Quest XP still counts, but rank and streaks do not advance, and awards do not unlock. It is available once every seven days from Plan.",
+    icon: "moon.fill",
+    summary: "Arm it before midnight in Plan. It holds the score; it never improves it.",
   },
 ];
 
@@ -95,7 +102,7 @@ export default function GuideScreen() {
     <SafeAreaView edges={["top"]} style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
         <ScreenHeader
-          title="How Midnight Works"
+          title="How Midnight works"
           subtitle="Rules, terms, and flow"
           icon="chevron.left"
           onIconPress={navigateBack}
@@ -108,7 +115,7 @@ export default function GuideScreen() {
         </View>
 
         <View style={styles.block}>
-          <Text style={styles.blockTitle}>First Day</Text>
+          <Text style={styles.blockTitle}>First day</Text>
           <View style={styles.firstDayList}>
             {FIRST_DAY_STEPS.map((step) => (
               <View key={step.title} style={styles.firstDayRow}>
@@ -120,7 +127,7 @@ export default function GuideScreen() {
         </View>
 
         <View style={styles.block}>
-          <Text style={styles.blockTitle}>Main Rules</Text>
+          <Text style={styles.blockTitle}>Main rules</Text>
           <View style={styles.ruleList}>
             {GUIDE_SECTIONS.map((section) => {
               const isContractSection = section.title === "Contracts";

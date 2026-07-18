@@ -53,6 +53,7 @@ Release builds use the managed Expo/EAS source of truth:
 Release planning docs:
 
 - `docs/google-play-release-checklist.md`
+- `docs/phase-6-qa.md`
 - `docs/google-play-store-listing-draft.md`
 - `docs/privacy-policy-draft.md`
 

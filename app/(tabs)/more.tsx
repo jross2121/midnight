@@ -4,10 +4,10 @@ import React, { useMemo } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ScreenHeader } from "./_components/ScreenHeader";
-import { HOME_GOLD } from "./_styles";
-import { createTileSurface, ui, withAlpha } from "./_utils/designSystem";
-import { useTheme, type ThemeColors } from "./_utils/themeContext";
+import { ScreenHeader } from "@/src/components/ScreenHeader";
+import { HOME_GOLD } from "@/src/styles";
+import { createTileSurface, ui, withAlpha } from "@/src/utils/designSystem";
+import { useTheme, type ThemeColors } from "@/src/utils/themeContext";
 
 type MoreRoute = {
   title: string;
@@ -30,7 +30,7 @@ const MORE_ROUTES: MoreRoute[] = [
   {
     title: "Player Card",
     meta: "Rank",
-    body: "Your DR path and badges.",
+    body: "Your rank and equipped awards.",
     href: "/(tabs)/stats",
     icon: "star.fill",
     tone: HOME_GOLD,
@@ -38,13 +38,13 @@ const MORE_ROUTES: MoreRoute[] = [
   {
     title: "Awards",
     meta: "Milestones",
-    body: "Earn and equip badges.",
+    body: "Milestones you earn and equip.",
     href: "/(tabs)/achievements",
     icon: "trophy.fill",
     tone: "#F472B6",
   },
   {
-    title: "How It Works",
+    title: "How it works",
     meta: "Guide",
     body: "Midnight rules in plain language.",
     href: "/(tabs)/guide",

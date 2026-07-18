@@ -5,9 +5,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { HOME_GOLD } from './_styles';
-import { withAlpha } from './_utils/designSystem';
-import { useTheme } from './_utils/themeContext';
+import { HOME_GOLD } from '@/src/styles';
+import { withAlpha } from '@/src/utils/designSystem';
+import { useTheme } from '@/src/utils/themeContext';
 
 export default function TabLayout() {
   const { colors } = useTheme();

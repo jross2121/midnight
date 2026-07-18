@@ -1,41 +1,47 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
+import { useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { CONTRACT_GOLD, HOME_GOLD } from "./_styles";
-import { DisciplineCalendar, type DisciplineCalendarDay } from "./_components/DisciplineCalendar";
-import { DisciplinePatterns } from "./_components/DisciplinePatterns";
-import { RankBadge } from "./_components/RankBadge";
-import { ScreenHeader } from "./_components/ScreenHeader";
-import { ScreenLoading } from "./_components/ScreenLoading";
-import { getMainCategoryDisplayEntries } from "./_utils/categoryLabels";
+import { CONTRACT_GOLD, HOME_GOLD } from "@/src/styles";
+import { DisciplineCalendar, type DisciplineCalendarDay } from "@/src/components/DisciplineCalendar";
+import { DisciplinePatterns } from "@/src/components/DisciplinePatterns";
+import { RankBadge } from "@/src/components/RankBadge";
+import { ScreenHeader } from "@/src/components/ScreenHeader";
+import { ScreenLoading } from "@/src/components/ScreenLoading";
+import { getMainCategoryDisplayEntries } from "@/src/utils/categoryLabels";
 import {
     defaultCategories,
     defaultDisciplineRating,
     defaultDrHistory,
     defaultQuests,
-} from "./_utils/defaultData";
-import { createCardSurface, createTileSurface, ui, withAlpha } from "./_utils/designSystem";
-import { formatDelta } from "./_utils/discipline";
-import { buildCoachResponse, COACH_PROMPTS, type CoachPromptId } from "./_utils/coach";
+} from "@/src/utils/defaultData";
+import { createCardSurface, createTileSurface, ui, withAlpha } from "@/src/utils/designSystem";
+import {
+  DAILY_STANDARD,
+  formatDelta,
+  getCompletionPercent,
+  getDailyScoringTarget,
+} from "@/src/utils/discipline";
+import { buildCoachResponse, COACH_PROMPTS, type CoachPromptId } from "@/src/utils/coach";
 import {
     buildCalendarFromHistory,
     getAverageCompletionRate,
-    getCurrentRankFromHistory,
     getLatestCategoriesFromHistory,
     getLatestHistoryEntries,
     getSevenDayDrChange,
     getTrendPointsFromHistory,
     sortEvaluationHistory,
-} from "./_utils/evaluationAnalytics";
-import { readEvaluationHistory, type DailyEvaluationHistoryItem } from "./_utils/evaluationHistory";
-import { localDateKey } from "./_utils/dateHelpers";
-import { getScheduledQuestsForDate } from "./_utils/recurrence";
-import { getRankFromDR, getRankMeta } from "./_utils/rank";
-import { useTheme } from "./_utils/themeContext";
-import type { Category, DrHistoryEntry, Quest, StoredState } from "./_utils/types";
-import { STORAGE_KEY } from "./_utils/types";
+} from "@/src/utils/evaluationAnalytics";
+import { readEvaluationHistory, type DailyEvaluationHistoryItem } from "@/src/utils/evaluationHistory";
+import { localDateKey } from "@/src/utils/dateHelpers";
+import { getScheduledQuestsForDate } from "@/src/utils/recurrence";
+import { getRankFromDR, getRankMeta } from "@/src/utils/rank";
+import { buildStreakSummary } from "@/src/utils/planning";
+import { useTheme } from "@/src/utils/themeContext";
+import type { Category, DrHistoryEntry, Quest, StoredState } from "@/src/utils/types";
+import { STORAGE_KEY } from "@/src/utils/types";
 
 const MAIN_CATEGORIES = getMainCategoryDisplayEntries();
 const INSIGHTS_UNLOCK_RANK = "Focused";
@@ -48,15 +54,15 @@ const INSIGHT_ROSE = "#FB7185";
 
 const LOCKED_INSIGHT_PREVIEWS = [
   {
-    title: "Pattern Readout",
+    title: "Pattern readout",
     body: "See what your recent judgments say about momentum, pressure, and next moves.",
   },
   {
-    title: "Weekly Review",
+    title: "Weekly review",
     body: "Compare finish rate, contract protection, and DR changes across your latest week.",
   },
   {
-    title: "Execution Balance",
+    title: "Execution balance",
     body: "Spot which life domains are carrying the run and which ones need attention.",
   },
 ];
@@ -157,6 +163,7 @@ function MiniTrendChart({
 }
 
 export default function InsightsScreen() {
+  const router = useRouter();
   const { colors } = useTheme();
   const styles = useMemo(() => createInsightsStyles(colors), [colors]);
   const [disciplineRating, setDisciplineRating] = useState<number>(defaultDisciplineRating);
@@ -215,6 +222,7 @@ export default function InsightsScreen() {
   const focusedMinDr = getRankMeta(INSIGHTS_UNLOCK_RANK).minDr;
   const peakRecordedDr = Math.max(
     disciplineRating,
+    ...drHistory.map((entry) => entry.dr),
     ...evaluationHistory.map((entry) => Math.max(entry.drBefore, entry.drAfter))
   );
   const insightsUnlocked = __DEV__ || peakRecordedDr >= focusedMinDr;
@@ -268,16 +276,32 @@ export default function InsightsScreen() {
     categoryFromHistory.weakestCategory ??
     categoryBreakdown[categoryBreakdown.length - 1]?.label ??
     "N/A";
-  const currentRank = getCurrentRankFromHistory(evaluationHistory) ?? getRankFromDR(disciplineRating);
-  const currentDrValue = latest7History[latest7History.length - 1]?.drAfter ?? disciplineRating;
+  const currentRank = getRankFromDR(disciplineRating);
+  const currentDrValue = disciplineRating;
   const completedToday = todaysQuests.filter((quest) => quest.done).length;
   const totalToday = todaysQuests.length;
-  const todayRate = totalToday > 0 ? Math.round((completedToday / totalToday) * 100) : 0;
+  const todayRate = getCompletionPercent(
+    completedToday,
+    getDailyScoringTarget(totalToday, DAILY_STANDARD)
+  );
   const bestCategory = categoryBreakdown[0];
   const riskCategory = categoryBreakdown[categoryBreakdown.length - 1];
   const latestEvaluation = latest7History[latest7History.length - 1] ?? null;
   const latestCompletion = latestEvaluation?.completionRate ?? todayRate;
   const recentJudgments = drHistory.slice(-8).reverse();
+  const streakSummary = buildStreakSummary(drHistory);
+  const bestCompletionPercent = Math.max(
+    todayRate,
+    ...evaluationHistory.map((entry) => entry.completionRate)
+  );
+  const bestRecordedDr = Math.max(
+    disciplineRating,
+    ...drHistory.map((entry) => entry.dr),
+    ...evaluationHistory.map((entry) => entry.drAfter)
+  );
+  const positiveJudgmentCount = drHistory.filter(
+    (entry) => !entry.recoveryDay && entry.delta > 0
+  ).length;
   const recoverySignal =
     latest7History.length >= 3
       ? latest7History
@@ -355,7 +379,7 @@ export default function InsightsScreen() {
       featured: true,
     },
     {
-      label: "Good At",
+      label: "Good at",
       title: strongestCategory,
       value: bestCategory ? `${bestCategory.completionPct}%` : "No data",
       body: bestCategory?.total
@@ -437,6 +461,67 @@ export default function InsightsScreen() {
       tone: trendLabelTone,
     },
   ];
+  const baselineStats = [
+    {
+      label: "Today",
+      value: `${todayRate}%`,
+      body: `${completedToday}/${totalToday} quests complete`,
+      tone: latestCompletionTone,
+    },
+    {
+      label: "Personal best",
+      value: `${bestCompletionPercent}%`,
+      body: hasHistory ? "Highest recorded day" : "Current best so far",
+      tone: INSIGHT_MINT,
+    },
+    {
+      label: "Best DR",
+      value: `${bestRecordedDr}`,
+      body: `${currentDrValue} current DR`,
+      tone: INSIGHTS_TONE,
+    },
+    {
+      label: "Solid streak",
+      value: `${streakSummary.solidDayStreak}`,
+      body: positiveJudgmentCount > 0 ? `${positiveJudgmentCount} positive judgments` : "60%+ builds the streak",
+      tone: INSIGHT_VIOLET,
+    },
+  ];
+  const baselinePanel = (
+    <View style={styles.baselinePanel}>
+      <View style={styles.baselineHeader}>
+        <View style={styles.dashboardTitleCopy}>
+          <Text style={styles.eyebrow}>Your baseline</Text>
+          <Text style={styles.dashboardTitle}>{currentRank} progress</Text>
+        </View>
+        <View style={styles.baselineDrPill}>
+          <Text style={styles.baselineDrValue}>{currentDrValue}</Text>
+          <Text style={styles.baselineDrLabel}>DR</Text>
+        </View>
+      </View>
+      <Text style={styles.dashboardBody}>
+        Progress tracks performance. Player Card shows your rank identity; Awards holds the milestones you earn.
+      </Text>
+      <View style={styles.baselineGrid}>
+        {baselineStats.map((item) => (
+          <View
+            key={item.label}
+            style={[
+              styles.baselineStat,
+              {
+                borderColor: withAlpha(item.tone, 0.24),
+                backgroundColor: withAlpha(item.tone, 0.055),
+              },
+            ]}
+          >
+            <Text style={[styles.baselineStatValue, { color: item.tone }]}>{item.value}</Text>
+            <Text style={styles.baselineStatLabel}>{item.label}</Text>
+            <Text style={styles.baselineStatBody}>{item.body}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
 
   if (!insightsUnlocked) {
     return (
@@ -444,10 +529,12 @@ export default function InsightsScreen() {
         <ScrollView contentContainerStyle={styles.container}>
           <ScreenHeader
             title="Progress"
-            subtitle="Unlocks when your Discipline Rating reaches Focused"
+            subtitle="Daily score, streaks, and personal bests"
             icon="chart.bar.fill"
             accent={INSIGHTS_UNLOCK_TONE}
           />
+
+          {baselinePanel}
 
           <View style={styles.lockedPanel}>
             <View style={styles.lockedTopRow}>
@@ -455,10 +542,10 @@ export default function InsightsScreen() {
                 <RankBadge rank={INSIGHTS_UNLOCK_RANK} size={44} color={INSIGHTS_UNLOCK_TONE} active />
               </View>
               <View style={styles.lockedCopy}>
-                <Text style={styles.eyebrow}>Rank Unlock</Text>
-                <Text style={styles.lockedTitle}>Reach Focused to open Progress</Text>
+                <Text style={styles.eyebrow}>Advanced patterns</Text>
+                <Text style={styles.lockedTitle}>Reach Focused for deeper analysis</Text>
                 <Text style={styles.lockedBody}>
-                  Midnight needs enough judgments before it can read your patterns clearly.
+                  Midnight needs enough judgments before it can interpret trends and recommend adjustments reliably.
                 </Text>
               </View>
             </View>
@@ -478,6 +565,16 @@ export default function InsightsScreen() {
                 </Text>
               </View>
             </View>
+            <Pressable
+              onPress={() => router.replace("/(tabs)")}
+              accessibilityRole="button"
+              accessibilityLabel="Open Today to build Discipline Rating"
+              style={({ pressed }) => [styles.lockedAction, pressed && { opacity: 0.76 }]}
+            >
+              <Text style={styles.lockedActionText}>
+                {drHistory.length === 0 ? "Complete your first day" : "Continue Today"}
+              </Text>
+            </Pressable>
           </View>
 
           <View style={styles.lockedPreviewGrid}>
@@ -503,6 +600,8 @@ export default function InsightsScreen() {
           icon="chart.bar.fill"
           accent={INSIGHTS_TONE}
         />
+
+        {baselinePanel}
 
         <View style={styles.modeSwitch} accessibilityRole="tablist">
           {INSIGHT_MODES.map((mode) => {
@@ -857,7 +956,7 @@ export default function InsightsScreen() {
           <View style={styles.cardHeaderRow}>
             <View>
               <Text style={styles.eyebrow}>30-day view</Text>
-              <Text style={styles.cardTitle}>Discipline Calendar</Text>
+              <Text style={styles.cardTitle}>Discipline calendar</Text>
             </View>
             <Text style={styles.mutedMeta}>30 days</Text>
           </View>
@@ -954,6 +1053,75 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       ...heroSurface,
       gap: ui.spacing.sm,
       borderColor: withAlpha(INSIGHTS_TONE, 0.24),
+    },
+    baselinePanel: {
+      ...cardSurface,
+      gap: ui.spacing.sm,
+      borderColor: withAlpha(INSIGHTS_TONE, 0.24),
+      backgroundColor: withAlpha(colors.surface2, 0.78),
+    },
+    baselineHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: ui.spacing.sm,
+    },
+    baselineDrPill: {
+      minWidth: 68,
+      minHeight: 48,
+      borderRadius: ui.radius.md,
+      borderWidth: 1,
+      borderColor: withAlpha(INSIGHTS_TONE, 0.3),
+      backgroundColor: withAlpha(INSIGHTS_TONE, 0.09),
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 10,
+    },
+    baselineDrValue: {
+      color: INSIGHTS_TONE,
+      fontSize: 20,
+      lineHeight: 23,
+      fontWeight: "900",
+    },
+    baselineDrLabel: {
+      color: colors.textSecondary,
+      fontSize: 9,
+      lineHeight: 12,
+      fontWeight: "900",
+      textTransform: "uppercase",
+    },
+    baselineGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent: "space-between",
+      rowGap: ui.spacing.xs,
+    },
+    baselineStat: {
+      ...tileSurface,
+      width: "48%",
+      minHeight: 104,
+      paddingHorizontal: ui.spacing.sm,
+      paddingVertical: ui.spacing.xs,
+      gap: 3,
+    },
+    baselineStatValue: {
+      fontSize: 20,
+      lineHeight: 24,
+      fontWeight: "900",
+    },
+    baselineStatLabel: {
+      color: colors.textPrimary,
+      fontSize: 11,
+      lineHeight: 15,
+      fontWeight: "900",
+      textTransform: "uppercase",
+    },
+    baselineStatBody: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      lineHeight: 15,
+      fontWeight: "700",
+      marginTop: "auto",
     },
     dashboardHeader: {
       flexDirection: "column",
@@ -1258,6 +1426,20 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       fontWeight: "900",
       letterSpacing: 0,
       textTransform: "uppercase",
+    },
+    lockedAction: {
+      minHeight: 46,
+      borderRadius: ui.radius.button,
+      backgroundColor: INSIGHTS_UNLOCK_TONE,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: ui.spacing.md,
+    },
+    lockedActionText: {
+      color: colors.bg,
+      fontSize: 12,
+      lineHeight: 16,
+      fontWeight: "900",
     },
     lockedPreviewGrid: {
       gap: ui.spacing.xs,

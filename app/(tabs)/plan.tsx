@@ -5,34 +5,37 @@ import React, { useCallback, useMemo, useRef, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { EditQuestForm } from "./_components/EditQuestForm";
-import { ScreenHeader } from "./_components/ScreenHeader";
-import { ScreenLoading } from "./_components/ScreenLoading";
-import { CONTRACT_GOLD } from "./_styles";
-import { getCategoryDisplayNameById } from "./_utils/categoryLabels";
-import { localDateKey, parseDateKey } from "./_utils/dateHelpers";
-import { withAlpha } from "./_utils/designSystem";
-import { DAILY_STANDARD, getDailyScoringTarget } from "./_utils/discipline";
-import { questTemplates } from "./_utils/defaultData";
-import { getQuestXpForDifficulty } from "./_utils/questXp";
+import { EditQuestForm } from "@/src/components/EditQuestForm";
+import { ScreenHeader } from "@/src/components/ScreenHeader";
+import { ScreenLoading } from "@/src/components/ScreenLoading";
+import { CONTRACT_GOLD } from "@/src/styles";
+import { getCategoryDisplayNameById } from "@/src/utils/categoryLabels";
+import { useReducedMotion } from "@/src/utils/accessibility";
+import { localDateKey, parseDateKey } from "@/src/utils/dateHelpers";
+import { getContractConfirmationCopy } from "@/src/utils/contracts";
+import { withAlpha } from "@/src/utils/designSystem";
+import { DAILY_STANDARD, getDailyScoringTarget } from "@/src/utils/discipline";
+import { questTemplates } from "@/src/utils/defaultData";
+import { getQuestXpForDifficulty } from "@/src/utils/questXp";
+import { getRecoveryDayStatus, setRecoveryDayArmed } from "@/src/utils/recoveryDays";
 import {
   findDailyQuestLimitConflict,
   formatQuestLimitDate,
   getUpcomingDateKeys,
   MAX_ACTIVE_QUESTS_PER_DAY,
   type QuestLimitConflict,
-} from "./_utils/questLimits";
+} from "@/src/utils/questLimits";
 import {
   getQuestRepeatLabel,
   getScheduledQuestsForDate,
   getTodayWeekday,
   normalizeQuestRepeat,
   normalizeScheduledWeekday,
-} from "./_utils/recurrence";
-import { buildStoredStateFromImport } from "./_utils/storageImport";
-import { readStoredState, updateStoredState as persistStoredStateUpdate } from "./_utils/storedState";
-import { useTheme, type ThemeColors } from "./_utils/themeContext";
-import { type Quest, type QuestRepeat, type QuestTemplate, type StoredState } from "./_utils/types";
+} from "@/src/utils/recurrence";
+import { buildStoredStateFromImport } from "@/src/utils/storageImport";
+import { readStoredState, updateStoredState as persistStoredStateUpdate } from "@/src/utils/storedState";
+import { useTheme, type ThemeColors } from "@/src/utils/themeContext";
+import { type Quest, type QuestRepeat, type QuestTemplate, type StoredState } from "@/src/utils/types";
 
 type WeekPlanDay = {
   dateKey: string;
@@ -215,9 +218,9 @@ function buildTodayBrief({
 }): TodayBrief {
   if (todaysQuestCount === 0) {
     return {
-      eyebrow: "Empty Board",
+      eyebrow: "Empty board",
       title: "Build today's run",
-      body: "Add one starter and choose one contract before midnight.",
+      body: "Choose two small starters. Add a contract later only if something truly cannot slip.",
       tone: PLAN_TONES.warning,
       icon: "plus",
     };
@@ -225,7 +228,7 @@ function buildTodayBrief({
 
   if (exposedContractCount > 0) {
     return {
-      eyebrow: "Contract Pressure",
+      eyebrow: "Contract pressure",
       title: `${pluralize(exposedContractCount, "contract")} exposed`,
       body: "Contracts decide the floor. Clear those before bonus work.",
       tone: PLAN_TONES.contract,
@@ -235,7 +238,7 @@ function buildTodayBrief({
 
   if (remainingForStandard > 0) {
     return {
-      eyebrow: "Daily Standard",
+      eyebrow: "Daily standard",
       title: `${pluralize(remainingForStandard, "quest")} to stabilize`,
       body: "Keep the board narrow and finish the smallest useful item next.",
       tone: PLAN_TONES.slate,
@@ -245,7 +248,7 @@ function buildTodayBrief({
 
   if (availableContractSlots > 0) {
     return {
-      eyebrow: "Stable Board",
+      eyebrow: "Stable board",
       title: "Daily standard covered",
       body: "The plan is safe. Add pressure only if the contract is real.",
       tone: PLAN_TONES.slate,
@@ -254,7 +257,7 @@ function buildTodayBrief({
   }
 
   return {
-    eyebrow: "Locked In",
+    eyebrow: "Locked in",
     title: "Contracts and standard covered",
     body: "Hold this shape. Extra quests are optional XP, not pressure.",
     tone: PLAN_TONES.contract,
@@ -688,6 +691,7 @@ function ContractDecisionRow({
 
 export default function PlanScreen() {
   const { colors } = useTheme();
+  const reducedMotion = useReducedMotion();
   const styles = useMemo(() => createPlanStyles(colors), [colors]);
   const [state, setState] = useState<StoredState>(() => buildEmptyState());
   const [hydrated, setHydrated] = useState(false);
@@ -718,10 +722,16 @@ export default function PlanScreen() {
       .then(setState)
       .catch((error) => {
         if (__DEV__) console.warn("Failed to save plan state:", error);
+        Alert.alert(
+          "Plan update failed",
+          "That change was not saved. Check available device storage, then try again."
+        );
+        void loadPlanState();
       });
-  }, []);
+  }, [loadPlanState]);
 
   const today = localDateKey();
+  const recoveryStatus = getRecoveryDayStatus(state.recoveryDays ?? [], today);
   const questLimitDateKeys = useMemo(() => getUpcomingDateKeys(today), [today]);
 
   const weekPlan = useMemo<WeekPlanDay[]>(
@@ -873,7 +883,7 @@ export default function PlanScreen() {
     [questLimitDateKeys, updateStoredState]
   );
 
-  const toggleQuestContract = useCallback(
+  const applyQuestContractToggle = useCallback(
     (questId: string) => {
       updateStoredState((current) => {
         const target = current.quests.find((quest) => quest.id === questId);
@@ -905,8 +915,37 @@ export default function PlanScreen() {
     [updateStoredState]
   );
 
+  const toggleQuestContract = useCallback(
+    (questId: string) => {
+      const target = state.quests.find((quest) => quest.id === questId);
+      if (!target) return;
+      if (target.contract) {
+        applyQuestContractToggle(questId);
+        return;
+      }
+      if (target.paused) {
+        Alert.alert("Resume first", "Resting quests can become contracts after they return to the active plan.");
+        return;
+      }
+      if (contractCount >= 3) {
+        Alert.alert("Contract limit reached", "Keep the active contract list to three contracts.");
+        return;
+      }
+
+      Alert.alert(
+        "Protect as a contract?",
+        getContractConfirmationCopy(target.title),
+        [
+          { text: "Not now", style: "cancel" },
+          { text: "Protect quest", onPress: () => applyQuestContractToggle(questId) },
+        ]
+      );
+    },
+    [applyQuestContractToggle, contractCount, state.quests]
+  );
+
   const addQuestFromTemplate = useCallback(
-    (templateId: string) => {
+    (templateId: string, protectAsContract = false) => {
       const template = questTemplates.find((item) => item.id === templateId);
       if (!template) return;
 
@@ -917,7 +956,7 @@ export default function PlanScreen() {
         }
 
         const activeContracts = current.quests.filter((quest) => quest.contract && !quest.paused).length;
-        const shouldContract = Boolean(template.contract) && activeContracts < 3;
+        const shouldContract = protectAsContract && activeContracts < 3;
         const repeat = normalizeQuestRepeat(template.repeat);
         const nextQuest: Quest = {
           id: `q${Date.now()}-${template.id}`,
@@ -957,6 +996,71 @@ export default function PlanScreen() {
     [questLimitDateKeys, updateStoredState]
   );
 
+  const requestAddQuestFromTemplate = useCallback(
+    (templateId: string) => {
+      const template = questTemplates.find((item) => item.id === templateId);
+      if (!template) return;
+      if (!template.contract) {
+        addQuestFromTemplate(templateId);
+        return;
+      }
+
+      Alert.alert(
+        "Add this starter",
+        `${getContractConfirmationCopy(template.title)} You can also add it as a regular quest.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Add regular", onPress: () => addQuestFromTemplate(templateId) },
+          {
+            text: "Protect quest",
+            onPress: () => {
+              if (contractCount >= 3) {
+                Alert.alert("Contract limit reached", "Add it as a regular quest or remove another contract first.");
+                return;
+              }
+              addQuestFromTemplate(templateId, true);
+            },
+          },
+        ]
+      );
+    },
+    [addQuestFromTemplate, contractCount]
+  );
+
+  const applyRecoveryDayToggle = useCallback(
+    (armed: boolean) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      updateStoredState((current) => ({
+        ...current,
+        recoveryDays: setRecoveryDayArmed(current.recoveryDays ?? [], today, armed),
+      }));
+    },
+    [today, updateStoredState]
+  );
+
+  const toggleRecoveryDay = useCallback(() => {
+    if (recoveryStatus.armed) {
+      applyRecoveryDayToggle(false);
+      return;
+    }
+    if (!recoveryStatus.available) {
+      Alert.alert(
+        "Recovery Day unavailable",
+        `Your next Recovery Day is available ${formatDateLabel(recoveryStatus.nextAvailableDate ?? today)}.`
+      );
+      return;
+    }
+
+    Alert.alert(
+      "Arm Recovery Day?",
+      "Tonight will freeze DR and both streaks. Quests still award XP, but the day will not improve rank or unlock awards. You can cancel before midnight.",
+      [
+        { text: "Not now", style: "cancel" },
+        { text: "Arm Recovery Day", onPress: () => applyRecoveryDayToggle(true) },
+      ]
+    );
+  }, [applyRecoveryDayToggle, recoveryStatus, today]);
+
   const editQuest = useCallback(
     (
       questId: string,
@@ -982,6 +1086,7 @@ export default function PlanScreen() {
                 safeRepeat === "weekly"
                   ? normalizeScheduledWeekday(scheduledWeekday, getTodayWeekday())
                   : undefined,
+              scheduledDate: safeRepeat === "once" ? quest.scheduledDate : undefined,
             }
           : quest
       );
@@ -1008,6 +1113,7 @@ export default function PlanScreen() {
                   safeRepeat === "weekly"
                     ? normalizeScheduledWeekday(scheduledWeekday, getTodayWeekday())
                     : undefined,
+                scheduledDate: safeRepeat === "once" ? quest.scheduledDate : undefined,
               }
             : quest
         ),
@@ -1057,7 +1163,7 @@ export default function PlanScreen() {
         {planView === "today" ? (
           <>
             <View style={styles.section}>
-              <PlanSectionHeader eyebrow="Today" title="Your Standard" meta={`${todayCompletionPercent}%`} styles={styles} />
+              <PlanSectionHeader eyebrow="Today" title="Your standard" meta={`${todayCompletionPercent}%`} styles={styles} />
               <View style={[styles.heroCard, { borderColor: withAlpha(todayBrief.tone, 0.36) }]}>
                 <View style={styles.heroHeaderRow}>
                   <View style={styles.heroCopy}>
@@ -1093,7 +1199,63 @@ export default function PlanScreen() {
             </View>
 
             <View style={styles.section}>
-              <PlanSectionHeader eyebrow="Scheduled" title="Today&apos;s Board" meta={`${todaysQuests.length}/${MAX_ACTIVE_QUESTS_PER_DAY} quests`} styles={styles} />
+              <PlanSectionHeader
+                eyebrow="Optional reset"
+                title="Recovery Day"
+                meta={recoveryStatus.armed ? "armed" : recoveryStatus.available ? "available" : "cooldown"}
+                styles={styles}
+              />
+              <View
+                style={[
+                  styles.recoveryCard,
+                  recoveryStatus.armed && styles.recoveryCardArmed,
+                ]}
+              >
+                <View style={styles.recoveryTopRow}>
+                  <View style={styles.recoveryIcon}>
+                    <IconSymbol
+                      name={recoveryStatus.armed ? "shield.fill" : "moon.fill"}
+                      size={19}
+                      color={recoveryStatus.armed ? PLAN_TONES.gold : PLAN_TONES.slate}
+                    />
+                  </View>
+                  <View style={styles.recoveryCopy}>
+                    <Text style={styles.recoveryTitle}>
+                      {recoveryStatus.armed
+                        ? "Tonight is protected"
+                        : recoveryStatus.available
+                          ? "Freeze the score, not the habit"
+                          : `Available ${formatDateLabel(recoveryStatus.nextAvailableDate ?? today)}`}
+                    </Text>
+                    <Text style={styles.recoveryBody}>
+                      {recoveryStatus.armed
+                        ? "DR and streaks will hold at midnight. This day cannot advance streaks or rank or unlock awards."
+                        : "Use at most once every 7 days. Quest XP still counts; DR and streaks stay exactly where they are."}
+                    </Text>
+                  </View>
+                </View>
+                <Pressable
+                  onPress={toggleRecoveryDay}
+                  disabled={!recoveryStatus.available && !recoveryStatus.armed}
+                  accessibilityRole="button"
+                  accessibilityLabel={recoveryStatus.armed ? "Cancel Recovery Day" : "Arm Recovery Day"}
+                  accessibilityState={{ disabled: !recoveryStatus.available && !recoveryStatus.armed }}
+                  style={({ pressed }) => [
+                    styles.recoveryButton,
+                    recoveryStatus.armed && styles.recoveryButtonArmed,
+                    !recoveryStatus.available && !recoveryStatus.armed && styles.recoveryButtonDisabled,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text style={styles.recoveryButtonText}>
+                    {recoveryStatus.armed ? "Cancel protection" : "Use Recovery Day"}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={styles.section}>
+              <PlanSectionHeader eyebrow="Scheduled" title="Today&apos;s board" meta={`${todaysQuests.length}/${MAX_ACTIVE_QUESTS_PER_DAY} quests`} styles={styles} />
               <View style={styles.questList}>
                 {todaysQuests.map((quest) => (
                   <QuestLibraryRow key={`today-${quest.id}`} quest={quest} colors={colors} styles={styles} onEdit={setEditingQuestId} onTogglePause={toggleQuestPause} onToggleContract={toggleQuestContract} />
@@ -1119,7 +1281,7 @@ export default function PlanScreen() {
 
             <View style={styles.section}>
               <PlanSectionHeader eyebrow="Optional pressure" title="Contracts" meta={`${availableContractSlots} open`} styles={styles} />
-              <Text style={styles.sectionIntro}>Use contracts for up to three quests that truly cannot slip. They build a separate protection streak.</Text>
+              <Text style={styles.sectionIntro}>Optional: protect up to three true must-do quests. Contracts build a separate streak and label a miss clearly; they do not add another DR penalty.</Text>
               <View style={styles.contractSlotGrid}>
                 {Array.from({ length: 3 }, (_, index) => {
                   const quest = contractQuests[index];
@@ -1172,7 +1334,18 @@ export default function PlanScreen() {
                 {selectedDayQuests.length === 0 ? (
                   <View style={styles.emptyCard}>
                     <Text style={styles.emptyTitle}>Nothing scheduled</Text>
-                    <Text style={styles.emptyLine}>Recurring quests for this day will appear here automatically.</Text>
+                    <Text style={styles.emptyLine}>Recurring quests for this day will appear here automatically. Add a starter if you want this day to have a clear action.</Text>
+                    <Pressable
+                      style={styles.emptyAction}
+                      onPress={() => {
+                        setPlanView("library");
+                        requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 0, animated: true }));
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Browse starter quests"
+                    >
+                      <Text style={styles.emptyActionText}>Browse starters</Text>
+                    </Pressable>
                   </View>
                 ) : null}
               </View>
@@ -1184,13 +1357,13 @@ export default function PlanScreen() {
           <>
             {recommendedTemplates.length > 0 ? (
               <View style={styles.section}>
-                <PlanSectionHeader eyebrow="Start here" title="Quick Add" meta="recommended" styles={styles} />
+                <PlanSectionHeader eyebrow="Start here" title="Quick add" meta="recommended" styles={styles} />
                 <Text style={styles.sectionIntro}>Tap a starter to add it immediately. You can edit its schedule and difficulty afterward.</Text>
                 <View style={styles.templateGrid}>
                   {recommendedTemplates.map(({ template, label }) => {
                     const tone = getQuestTone(template);
                     return (
-                      <Pressable key={template.id} onPress={() => addQuestFromTemplate(template.id)} accessibilityRole="button" accessibilityLabel={`Add ${template.title}`} style={({ pressed }) => [styles.templateCard, { borderColor: withAlpha(tone, 0.28), backgroundColor: withAlpha(tone, 0.04) }, pressed && styles.pressed]}>
+                      <Pressable key={template.id} onPress={() => requestAddQuestFromTemplate(template.id)} accessibilityRole="button" accessibilityLabel={`Add ${template.title}`} style={({ pressed }) => [styles.templateCard, { borderColor: withAlpha(tone, 0.28), backgroundColor: withAlpha(tone, 0.04) }, pressed && styles.pressed]}>
                         <View style={styles.templateTopRow}>
                           <PlanSignalBadge icon={getQuestIcon(template)} tone={tone} size="small" />
                           <View style={styles.templateCopy}>
@@ -1209,7 +1382,7 @@ export default function PlanScreen() {
             ) : null}
 
             <View style={styles.section}>
-              <PlanSectionHeader eyebrow="All quests" title="Your Library" meta={`${libraryQuestCount} total`} styles={styles} />
+              <PlanSectionHeader eyebrow="All quests" title="Your library" meta={`${libraryQuestCount} total`} styles={styles} />
               <Text style={styles.sectionIntro}>Edit schedules here, pause quests you do not need, or choose contracts.</Text>
               <View style={styles.questList}>
                 {activeQuests.map((quest) => (
@@ -1236,6 +1409,7 @@ export default function PlanScreen() {
           categories={state.categories}
           onSave={editQuest}
           onCancel={() => setEditingQuestId(null)}
+          reducedMotion={reducedMotion}
         />
       ) : null}
     </SafeAreaView>
@@ -1455,6 +1629,73 @@ function createPlanStyles(colors: ThemeColors) {
       fontWeight: "900",
       marginTop: 2,
       textTransform: "uppercase",
+    },
+    recoveryCard: {
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: withAlpha(PLAN_TONES.slate, 0.28),
+      backgroundColor: withAlpha(PLAN_TONES.slate, 0.05),
+      padding: 13,
+      gap: 12,
+    },
+    recoveryCardArmed: {
+      borderColor: withAlpha(PLAN_TONES.gold, 0.42),
+      backgroundColor: withAlpha(PLAN_TONES.gold, 0.08),
+    },
+    recoveryTopRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 11,
+    },
+    recoveryIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: withAlpha(PLAN_TONES.slate, 0.3),
+      backgroundColor: withAlpha(colors.bg, 0.3),
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    recoveryCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+    recoveryTitle: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      lineHeight: 19,
+      fontWeight: "900",
+    },
+    recoveryBody: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      lineHeight: 17,
+      fontWeight: "700",
+      marginTop: 3,
+    },
+    recoveryButton: {
+      minHeight: 44,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: withAlpha(PLAN_TONES.slate, 0.34),
+      backgroundColor: withAlpha(PLAN_TONES.slate, 0.1),
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 14,
+    },
+    recoveryButtonArmed: {
+      borderColor: withAlpha(PLAN_TONES.gold, 0.38),
+      backgroundColor: withAlpha(PLAN_TONES.gold, 0.12),
+    },
+    recoveryButtonDisabled: {
+      opacity: 0.46,
+    },
+    recoveryButtonText: {
+      color: colors.textPrimary,
+      fontSize: 12,
+      lineHeight: 16,
+      fontWeight: "900",
     },
     section: {
       gap: 10,

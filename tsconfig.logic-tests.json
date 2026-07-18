@@ -11,11 +11,18 @@
     "noEmitOnError": true
   },
   "include": [
-    "app/(tabs)/_utils/dateHelpers.ts",
-    "app/(tabs)/_utils/discipline.ts",
-    "app/(tabs)/_utils/midnightEvaluation.ts",
-    "app/(tabs)/_utils/midnightStateTransition.ts",
-    "app/(tabs)/_utils/questCompletion.ts",
-    "app/(tabs)/_utils/recurrence.ts"
+    "src/utils/dateHelpers.ts",
+    "src/utils/discipline.ts",
+    "src/utils/midnightEvaluation.ts",
+    "src/utils/midnightStateTransition.ts",
+    "src/utils/questCompletion.ts",
+    "src/utils/recurrence.ts",
+    "src/utils/onboarding.ts",
+    "src/utils/contracts.ts",
+    "src/utils/questActions.ts",
+    "src/utils/reflections.ts",
+    "src/utils/recoveryDays.ts",
+    "src/utils/planning.ts",
+    "src/utils/reminderLogic.ts"
   ]
 }

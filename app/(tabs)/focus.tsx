@@ -6,24 +6,27 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Alert, AppState, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ScreenHeader } from "./_components/ScreenHeader";
-import { ScreenLoading } from "./_components/ScreenLoading";
-import { CONTRACT_GOLD, HOME_GOLD } from "./_styles";
-import { getCategoryDisplayName } from "./_utils/categoryLabels";
-import { localDateKey } from "./_utils/dateHelpers";
+import { ScreenHeader } from "@/src/components/ScreenHeader";
+import { ScreenLoading } from "@/src/components/ScreenLoading";
+import { CONTRACT_GOLD, HOME_GOLD } from "@/src/styles";
+import { getCategoryDisplayName } from "@/src/utils/categoryLabels";
+import { localDateKey } from "@/src/utils/dateHelpers";
 import {
   defaultCategories,
   defaultQuests,
-} from "./_utils/defaultData";
-import { createCardSurface, createTileSurface, ui, withAlpha } from "./_utils/designSystem";
-import { completeQuestInStoredState } from "./_utils/questCompletion";
-import { getQuestRepeatLabel, getScheduledQuestsForDate } from "./_utils/recurrence";
-import { readStoredState, updateStoredState } from "./_utils/storedState";
-import { useTheme, type ThemeColors } from "./_utils/themeContext";
+} from "@/src/utils/defaultData";
+import { createCardSurface, createTileSurface, ui, withAlpha } from "@/src/utils/designSystem";
+import {
+  completeQuestInStoredState,
+  uncompleteQuestInStoredState,
+} from "@/src/utils/questCompletion";
+import { getQuestRepeatLabel, getScheduledQuestsForDate } from "@/src/utils/recurrence";
+import { readStoredState, updateStoredState } from "@/src/utils/storedState";
+import { useTheme, type ThemeColors } from "@/src/utils/themeContext";
 import {
   type Category,
   type Quest,
-} from "./_utils/types";
+} from "@/src/utils/types";
 
 const FOCUS_DURATION_OPTIONS = [
   { label: "5m", seconds: 5 * 60 },
@@ -61,6 +64,13 @@ export default function FocusScreen() {
   const [running, setRunning] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [undoQuest, setUndoQuest] = useState<{
+    id: string;
+    title: string;
+    xp: number;
+    category: string;
+    awardName?: string;
+  } | null>(null);
   const deadlineRef = useRef<number | null>(null);
   const navigateBack = () => {
     if (router.canGoBack()) router.back();
@@ -159,6 +169,12 @@ export default function FocusScreen() {
     }
   }, [remainingSeconds, running]);
 
+  useEffect(() => {
+    if (!undoQuest) return;
+    const timeout = setTimeout(() => setUndoQuest(null), 6000);
+    return () => clearTimeout(timeout);
+  }, [undoQuest]);
+
   const selectQuest = (questId: string) => {
     if (running) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -204,9 +220,14 @@ export default function FocusScreen() {
     setIsCompleting(true);
     try {
       let completed = false;
+      let unlockedAwardName: string | undefined;
       const nextState = await updateStoredState((current) => {
         const result = completeQuestInStoredState(current, selectedQuest.id, localDateKey());
         completed = result.completed;
+        unlockedAwardName = result.state.achievements.find((award) => {
+          const previous = current.achievements.find((item) => item.id === award.id);
+          return Boolean(award.unlockedAt && !previous?.unlockedAt);
+        })?.name;
         return result.state;
       });
 
@@ -223,12 +244,48 @@ export default function FocusScreen() {
       setQuests(nextState.quests);
       setCategories(nextState.categories);
       setSelectedQuestId(nextActiveQuests[0]?.id ?? null);
+      setUndoQuest({
+        id: selectedQuest.id,
+        title: selectedQuest.title,
+        xp: selectedQuest.xp,
+        category: categoryName(selectedQuest.categoryId),
+        awardName: unlockedAwardName,
+      });
       deadlineRef.current = null;
       setRunning(false);
       setRemainingSeconds(durationSeconds);
     } catch (error) {
       if (__DEV__) console.warn("Failed to complete focused quest:", error);
       Alert.alert("Quest update failed", "Could not complete that quest from Focus Sprint.");
+    } finally {
+      setIsCompleting(false);
+    }
+  };
+
+  const undoFocusedQuestCompletion = async () => {
+    if (!undoQuest || isCompleting) return;
+    setIsCompleting(true);
+    try {
+      let rewardsReversed = false;
+      const nextState = await updateStoredState((current) => {
+        const result = uncompleteQuestInStoredState(current, undoQuest.id, localDateKey());
+        rewardsReversed = result.rewardsReversed;
+        return result.state;
+      });
+      setQuests(nextState.quests);
+      setCategories(nextState.categories);
+      setSelectedQuestId(undoQuest.id);
+      setUndoQuest(null);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      if (!rewardsReversed) {
+        Alert.alert(
+          "Quest reopened",
+          "This completion came from an older app version, so Midnight reopened it without changing historical XP."
+        );
+      }
+    } catch (error) {
+      if (__DEV__) console.warn("Failed to undo focused quest completion:", error);
+      Alert.alert("Undo failed", "Could not reopen that quest.");
     } finally {
       setIsCompleting(false);
     }
@@ -251,7 +308,7 @@ export default function FocusScreen() {
 
         <View style={styles.timerPanel}>
           <View style={styles.timerTopRow}>
-            <Text style={styles.eyebrow}>Current Sprint</Text>
+            <Text style={styles.eyebrow}>Current sprint</Text>
             <View
               style={[
                 styles.statusPill,
@@ -361,14 +418,14 @@ export default function FocusScreen() {
             ]}
           >
             <Text style={[styles.secondaryButtonText, focusComplete && styles.completeButtonText]}>
-              {isCompleting ? "Saving..." : "Complete"}
+              {isCompleting ? "Saving…" : "Complete"}
             </Text>
           </Pressable>
         </View>
 
         <View style={styles.taskList}>
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Task Deck</Text>
+            <Text style={styles.sectionTitle}>Task deck</Text>
             <Text style={styles.sectionMeta}>{activeQuests.length}</Text>
           </View>
           {activeQuests.length === 0 ? (
@@ -379,16 +436,14 @@ export default function FocusScreen() {
                   ? "Add a quest from Today before starting a Focus Sprint."
                   : "No active tasks remain for today."}
               </Text>
-              {quests.length === 0 ? (
-                <Pressable
-                  style={styles.emptyAction}
-                  onPress={() => router.replace("/(tabs)")}
-                  accessibilityRole="button"
-                  accessibilityLabel="Open Today to add a quest"
-                >
-                  <Text style={styles.emptyActionText}>Open Today</Text>
-                </Pressable>
-              ) : null}
+              <Pressable
+                style={styles.emptyAction}
+                onPress={() => router.replace("/(tabs)")}
+                accessibilityRole="button"
+                accessibilityLabel={quests.length === 0 ? "Open Today to add a quest" : "Open Today to review the completed board"}
+              >
+                <Text style={styles.emptyActionText}>{quests.length === 0 ? "Add a quest" : "Review Today"}</Text>
+              </Pressable>
             </View>
           ) : (
             activeQuests.map((quest) => {
@@ -445,6 +500,37 @@ export default function FocusScreen() {
           )}
         </View>
       </ScrollView>
+      {undoQuest ? (
+        <View
+          style={styles.undoBanner}
+          accessibilityRole="alert"
+          accessibilityLiveRegion="assertive"
+          accessibilityLabel={
+            undoQuest.awardName
+              ? `${undoQuest.title} completed for ${undoQuest.xp} XP. Award unlocked: ${undoQuest.awardName}. Undo available.`
+              : `${undoQuest.title} completed for ${undoQuest.xp} XP. Undo available.`
+          }
+        >
+          <View style={styles.undoCopy}>
+            <Text style={styles.undoTitle} numberOfLines={1}>
+              {undoQuest.awardName ? `Award unlocked: ${undoQuest.awardName}` : `Quest completed: +${undoQuest.xp} XP`}
+            </Text>
+            <Text style={styles.undoText} numberOfLines={1}>
+              {undoQuest.awardName
+                ? `+${undoQuest.xp} XP / ${undoQuest.category} / ${undoQuest.title}`
+                : `${undoQuest.category} / ${undoQuest.title}`}
+            </Text>
+          </View>
+          <Pressable
+            onPress={undoFocusedQuestCompletion}
+            accessibilityRole="button"
+            accessibilityLabel={`Undo completion of ${undoQuest.title}`}
+            style={({ pressed }) => [styles.undoButton, pressed && { opacity: 0.78 }]}
+          >
+            <Text style={styles.undoButtonText}>Undo</Text>
+          </Pressable>
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -475,6 +561,37 @@ function createFocusStyles(colors: ThemeColors) {
       paddingBottom: ui.spacing.lg,
       gap: ui.spacing.sm,
     },
+    undoBanner: {
+      position: "absolute",
+      left: 16,
+      right: 16,
+      bottom: 12,
+      minHeight: 64,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      paddingVertical: 10,
+      paddingLeft: 14,
+      paddingRight: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: withAlpha(HOME_GOLD, 0.48),
+      backgroundColor: colors.surface,
+      elevation: 8,
+    },
+    undoCopy: { flex: 1, minWidth: 0 },
+    undoTitle: { color: colors.textPrimary, fontSize: 13, lineHeight: 18, fontWeight: "900" },
+    undoText: { color: colors.textSecondary, fontSize: 12, lineHeight: 17, fontWeight: "700" },
+    undoButton: {
+      minWidth: 62,
+      minHeight: 44,
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: 9,
+      backgroundColor: HOME_GOLD,
+      paddingHorizontal: 14,
+    },
+    undoButtonText: { color: colors.bg, fontSize: 12, fontWeight: "900" },
     timerPanel: {
       ...cardSurface,
       borderColor: withAlpha(HOME_GOLD, 0.28),

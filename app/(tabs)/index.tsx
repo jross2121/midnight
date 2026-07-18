@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
+import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
@@ -12,21 +13,24 @@ import {
   Pressable,
   ScrollView,
   Text,
+  TextInput,
   UIManager,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Circle, Svg } from "react-native-svg";
 
-import { AddQuestForm } from "./_components/AddQuestForm";
-import { EditQuestForm } from "./_components/EditQuestForm";
-import { MidnightEvaluationModal } from "./_components/MidnightEvaluationModal";
-import { QuestCard } from "./_components/QuestCard";
-import { CONTRACT_GOLD, HOME_GOLD, createStyles } from "./_styles";
-import { mergeAchievements } from "./_utils/achievements";
-import { getCategoryDisplayName } from "./_utils/categoryLabels";
-import { diffDays, localDateKey, parseDateKey } from "./_utils/dateHelpers";
-import { withAlpha } from "./_utils/designSystem";
+import { AddQuestForm } from "@/src/components/AddQuestForm";
+import { EditQuestForm } from "@/src/components/EditQuestForm";
+import { MidnightEvaluationModal } from "@/src/components/MidnightEvaluationModal";
+import { QuestCard } from "@/src/components/QuestCard";
+import { CONTRACT_GOLD, HOME_GOLD, createStyles } from "@/src/styles";
+import { mergeAchievements } from "@/src/utils/achievements";
+import { useReducedMotion } from "@/src/utils/accessibility";
+import { getCategoryDisplayName } from "@/src/utils/categoryLabels";
+import { diffDays, localDateKey, offsetDateKey, parseDateKey } from "@/src/utils/dateHelpers";
+import { getContractConfirmationCopy } from "@/src/utils/contracts";
+import { withAlpha } from "@/src/utils/designSystem";
 import {
   defaultAchievements,
   defaultCategories,
@@ -36,36 +40,42 @@ import {
   defaultLastDrDelta,
   defaultLastDrUpdateDate,
   defaultQuests,
-} from "./_utils/defaultData";
+} from "@/src/utils/defaultData";
 import {
   DAILY_STANDARD,
   getCompletionPercent,
   getCountdownToMidnight,
   getDailyScoringTarget,
   getDRChangeFromPercent,
-} from "./_utils/discipline";
+} from "@/src/utils/discipline";
 import {
   appendEvaluationHistoryEntry,
   buildCategoryStatsFromQuests,
   DAILY_EVALUATION_HISTORY_STORAGE_KEY,
   getStrongestAndWeakestCategories,
   readEvaluationHistory,
-} from "./_utils/evaluationHistory";
+} from "@/src/utils/evaluationHistory";
 import {
   buildMidnightEvaluation,
   MIDNIGHT_EVALUATION_STORAGE_KEY,
   shouldShowMidnightEvaluation,
   type MidnightEvaluationData,
-} from "./_utils/midnightEvaluation";
-import { applyMidnightStateTransition } from "./_utils/midnightStateTransition";
+} from "@/src/utils/midnightEvaluation";
+import { applyMidnightStateTransition } from "@/src/utils/midnightStateTransition";
 import {
   findDailyQuestLimitConflict,
   formatQuestLimitDate,
   getUpcomingDateKeys,
   type QuestLimitConflict,
-} from "./_utils/questLimits";
-import { completeQuestInStoredState } from "./_utils/questCompletion";
-import { getQuestXpForDifficulty } from "./_utils/questXp";
+} from "@/src/utils/questLimits";
+import {
+  completeQuestInStoredState,
+  uncompleteQuestInStoredState,
+} from "@/src/utils/questCompletion";
+import { getQuestXpForDifficulty } from "@/src/utils/questXp";
+import { createQuestDuplicate } from "@/src/utils/questActions";
+import { getLatestReflectionBefore, upsertDailyReflection } from "@/src/utils/reflections";
+import { normalizeRecoveryDays } from "@/src/utils/recoveryDays";
 import {
   getCompletedOneTimeArchives,
   getScheduledQuestsForDate,
@@ -75,24 +85,25 @@ import {
   normalizeQuestSchedule,
   normalizeScheduledWeekday,
   rollQuestsForNewDay,
-} from "./_utils/recurrence";
-import { getNextRank, getRankFromDR, getRankMeta } from "./_utils/rank";
+} from "@/src/utils/recurrence";
+import { getNextRank, getRankFromDR, getRankMeta } from "@/src/utils/rank";
 import {
   readStoredState,
   replaceStoredState,
   transactStoredState,
   updateStoredState,
-} from "./_utils/storedState";
-import { useTheme } from "./_utils/themeContext";
+} from "@/src/utils/storedState";
+import { useTheme } from "@/src/utils/themeContext";
 import type {
   Achievement,
   ArchivedQuest,
   Category,
+  DailyReflection,
   DrHistoryEntry,
   Quest,
   QuestRepeat,
   StoredState,
-} from "./_utils/types";
+} from "@/src/utils/types";
 
 function applyDrChange(current: number, delta: number): number {
   return Math.max(0, current + delta);
@@ -167,7 +178,9 @@ function MoonMark({ size, color, cutoutColor }: MoonMarkProps) {
    SCREEN
 ======================= */
 export default function HomeScreen() {
+  const router = useRouter();
   const { colors } = useTheme();
+  const reducedMotion = useReducedMotion();
   const styles = createStyles(colors);
   const drHeroAnim = useRef(new Animated.Value(0)).current;
   const rankProgressAnim = useRef(new Animated.Value(0)).current;
@@ -188,6 +201,17 @@ export default function HomeScreen() {
   const [isSavingEvaluation, setIsSavingEvaluation] = useState(false);
   const [lifetimeCompletedQuestCount, setLifetimeCompletedQuestCount] = useState(0);
   const [archivedQuests, setArchivedQuests] = useState<ArchivedQuest[]>([]);
+  const [dailyReflections, setDailyReflections] = useState<DailyReflection[]>([]);
+  const [recoveryDays, setRecoveryDays] = useState<string[]>([]);
+  const [reflectionDraft, setReflectionDraft] = useState("");
+  const [showTodayDetails, setShowTodayDetails] = useState(false);
+  const [undoQuest, setUndoQuest] = useState<{
+    id: string;
+    title: string;
+    xp: number;
+    category: string;
+    awardName?: string;
+  } | null>(null);
 
   const [achievements, setAchievements] = useState<Achievement[]>(defaultAchievements);
 
@@ -216,7 +240,7 @@ export default function HomeScreen() {
         ...quest,
         difficulty: normalizeDifficulty(quest.difficulty),
         xp: getQuestXpForDifficulty(normalizeDifficulty(quest.difficulty)),
-        pinned: false,
+        pinned: Boolean(quest.pinned),
         contract: Boolean(quest.contract),
         paused: Boolean(quest.paused),
         target: typeof quest.target === "string" ? quest.target : "",
@@ -264,7 +288,7 @@ export default function HomeScreen() {
             {
               ...quest,
               difficulty: normalizeDifficulty(quest.difficulty),
-              pinned: false,
+              pinned: Boolean(quest.pinned),
               contract: Boolean(quest.contract),
               paused: Boolean(quest.paused),
               target: typeof quest.target === "string" ? quest.target : "",
@@ -291,6 +315,8 @@ export default function HomeScreen() {
             ? Math.max(0, Math.floor(parsed.lifetimeCompletedQuestCount))
             : 0;
         let nextArchivedQuests = loadArchivedQuests(parsed.archivedQuests);
+        const loadedReflections = Array.isArray(parsed.dailyReflections) ? parsed.dailyReflections : [];
+        const loadedRecoveryDays = normalizeRecoveryDays(parsed.recoveryDays);
         const previousCompletionForBonus = loadedHistory.length > 0 ? loadedLastCompletionPct : null;
 
         const gap = diffDays(savedResetDate, today);
@@ -320,7 +346,10 @@ export default function HomeScreen() {
               donePrev,
               getDailyScoringTarget(previousDayQuests.length, DAILY_STANDARD)
             );
-            const deltaPrev = getDRChangeFromPercent(pctPrev, previousDayQuests.length, DAILY_STANDARD);
+            const recoveryDay = loadedRecoveryDays.includes(savedResetDate);
+            const deltaPrev = recoveryDay
+              ? 0
+              : getDRChangeFromPercent(pctPrev, previousDayQuests.length, DAILY_STANDARD);
             nextDR = applyDrChange(nextDR, deltaPrev);
             nextHistory = [
               ...nextHistory,
@@ -329,7 +358,8 @@ export default function HomeScreen() {
                 dr: nextDR,
                 delta: deltaPrev,
                 pct: pctPrev,
-                title: "Auto Judgment",
+                title: recoveryDay ? "Recovery Day" : "Auto Judgment",
+                recoveryDay: recoveryDay || undefined,
               },
             ];
           }
@@ -377,7 +407,14 @@ export default function HomeScreen() {
         const normalizedFinalQuests = finalQuests.map(normalizeQuest);
 
         if (shouldGateForEvaluation) {
-          setPendingEvaluation(buildMidnightEvaluation(savedResetDate, normalizedFinalQuests, previousCompletionForBonus));
+          setPendingEvaluation(
+            buildMidnightEvaluation(
+              savedResetDate,
+              normalizedFinalQuests,
+              previousCompletionForBonus,
+              loadedRecoveryDays.includes(savedResetDate)
+            )
+          );
         }
 
         setCategories(loadedCategories);
@@ -390,6 +427,9 @@ export default function HomeScreen() {
         setDrHistory(nextHistory);
         setLifetimeCompletedQuestCount(loadedLifetimeCompletedQuestCount);
         setArchivedQuests(nextArchivedQuests);
+        setDailyReflections(loadedReflections);
+        setRecoveryDays(loadedRecoveryDays);
+        setReflectionDraft(loadedReflections.find((item) => item.date === today)?.note ?? "");
         setLastResetDate(shouldGateForEvaluation ? savedResetDate : today);
       } catch (e) {
         if (__DEV__) console.warn("Failed to load storage:", e);
@@ -419,6 +459,8 @@ export default function HomeScreen() {
           drHistory,
           lifetimeCompletedQuestCount,
           archivedQuests,
+          dailyReflections,
+          recoveryDays,
         }));
       } catch (e) {
         if (__DEV__) console.warn("Failed to save storage:", e);
@@ -436,6 +478,8 @@ export default function HomeScreen() {
     drHistory,
     lifetimeCompletedQuestCount,
     archivedQuests,
+    dailyReflections,
+    recoveryDays,
     hydrated,
   ]);
 
@@ -451,10 +495,7 @@ export default function HomeScreen() {
       const evaluatedQuests = getScheduledQuestsForDate(quests, evaluation.date);
       const { strongestCategory, weakestCategory } = getStrongestAndWeakestCategories(evaluatedQuests);
       const categoryStats = buildCategoryStatsFromQuests(evaluatedQuests);
-      const completionRate =
-        evaluation.totalCount > 0
-          ? Math.round((evaluation.completedCount / evaluation.totalCount) * 100)
-          : 0;
+      const completionRate = evaluation.completionPercent;
       const transition = await transactStoredState(async (current) => {
         const nextTransition = applyMidnightStateTransition(
           current,
@@ -472,6 +513,7 @@ export default function HomeScreen() {
           contractCompletedCount: evaluation.contractCompletedCount,
           contractTotalCount: evaluation.contractTotalCount,
           comebackBonus: evaluation.comebackBonus,
+          recoveryDay: evaluation.recoveryDay || undefined,
           drBefore: nextTransition.drBeforeEvaluation,
           drChange: evaluation.drDelta,
           drAfter: nextTransition.drAfterEvaluation,
@@ -501,10 +543,15 @@ export default function HomeScreen() {
       setDrHistory(transition.state.drHistory);
       setLifetimeCompletedQuestCount(transition.state.lifetimeCompletedQuestCount);
       setArchivedQuests(transition.state.archivedQuests);
+      setRecoveryDays(transition.state.recoveryDays ?? []);
       setLastResetDate(transition.state.lastResetDate);
       setPendingEvaluation(null);
     } catch (error) {
       if (__DEV__) console.warn("Failed to commit midnight evaluation:", error);
+      Alert.alert(
+        "Evaluation not saved",
+        "Your result is still on screen. Check available device storage, then try starting the new day again."
+      );
     } finally {
       setIsSavingEvaluation(false);
     }
@@ -536,7 +583,7 @@ export default function HomeScreen() {
               {
                 ...quest,
                 difficulty: normalizeDifficulty(quest.difficulty),
-                pinned: false,
+                pinned: Boolean(quest.pinned),
                 contract: Boolean(quest.contract),
                 paused: Boolean(quest.paused),
                 target: typeof quest.target === "string" ? quest.target : "",
@@ -563,6 +610,8 @@ export default function HomeScreen() {
               ? Math.max(0, Math.floor(parsed.lifetimeCompletedQuestCount))
               : 0;
           const savedArchivedQuests = loadArchivedQuests(parsed.archivedQuests);
+          const savedReflections = Array.isArray(parsed.dailyReflections) ? parsed.dailyReflections : [];
+          const savedRecoveryDays = normalizeRecoveryDays(parsed.recoveryDays);
 
           const lastEvaluatedDate = await AsyncStorage.getItem(MIDNIGHT_EVALUATION_STORAGE_KEY);
           const shouldGate = shouldShowMidnightEvaluation(savedResetDate, today, lastEvaluatedDate);
@@ -579,11 +628,21 @@ export default function HomeScreen() {
           setDrHistory(savedHistory);
           setLifetimeCompletedQuestCount(savedLifetimeCompletedQuestCount);
           setArchivedQuests(savedArchivedQuests);
+          setDailyReflections(savedReflections);
+          setRecoveryDays(savedRecoveryDays);
+          setReflectionDraft(savedReflections.find((item) => item.date === today)?.note ?? "");
           setLastResetDate(savedResetDate);
 
           if (shouldGate) {
             setLastResetDate(savedResetDate);
-            setPendingEvaluation(buildMidnightEvaluation(savedResetDate, normalizedFinalQuests, previousCompletionForBonus));
+            setPendingEvaluation(
+              buildMidnightEvaluation(
+                savedResetDate,
+                normalizedFinalQuests,
+                previousCompletionForBonus,
+                savedRecoveryDays.includes(savedResetDate)
+              )
+            );
           }
         } catch (error) {
           if (__DEV__) console.warn("Failed to re-check midnight evaluation:", error);
@@ -597,12 +656,17 @@ export default function HomeScreen() {
   );
 
   useEffect(() => {
+    if (reducedMotion) {
+      drHeroAnim.stopAnimation();
+      drHeroAnim.setValue(1);
+      return;
+    }
     Animated.timing(drHeroAnim, {
       toValue: 1,
       duration: 150,
       useNativeDriver: true,
     }).start();
-  }, [drHeroAnim]);
+  }, [drHeroAnim, reducedMotion]);
 
   useEffect(() => {
     if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -634,7 +698,14 @@ export default function HomeScreen() {
 
       const previousCompletionForBonus = drHistory.length > 0 ? lastCompletionPct : null;
       observedDateRef.current = today;
-      setPendingEvaluation(buildMidnightEvaluation(lastResetDate, quests, previousCompletionForBonus));
+      setPendingEvaluation(
+        buildMidnightEvaluation(
+          lastResetDate,
+          quests,
+          previousCompletionForBonus,
+          recoveryDays.includes(lastResetDate)
+        )
+      );
     } catch (error) {
       if (__DEV__) console.warn("Failed to check live midnight evaluation:", error);
     } finally {
@@ -648,7 +719,14 @@ export default function HomeScreen() {
     lastResetDate,
     pendingEvaluation,
     quests,
+    recoveryDays,
   ]);
+
+  useEffect(() => {
+    if (!undoQuest) return;
+    const timeout = setTimeout(() => setUndoQuest(null), 6000);
+    return () => clearTimeout(timeout);
+  }, [undoQuest]);
 
   useEffect(() => {
     void checkForLiveMidnightEvaluation();
@@ -666,6 +744,22 @@ export default function HomeScreen() {
 
   const todayDateKey = localDateKey();
   const questLimitDateKeys = useMemo(() => getUpcomingDateKeys(todayDateKey), [todayDateKey]);
+  const todayReflection = useMemo(
+    () => dailyReflections.find((reflection) => reflection.date === todayDateKey) ?? null,
+    [dailyReflections, todayDateKey]
+  );
+  const latestPastReflection = useMemo(
+    () => getLatestReflectionBefore(dailyReflections, todayDateKey),
+    [dailyReflections, todayDateKey]
+  );
+  const reflectionIsSaved = reflectionDraft.trim() === (todayReflection?.note ?? "");
+  const saveReflection = () => {
+    setDailyReflections((current) =>
+      upsertDailyReflection(current, todayDateKey, reflectionDraft)
+    );
+    setReflectionDraft(reflectionDraft.trim().slice(0, 280));
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
   const todaysQuests = useMemo(
     () => getScheduledQuestsForDate(quests, todayDateKey),
     [quests, todayDateKey]
@@ -732,13 +826,19 @@ export default function HomeScreen() {
     return intoTier / tierSpan;
   }, [currentRankMeta.minDr, disciplineRating, nextRankMeta]);
   useEffect(() => {
+    const nextProgress = Math.max(0, Math.min(1, rankProgress));
+    if (reducedMotion) {
+      rankProgressAnim.stopAnimation();
+      rankProgressAnim.setValue(nextProgress);
+      return;
+    }
     Animated.timing(rankProgressAnim, {
-      toValue: Math.max(0, Math.min(1, rankProgress)),
+      toValue: nextProgress,
       duration: 340,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: false,
     }).start();
-  }, [rankProgress, rankProgressAnim]);
+  }, [rankProgress, rankProgressAnim, reducedMotion]);
 
   const animatedRankProgressWidth = useMemo(
     () =>
@@ -756,6 +856,7 @@ export default function HomeScreen() {
     () =>
       [...todaysQuests].sort((a, b) => {
         if (a.done !== b.done) return Number(a.done) - Number(b.done);
+        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
         if (a.contract !== b.contract) return a.contract ? -1 : 1;
         if (a.difficulty !== b.difficulty) {
           const weight = { hard: 3, medium: 2, easy: 1 };
@@ -792,10 +893,17 @@ export default function HomeScreen() {
       return "No active quests are scheduled today. Add one here or adjust the week in Plan.";
     }
     if (!nextMove) return "All quests are complete. Your result will be recorded after midnight.";
+    if (nextMove.pinned) return "You marked this as your next quest.";
     if (nextMove.contract) return "This is a contract, so it is the safest thing to finish first.";
     if (nextMove.difficulty === "hard") return "This is the hardest open quest. Do it while your energy is available.";
     return "This is the clearest next action on today's board.";
   }, [nextMove, quests.length, totalQuestCount]);
+  const showProgressHelp = () => {
+    Alert.alert(
+      "How progress works",
+      "Completing a quest gives category XP immediately. After midnight, your Day Score changes Discipline Rating (DR) once. DR raises your rank and eventually unlocks deeper Progress insights."
+    );
+  };
   const completeQuest = (questId: string) => {
     const quest = quests.find((q) => q.id === questId);
     if (!quest || quest.done) return;
@@ -816,16 +924,102 @@ export default function HomeScreen() {
         lastResetDate,
         lifetimeCompletedQuestCount,
         archivedQuests,
+        recoveryDays,
       },
       questId,
       todayDateKey
     );
+    if (!result.completed) return;
+    const unlockedAward = result.state.achievements.find((award) => {
+      const previous = achievements.find((item) => item.id === award.id);
+      return Boolean(award.unlockedAt && !previous?.unlockedAt);
+    });
 
     setQuests(result.state.quests);
     setCategories(result.state.categories);
     setLifetimeCompletedQuestCount(result.state.lifetimeCompletedQuestCount);
     setAchievements(result.state.achievements);
     setOpenQuestId(null);
+    setUndoQuest({
+      id: quest.id,
+      title: quest.title,
+      xp: quest.xp,
+      category: categoryName(quest.categoryId),
+      awardName: unlockedAward?.name,
+    });
+  };
+
+  const toggleQuestPriority = (questId: string) => {
+    setQuests((current) => {
+      const target = current.find((quest) => quest.id === questId);
+      if (!target || target.done) return current;
+      const shouldPin = !target.pinned;
+      return current.map((quest) => ({
+        ...quest,
+        pinned: shouldPin ? quest.id === questId : false,
+      }));
+    });
+    setOpenQuestId(null);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const addQuestCopy = (questId: string, scheduledDate?: string) => {
+    const source = quests.find((quest) => quest.id === questId);
+    if (!source) return;
+    const suffix = scheduledDate ? "tomorrow" : "copy";
+    const duplicate = createQuestDuplicate(source, `q${Date.now()}-${suffix}`, scheduledDate);
+    const nextQuests = [...quests, duplicate];
+    const conflict = findDailyQuestLimitConflict(nextQuests, questLimitDateKeys);
+    if (conflict) {
+      showQuestLimitAlert(conflict);
+      return;
+    }
+
+    setQuests(nextQuests);
+    setOpenQuestId(null);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (scheduledDate) {
+      Alert.alert("Scheduled for tomorrow", `“${source.title}” will appear as a one-time quest tomorrow.`);
+    }
+  };
+
+  const duplicateQuest = (questId: string) => addQuestCopy(questId);
+  const doQuestTomorrow = (questId: string) =>
+    addQuestCopy(questId, offsetDateKey(todayDateKey, 1));
+
+  const uncompleteQuest = (questId: string) => {
+    const result = uncompleteQuestInStoredState(
+      {
+        categories,
+        quests,
+        achievements,
+        disciplineRating,
+        lastDrDelta,
+        lastCompletionPct,
+        lastDrUpdateDate,
+        drHistory,
+        lastResetDate,
+        lifetimeCompletedQuestCount,
+        archivedQuests,
+        recoveryDays,
+      },
+      questId,
+      todayDateKey
+    );
+    if (!result.uncompleted) return;
+
+    setQuests(result.state.quests);
+    setCategories(result.state.categories);
+    setLifetimeCompletedQuestCount(result.state.lifetimeCompletedQuestCount);
+    setAchievements(result.state.achievements);
+    setUndoQuest(null);
+
+    if (!result.rewardsReversed) {
+      Alert.alert(
+        "Quest reopened",
+        "This completion came from an older app version, so Midnight reopened it without changing historical XP."
+      );
+    }
   };
 
   const deleteQuest = (questId: string) => {
@@ -870,6 +1064,7 @@ export default function HomeScreen() {
                 safeRepeat === "weekly"
                   ? normalizeScheduledWeekday(scheduledWeekday, getTodayWeekday())
                   : undefined,
+              scheduledDate: safeRepeat === "once" ? q.scheduledDate : undefined,
             }
           : q
     );
@@ -885,18 +1080,40 @@ export default function HomeScreen() {
   };
 
   const resetToday = () => {
-    setQuests((prev) =>
-      prev.map((q) =>
-        isQuestScheduledForDate(q, localDateKey()) ? { ...q, done: false } : q
-      )
-    );
+    let nextState: StoredState = {
+      categories,
+      quests,
+      achievements,
+      disciplineRating,
+      lastDrDelta,
+      lastCompletionPct,
+      lastDrUpdateDate,
+      drHistory,
+      lastResetDate,
+      lifetimeCompletedQuestCount,
+      archivedQuests,
+      recoveryDays,
+    };
+    const completedQuestIds = quests
+      .filter((quest) => quest.done && isQuestScheduledForDate(quest, todayDateKey))
+      .map((quest) => quest.id);
+
+    for (const questId of completedQuestIds) {
+      nextState = uncompleteQuestInStoredState(nextState, questId, todayDateKey).state;
+    }
+
+    setQuests(nextState.quests);
+    setCategories(nextState.categories);
+    setAchievements(nextState.achievements);
+    setLifetimeCompletedQuestCount(nextState.lifetimeCompletedQuestCount);
+    setUndoQuest(null);
     setLastResetDate(localDateKey());
   };
 
   const confirmResetToday = () => {
     Alert.alert(
       "Reset today's completions?",
-      "Completed quests will be marked open again. Your DR history stays intact.",
+      "Today's completed quests will reopen. XP and lifetime credit earned from them will be reversed; your finalized DR history stays intact.",
       [
         { text: "Cancel", style: "cancel" },
         { text: "Reset", style: "destructive", onPress: resetToday },
@@ -904,7 +1121,7 @@ export default function HomeScreen() {
     );
   };
 
-  const toggleContract = (questId: string) => {
+  const applyContractToggle = (questId: string) => {
     setQuests((prev) => {
       const selectedCount = prev.filter((q) => q.contract && !q.paused).length;
       const target = prev.find((q) => q.id === questId);
@@ -918,6 +1135,30 @@ export default function HomeScreen() {
         return { ...q, contract: true, pinned: false };
       });
     });
+  };
+
+  const toggleContract = (questId: string) => {
+    const target = quests.find((quest) => quest.id === questId);
+    if (!target) return;
+    if (target.contract) {
+      applyContractToggle(questId);
+      return;
+    }
+
+    const selectedCount = quests.filter((quest) => quest.contract && !quest.paused).length;
+    if (selectedCount >= 3) {
+      Alert.alert("Contract limit reached", "Keep the active contract list to three contracts.");
+      return;
+    }
+
+    Alert.alert(
+      "Protect as a contract?",
+      getContractConfirmationCopy(target.title),
+      [
+        { text: "Not now", style: "cancel" },
+        { text: "Protect quest", onPress: () => applyContractToggle(questId) },
+      ]
+    );
   };
 
   const toggleQuestOpen = (questId: string) => {
@@ -949,6 +1190,8 @@ export default function HomeScreen() {
       drHistory: defaultDrHistory,
       lifetimeCompletedQuestCount: 0,
       archivedQuests: [],
+      dailyReflections: [],
+      recoveryDays: [],
       lastResetDate: localDateKey(),
     };
     setCategories(resetCategories);
@@ -963,6 +1206,9 @@ export default function HomeScreen() {
     setDrHistory(defaultDrHistory);
     setLifetimeCompletedQuestCount(0);
     setArchivedQuests([]);
+    setDailyReflections([]);
+    setRecoveryDays([]);
+    setReflectionDraft("");
     setPendingEvaluation(null);
     setIsSavingEvaluation(false);
 
@@ -1028,13 +1274,80 @@ export default function HomeScreen() {
   const confirmResetDemo = () => {
     Alert.alert(
       "Reset all profile data?",
-      "This clears quests, DR, awards, equipped badges, and evaluation history on this device.",
+      "This clears quests, DR, awards, Recovery Days, and evaluation history on this device.",
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Reset Profile", style: "destructive", onPress: resetDemo },
+        { text: "Reset profile", style: "destructive", onPress: resetDemo },
       ]
     );
   };
+
+  const nextMovePanel = (
+    <View style={styles.nextMoveCard}>
+      <View style={styles.nextMoveTopRow}>
+        <View style={styles.nextMoveIdentity}>
+          <View
+            style={[
+              styles.nextMoveArtBadge,
+              {
+                backgroundColor: withAlpha(nextMove?.contract ? CONTRACT_GOLD : HOME_GOLD, 0.11),
+                borderColor: withAlpha(nextMove?.contract ? CONTRACT_GOLD : HOME_GOLD, 0.32),
+              },
+            ]}
+          >
+            <IconSymbol
+              name={nextMove?.contract ? "shield.fill" : totalQuestCount === 0 ? "plus" : "checkmark.circle.fill"}
+              size={22}
+              color={nextMove?.contract ? CONTRACT_GOLD : HOME_GOLD}
+            />
+          </View>
+          <View style={styles.nextMoveTextWrap}>
+            <Text style={styles.nextMoveEyebrow}>Do this next</Text>
+            <Text style={styles.nextMoveTitle} numberOfLines={2}>
+              {nextMove
+                ? nextMove.title
+                : totalQuestCount === 0
+                  ? "Add your first quest"
+                  : "Today is complete"}
+            </Text>
+          </View>
+        </View>
+        {nextMove?.contract ? (
+          <View style={styles.nextMoveBadge}>
+            <IconSymbol name="shield.fill" size={12} color={CONTRACT_GOLD} />
+            <Text style={styles.nextMoveBadgeText}>Contract</Text>
+          </View>
+        ) : null}
+      </View>
+      <Text style={styles.nextMoveReason}>{nextMoveReason}</Text>
+      {nextMove ? (
+        <Pressable
+          style={styles.nextMoveButtonWide}
+          onPress={() => completeQuest(nextMove.id)}
+          accessibilityRole="button"
+          accessibilityLabel={`Complete ${nextMove.title}`}
+        >
+          <IconSymbol name="checkmark" size={18} color={colors.bg} />
+          <Text style={styles.nextMoveButtonText}>Mark complete</Text>
+        </Pressable>
+      ) : totalQuestCount === 0 ? (
+        <Pressable
+          style={styles.nextMoveButtonWide}
+          onPress={() => setShowAdd(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Add a quest for today"
+        >
+          <IconSymbol name="plus" size={18} color={colors.bg} />
+          <Text style={styles.nextMoveButtonText}>Add a quest</Text>
+        </Pressable>
+      ) : (
+        <View style={styles.nextMoveCompleteRow}>
+          <IconSymbol name="checkmark.circle.fill" size={20} color={colors.positive} />
+          <Text style={styles.nextMoveCompleteText}>Nothing else needs your attention.</Text>
+        </View>
+      )}
+    </View>
+  );
 
   if (pendingEvaluation) {
     return (
@@ -1074,12 +1387,14 @@ export default function HomeScreen() {
               </View>
             </View>
 
+            {nextMovePanel}
+
             <View style={styles.todayHero}>
               <View style={styles.todayHeroTop}>
                 <View style={styles.todayHeroCopy}>
                   <Text style={styles.todayEyebrow}>Tonight&apos;s judgment</Text>
                   <Text style={styles.todayHeadline}>{todayHeadline}</Text>
-                  <Text style={styles.todaySummary}>{todaySummary}</Text>
+                  {showTodayDetails ? <Text style={styles.todaySummary}>{todaySummary}</Text> : null}
                 </View>
                 <View style={styles.todayScorePlate}>
                   <Text style={styles.todayScoreValue}>{dayScorePercent}%</Text>
@@ -1091,6 +1406,20 @@ export default function HomeScreen() {
                 <View style={[styles.todayProgressFill, { width: `${dayScorePercent}%` }]} />
               </View>
 
+              <Pressable
+                onPress={() => setShowTodayDetails((current) => !current)}
+                accessibilityRole="button"
+                accessibilityLabel={showTodayDetails ? "Hide scoring details" : "Show scoring details"}
+                style={({ pressed }) => [styles.todayDetailsToggle, pressed && styles.btnPressed]}
+              >
+                <Text style={styles.todayDetailsToggleText}>
+                  {showTodayDetails ? "Hide scoring details" : "Show scoring details"}
+                </Text>
+                <IconSymbol name={showTodayDetails ? "chevron.left" : "chevron.right"} size={17} color={HOME_GOLD} />
+              </Pressable>
+
+              {showTodayDetails ? (
+              <>
               <View style={styles.todayMetricRow}>
                 <View style={styles.todayMetric}>
                   <Text style={styles.todayMetricValue}>{doneCount}/{dayScoreTarget}</Text>
@@ -1098,19 +1427,25 @@ export default function HomeScreen() {
                 </View>
                 <View style={styles.todayMetricDivider} />
                 <View style={styles.todayMetric}>
-                  <Animated.Text
-                    style={[
-                      styles.todayMetricValue,
-                      styles.todayDrValue,
-                      {
-                        opacity: drHeroAnim,
-                        transform: [{ scale: drHeroAnim }],
-                      },
-                    ]}
-                  >
-                    {disciplineRating}
-                  </Animated.Text>
-                  <Text style={styles.todayMetricLabel}>Discipline Rating</Text>
+                   {drHistory.length > 0 ? (
+                     <Animated.Text
+                       style={[
+                         styles.todayMetricValue,
+                         styles.todayDrValue,
+                         {
+                           opacity: drHeroAnim,
+                           transform: [{ scale: drHeroAnim }],
+                         },
+                       ]}
+                     >
+                       {disciplineRating}
+                     </Animated.Text>
+                   ) : (
+                     <Text style={styles.todayMetricValue}>—</Text>
+                   )}
+                   <Text style={styles.todayMetricLabel}>
+                     {drHistory.length > 0 ? "Discipline Rating" : "DR after midnight"}
+                   </Text>
                 </View>
                 <View style={styles.todayMetricDivider} />
                 <View style={styles.todayMetric}>
@@ -1121,88 +1456,55 @@ export default function HomeScreen() {
                 </View>
               </View>
 
-              <View style={styles.todayRankStrip}>
-                <View style={styles.todayRankCopy}>
-                  <Text style={styles.todayRankName}>{rankLabel}</Text>
-                  <Text style={styles.todayRankNext}>
-                    {nextRank ? `${nextRank.remainingDr} DR to ${nextRank.name}` : "Highest rank reached"}
-                  </Text>
-                </View>
-                <View style={styles.todayRankTrack}>
-                  <Animated.View style={[styles.todayRankFill, { width: animatedRankProgressWidth }]} />
-                </View>
-              </View>
-
-              <Text style={styles.todayRuleText}>
-                After midnight, today&apos;s completion rate changes your Discipline Rating once.
-              </Text>
-            </View>
-
-            <View style={styles.nextMoveCard}>
-              <View style={styles.nextMoveTopRow}>
-                <View style={styles.nextMoveIdentity}>
-                  <View
-                    style={[
-                      styles.nextMoveArtBadge,
-                      {
-                        backgroundColor: withAlpha(nextMove?.contract ? CONTRACT_GOLD : HOME_GOLD, 0.11),
-                        borderColor: withAlpha(nextMove?.contract ? CONTRACT_GOLD : HOME_GOLD, 0.32),
-                      },
-                    ]}
-                  >
-                    <IconSymbol
-                      name={nextMove?.contract ? "shield.fill" : totalQuestCount === 0 ? "plus" : "checkmark.circle.fill"}
-                      size={22}
-                      color={nextMove?.contract ? CONTRACT_GOLD : HOME_GOLD}
-                    />
-                  </View>
-                  <View style={styles.nextMoveTextWrap}>
-                    <Text style={styles.nextMoveEyebrow}>Do this next</Text>
-                    <Text style={styles.nextMoveTitle} numberOfLines={2}>
-                      {nextMove
-                        ? nextMove.title
-                        : totalQuestCount === 0
-                          ? "Add your first quest"
-                          : "Today is complete"}
+              {drHistory.length > 0 ? (
+                <View style={styles.todayRankStrip}>
+                  <View style={styles.todayRankCopy}>
+                    <Text style={styles.todayRankName}>{rankLabel}</Text>
+                    <Text style={styles.todayRankNext}>
+                      {nextRank ? `${nextRank.remainingDr} DR to ${nextRank.name}` : "Highest rank reached"}
                     </Text>
                   </View>
-                </View>
-                {nextMove?.contract ? (
-                  <View style={styles.nextMoveBadge}>
-                    <IconSymbol name="shield.fill" size={12} color={CONTRACT_GOLD} />
-                    <Text style={styles.nextMoveBadgeText}>Contract</Text>
+                  <View style={styles.todayRankTrack}>
+                    <Animated.View style={[styles.todayRankFill, { width: animatedRankProgressWidth }]} />
                   </View>
-                ) : null}
-              </View>
-              <Text style={styles.nextMoveReason}>{nextMoveReason}</Text>
-              {nextMove ? (
-                <Pressable
-                  style={styles.nextMoveButtonWide}
-                  onPress={() => completeQuest(nextMove.id)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Complete ${nextMove.title}`}
-                >
-                  <IconSymbol name="checkmark" size={18} color={colors.bg} />
-                  <Text style={styles.nextMoveButtonText}>Mark complete</Text>
-                </Pressable>
-              ) : totalQuestCount === 0 ? (
-                <Pressable
-                  style={styles.nextMoveButtonWide}
-                  onPress={() => setShowAdd(true)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Add a quest for today"
-                >
-                  <IconSymbol name="plus" size={18} color={colors.bg} />
-                  <Text style={styles.nextMoveButtonText}>Add a quest</Text>
-                </Pressable>
+                </View>
               ) : (
-                <View style={styles.nextMoveCompleteRow}>
-                  <IconSymbol name="checkmark.circle.fill" size={20} color={colors.positive} />
-                  <Text style={styles.nextMoveCompleteText}>Nothing else needs your attention.</Text>
+                <View style={styles.firstDayHint}>
+                  <View style={styles.firstDayHintCopy}>
+                    <Text style={styles.firstDayHintTitle}>First-day mode</Text>
+                    <Text style={styles.firstDayHintText}>Finish quests now. Scores and ranks make sense after your first midnight review.</Text>
+                  </View>
+                  <Pressable
+                    onPress={showProgressHelp}
+                    accessibilityRole="button"
+                    accessibilityLabel="Explain XP, Discipline Rating, and ranks"
+                    style={({ pressed }) => [styles.termHelpButton, pressed && styles.btnPressed]}
+                  >
+                    <Text style={styles.termHelpButtonText}>?</Text>
+                  </Pressable>
                 </View>
               )}
+
+              <View style={styles.todayRuleRow}>
+                <Text style={[styles.todayRuleText, styles.todayRuleTextFlex]}>
+                  After midnight, today&apos;s completion rate changes your Discipline Rating once.
+                </Text>
+                {drHistory.length > 0 ? (
+                  <Pressable
+                    onPress={showProgressHelp}
+                    accessibilityRole="button"
+                    accessibilityLabel="Explain XP, Discipline Rating, and ranks"
+                    style={({ pressed }) => [styles.termHelpButton, pressed && styles.btnPressed]}
+                  >
+                    <Text style={styles.termHelpButtonText}>?</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+              </>
+              ) : null}
             </View>
 
+            {lifetimeCompletedQuestCount > 0 || contractQuests.length > 0 ? (
             <View style={styles.contractPanel}>
               <View style={styles.contractHeaderRow}>
                 <View style={styles.contractTitleRow}>
@@ -1237,6 +1539,7 @@ export default function HomeScreen() {
               ) : null}
               <Text style={styles.contractStatusText}>{contractStatusText}</Text>
             </View>
+            ) : null}
 
             {__DEV__ && showDevActions ? (
               <View style={styles.devActionRow}>
@@ -1246,7 +1549,7 @@ export default function HomeScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="Reset today's quest completions"
                 >
-                  <Text style={styles.devActionText}>Reset Today</Text>
+                  <Text style={styles.devActionText}>Reset today</Text>
                 </Pressable>
                 <Pressable
                   style={styles.devActionChip}
@@ -1254,7 +1557,7 @@ export default function HomeScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="Reset all profile data"
                 >
-                  <Text style={styles.devActionText}>Reset Profile</Text>
+                  <Text style={styles.devActionText}>Reset profile</Text>
                 </Pressable>
               </View>
             ) : null}
@@ -1287,7 +1590,9 @@ export default function HomeScreen() {
 
               <Text style={styles.queueHelpText}>
                 {totalQuestCount > 0
-                  ? "Tap the circle when you finish. Tap a quest to edit it or make it a contract."
+                  ? lifetimeCompletedQuestCount === 0
+                    ? "Tap the circle when you finish. You will earn XP immediately; the rest can wait."
+                    : "Tap the circle when you finish. Tap a quest to edit it or make it a contract."
                   : "Add one clear action you can finish before midnight."}
               </Text>
               {hiddenScheduledQuestCount > 0 || pausedQuestCount > 0 ? (
@@ -1331,6 +1636,7 @@ export default function HomeScreen() {
                 categories={categories}
                 onSave={editQuest}
                 onCancel={() => setEditingQuestId(null)}
+                reducedMotion={reducedMotion}
               />
             )}
 
@@ -1342,14 +1648,24 @@ export default function HomeScreen() {
                   <Text style={styles.emptyQuestText}>
                     Add one small action so the day has something concrete to judge.
                   </Text>
-                  <Pressable
-                    style={styles.emptyQuestButton}
-                    onPress={() => setShowAdd(true)}
-                    accessibilityRole="button"
-                    accessibilityLabel="Add your first quest"
-                  >
-                    <Text style={styles.emptyQuestButtonText}>Add Quest</Text>
-                  </Pressable>
+                  <View style={styles.emptyQuestActions}>
+                    <Pressable
+                      style={styles.emptyQuestButton}
+                      onPress={() => setShowAdd(true)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Add a custom quest"
+                    >
+                      <Text style={styles.emptyQuestButtonText}>Add custom</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.emptyQuestButton, styles.emptyQuestButtonSecondary]}
+                      onPress={() => router.push("/(tabs)/plan")}
+                      accessibilityRole="button"
+                      accessibilityLabel="Browse starter quests in Plan"
+                    >
+                      <Text style={[styles.emptyQuestButtonText, styles.emptyQuestButtonTextSecondary]}>Browse starters</Text>
+                    </Pressable>
+                  </View>
                 </View>
               ) : (
                 questQueueGroups
@@ -1385,12 +1701,17 @@ export default function HomeScreen() {
                               isOpen={openQuestId === q.id}
                               onToggle={toggleQuestOpen}
                               onComplete={completeQuest}
+                              onUncomplete={uncompleteQuest}
                               onEdit={(questId) => {
                                 setEditingQuestId(questId);
                                 setOpenQuestId(null);
                               }}
                               onContract={toggleContract}
                               onDelete={deleteQuest}
+                              onPrioritize={toggleQuestPriority}
+                              onDuplicate={duplicateQuest}
+                              onDoTomorrow={doQuestTomorrow}
+                              reducedMotion={reducedMotion}
                             />
                           ))}
                         </View>
@@ -1399,9 +1720,91 @@ export default function HomeScreen() {
                   })
               )}
             </View>
+
+            <View style={styles.reflectionCard}>
+              <View style={styles.reflectionHeaderRow}>
+                <View style={styles.reflectionHeaderCopy}>
+                  <Text style={styles.reflectionEyebrow}>Close the loop</Text>
+                  <Text style={styles.reflectionTitle}>Daily reflection</Text>
+                </View>
+                <Text style={styles.reflectionCount}>{reflectionDraft.length}/280</Text>
+              </View>
+              <Text style={styles.reflectionHelp}>
+                Optional: note what helped, what got in the way, or what tomorrow should remember.
+              </Text>
+              {latestPastReflection && !reflectionDraft.trim() ? (
+                <View style={styles.previousReflection}>
+                  <Text style={styles.previousReflectionLabel}>Previous note</Text>
+                  <Text style={styles.previousReflectionText} numberOfLines={2}>
+                    {latestPastReflection.note}
+                  </Text>
+                </View>
+              ) : null}
+              <TextInput
+                value={reflectionDraft}
+                onChangeText={(value) => setReflectionDraft(value.slice(0, 280))}
+                placeholder="One sentence is enough…"
+                placeholderTextColor={colors.textSecondary}
+                multiline
+                maxLength={280}
+                textAlignVertical="top"
+                accessibilityLabel="Daily reflection note"
+                style={styles.reflectionInput}
+              />
+              <View style={styles.reflectionFooter}>
+                <Text style={styles.reflectionSavedText}>
+                  {reflectionIsSaved ? (todayReflection ? "Saved for today" : "No note saved") : "Unsaved changes"}
+                </Text>
+                <Pressable
+                  onPress={saveReflection}
+                  disabled={reflectionIsSaved}
+                  accessibilityRole="button"
+                  accessibilityLabel="Save daily reflection"
+                  accessibilityState={{ disabled: reflectionIsSaved }}
+                  style={({ pressed }) => [
+                    styles.reflectionSaveButton,
+                    reflectionIsSaved && styles.reflectionSaveButtonDisabled,
+                    pressed && styles.btnPressed,
+                  ]}
+                >
+                  <Text style={styles.reflectionSaveButtonText}>Save note</Text>
+                </Pressable>
+              </View>
+            </View>
           </View>
         </ScrollView>
       </SafeAreaView>
+      {undoQuest ? (
+        <View
+          style={styles.undoBanner}
+          accessibilityRole="alert"
+          accessibilityLiveRegion="assertive"
+          accessibilityLabel={
+            undoQuest.awardName
+              ? `${undoQuest.title} completed for ${undoQuest.xp} XP. Award unlocked: ${undoQuest.awardName}. Undo available.`
+              : `${undoQuest.title} completed for ${undoQuest.xp} XP. Undo available.`
+          }
+        >
+          <View style={styles.undoBannerCopy}>
+            <Text style={styles.undoBannerTitle} numberOfLines={1}>
+              {undoQuest.awardName ? `Award unlocked: ${undoQuest.awardName}` : `Quest completed: +${undoQuest.xp} XP`}
+            </Text>
+            <Text style={styles.undoBannerText} numberOfLines={1}>
+              {undoQuest.awardName
+                ? `+${undoQuest.xp} XP / ${undoQuest.category} / ${undoQuest.title}`
+                : `${undoQuest.category} / ${undoQuest.title}`}
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => uncompleteQuest(undoQuest.id)}
+            accessibilityRole="button"
+            accessibilityLabel={`Undo completion of ${undoQuest.title}`}
+            style={({ pressed }) => [styles.undoBannerButton, pressed && styles.btnPressed]}
+          >
+            <Text style={styles.undoBannerButtonText}>Undo</Text>
+          </Pressable>
+        </View>
+      ) : null}
     </View>
   );
 }

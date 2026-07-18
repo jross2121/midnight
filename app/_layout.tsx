@@ -1,16 +1,18 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+import * as Notifications from 'expo-notifications';
+import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { HOME_GOLD } from './(tabs)/_styles';
-import { configureNotificationHandler } from './(tabs)/_utils/reminders';
-import { ThemeProvider as CustomThemeProvider, useTheme } from './(tabs)/_utils/themeContext';
-import { ONBOARDING_STORAGE_KEY } from './(tabs)/_utils/types';
+import { HOME_GOLD } from '@/src/styles';
+import { configureNotificationHandler } from '@/src/utils/reminders';
+import { getReminderDestinationFromData } from '@/src/utils/reminderLogic';
+import { ThemeProvider as CustomThemeProvider, useTheme } from '@/src/utils/themeContext';
+import { ONBOARDING_STORAGE_KEY } from '@/src/utils/types';
 
 configureNotificationHandler();
 
@@ -40,6 +42,57 @@ function NavigationThemeBridge({ children }: { children: ReactNode }) {
   }, [colors, theme]);
 
   return <ThemeProvider value={navigationTheme}>{children}</ThemeProvider>;
+}
+
+function NotificationResponseRouter() {
+  const router = useRouter();
+
+  useEffect(() => {
+    let active = true;
+    const handledIds = new Set<string>();
+
+    const handleResponse = async (response: Notifications.NotificationResponse) => {
+      if (!active) return;
+      const identifier = response.notification.request.identifier;
+      if (handledIds.has(identifier)) return;
+
+      const data = response.notification.request.content.data;
+      const hasSafeRoute = getReminderDestinationFromData(data, true);
+      if (!hasSafeRoute) return;
+      handledIds.add(identifier);
+
+      let hasCompletedOnboarding = false;
+      try {
+        hasCompletedOnboarding =
+          (await AsyncStorage.getItem(ONBOARDING_STORAGE_KEY)) === 'true';
+      } catch {
+        hasCompletedOnboarding = false;
+      }
+      if (!active) return;
+
+      const destination = getReminderDestinationFromData(data, hasCompletedOnboarding);
+      if (!destination) return;
+      if (destination === '/onboarding') router.replace(destination);
+      else router.push(destination);
+    };
+
+    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      void handleResponse(response);
+    });
+    Notifications.getLastNotificationResponseAsync()
+      .then(async (response) => {
+        if (response) await handleResponse(response);
+        if (response) await Notifications.clearLastNotificationResponseAsync();
+      })
+      .catch(() => undefined);
+
+    return () => {
+      active = false;
+      subscription.remove();
+    };
+  }, [router]);
+
+  return null;
 }
 
 export default function RootLayout() {
@@ -85,6 +138,7 @@ export default function RootLayout() {
             <Stack.Screen name="onboarding" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           </Stack>
+          <NotificationResponseRouter />
           <StatusBar style="auto" />
         </NavigationThemeBridge>
       </CustomThemeProvider>
