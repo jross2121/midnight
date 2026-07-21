@@ -2,8 +2,9 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { ui, withAlpha } from "@/src/utils/designSystem";
 import { formatSignedDelta } from "@/src/utils/discipline";
 import { useTheme, type ThemeColors } from "@/src/utils/themeContext";
+import { useReducedMotion } from "@/src/utils/accessibility";
 import React from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Animated, Easing, Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle, G } from "react-native-svg";
 
@@ -11,7 +12,7 @@ import { CONTRACT_GOLD, HOME_GOLD } from "@/src/styles";
 import type { MidnightEvaluationData } from "@/src/utils/midnightEvaluation";
 
 const CTA_FOREGROUND = "#101722";
-const MIDNIGHT_ICON = require("../../assets/images/midnight-icon.png");
+const MIDNIGHT_ICON = require("../../assets/images/android-icon-foreground-v2.png");
 
 type MidnightEvaluationModalProps = {
   evaluation: MidnightEvaluationData;
@@ -30,15 +31,11 @@ type ResultOverviewProps = {
 
 type EvaluationHeaderProps = {
   evaluation: MidnightEvaluationData;
-  isPositiveDelta: boolean;
   styles: ReturnType<typeof makeStyles>;
-  colors: ThemeColors;
 };
 
 type ScoreRingProps = {
   completionPercent: number;
-  completedCount: number;
-  totalCount: number;
   isCompact: boolean;
   styles: ReturnType<typeof makeStyles>;
   colors: ThemeColors;
@@ -66,8 +63,6 @@ function formatEvaluationDate(value: string): string {
 
 function ScoreRing({
   completionPercent,
-  completedCount,
-  totalCount,
   isCompact,
   styles,
   colors,
@@ -107,45 +102,26 @@ function ScoreRing({
       <View style={styles.scoreRingCenter}>
         <Text style={styles.scoreRingLabel}>Score</Text>
         <Text style={styles.scoreRingValue}>{percent}%</Text>
-        <Text style={styles.scoreRingMeta}>
-          {totalCount > 0 ? `${completedCount}/${totalCount}` : "0/0"}
-        </Text>
       </View>
     </View>
   );
 }
 
-function EvaluationHeader({ evaluation, isPositiveDelta, styles, colors }: EvaluationHeaderProps) {
+function EvaluationHeader({ evaluation, styles }: EvaluationHeaderProps) {
   return (
     <View style={styles.header}>
       <View style={styles.sealShadow}>
         <View style={styles.sealFrame}>
-          <Image source={MIDNIGHT_ICON} style={styles.sealImage} resizeMode="cover" />
+          <Image source={MIDNIGHT_ICON} style={styles.sealImage} resizeMode="contain" />
         </View>
       </View>
 
       <View style={styles.headerCopy}>
         <View style={styles.headerMetaRow}>
-          <Text style={styles.eyebrow}>Daily evaluation</Text>
+          <Text style={styles.eyebrow}>Midnight evaluation</Text>
           <Text style={styles.evaluationDate}>{formatEvaluationDate(evaluation.date)}</Text>
         </View>
-        <Text style={styles.title}>Midnight Evaluation</Text>
-        <View style={styles.runBadge}>
-          <IconSymbol
-            name={isPositiveDelta ? "checkmark.circle.fill" : "flag.fill"}
-            size={14}
-            color={isPositiveDelta ? HOME_GOLD : colors.negative}
-          />
-          <Text
-            style={[
-              styles.runBadgeText,
-              isPositiveDelta ? styles.runBadgeTextPositive : styles.runBadgeTextNegative,
-            ]}
-            numberOfLines={1}
-          >
-            {evaluation.runTitle}
-          </Text>
-        </View>
+        <Text style={styles.title}>{evaluation.runTitle}</Text>
       </View>
     </View>
   );
@@ -162,10 +138,6 @@ function ResultOverview({
   return (
     <View style={styles.overviewShadow}>
       <View style={styles.overviewPanel}>
-        <View style={styles.verdictRail}>
-          <Text style={styles.verdictRailText}>Result</Text>
-        </View>
-
         <View style={styles.overviewBody}>
           <View style={styles.deltaBlock}>
             <Text style={styles.deltaLabel}>Discipline Rating</Text>
@@ -180,8 +152,6 @@ function ResultOverview({
 
           <ScoreRing
             completionPercent={evaluation.completionPercent}
-            completedCount={evaluation.completedCount}
-            totalCount={evaluation.totalCount}
             isCompact={isCompact}
             styles={styles}
             colors={colors}
@@ -190,19 +160,19 @@ function ResultOverview({
 
         <View style={styles.statGrid}>
           <View style={styles.statCell}>
-            <Text style={styles.statLabel}>Quests</Text>
             <Text style={styles.statValue}>
               {evaluation.completedCount}/{evaluation.totalCount}
             </Text>
+            <Text style={styles.statLabel}>Quests complete</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statCell}>
-            <Text style={styles.statLabel}>Contract</Text>
             <Text style={styles.statValue}>
               {evaluation.contractTotalCount > 0
                 ? `${evaluation.contractCompletedCount}/${evaluation.contractTotalCount}`
-                : "None"}
+                : "—"}
             </Text>
+            <Text style={styles.statLabel}>Contracts</Text>
           </View>
         </View>
       </View>
@@ -216,7 +186,7 @@ function EvaluationSupportPanel({ insight, styles }: EvaluationSupportPanelProps
       <View style={styles.supportSection}>
         <View style={styles.panelTitleRow}>
           <IconSymbol name="shield.fill" size={17} color={CONTRACT_GOLD} />
-          <Text style={styles.panelTitle}>Readout</Text>
+          <Text style={styles.panelTitle}>Next move</Text>
         </View>
         <Text style={styles.signalText}>{insight}</Text>
       </View>
@@ -268,6 +238,64 @@ function makeStyles(
       height: 1,
       backgroundColor: withAlpha(colors.textPrimary, 0.06),
     },
+    transitionOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      zIndex: 10,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.bg,
+    },
+    transitionGlow: {
+      position: "absolute",
+      width: isCompact ? 190 : 230,
+      height: isCompact ? 190 : 230,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: withAlpha(HOME_GOLD, 0.2),
+      backgroundColor: withAlpha(HOME_GOLD, 0.045),
+      shadowColor: HOME_GOLD,
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.26,
+      shadowRadius: 30,
+      elevation: 7,
+    },
+    transitionMarkFrame: {
+      width: isCompact ? 104 : 122,
+      height: isCompact ? 104 : 122,
+      borderRadius: 32,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1,
+      borderColor: withAlpha(HOME_GOLD, 0.38),
+      backgroundColor: withAlpha(HOME_GOLD, 0.07),
+    },
+    transitionMark: {
+      width: "76%",
+      height: "76%",
+    },
+    transitionEyebrow: {
+      color: HOME_GOLD,
+      fontSize: 11,
+      lineHeight: 15,
+      fontWeight: "900",
+      letterSpacing: 2.4,
+      textTransform: "uppercase",
+      marginTop: 22,
+    },
+    transitionTitle: {
+      color: colors.textPrimary,
+      fontSize: isCompact ? 25 : 29,
+      lineHeight: isCompact ? 30 : 34,
+      fontWeight: "900",
+      marginTop: 4,
+    },
+    transitionRule: {
+      width: 54,
+      height: 2,
+      borderRadius: 999,
+      backgroundColor: HOME_GOLD,
+      marginTop: 16,
+    },
     content: {
       flexGrow: 1,
       justifyContent: "center",
@@ -282,7 +310,7 @@ function makeStyles(
       borderRadius: ui.radius.xl,
       borderWidth: 1,
       borderColor: withAlpha(judgmentColor, 0.2),
-      backgroundColor: withAlpha(colors.surface, 0.96),
+      backgroundColor: withAlpha(colors.surface, 0.98),
       padding: isCompact ? 14 : 18,
       gap: sectionGap,
       shadowColor: judgmentColor,
@@ -311,14 +339,15 @@ function makeStyles(
     sealFrame: {
       flex: 1,
       borderRadius: ui.radius.lg,
-      overflow: "hidden",
       borderWidth: 1,
       borderColor: withAlpha(judgmentColor, 0.42),
-      backgroundColor: withAlpha(colors.surface2, 0.98),
+      backgroundColor: withAlpha(HOME_GOLD, 0.06),
+      alignItems: "center",
+      justifyContent: "center",
     },
     sealImage: {
-      width: "100%",
-      height: "100%",
+      width: "76%",
+      height: "76%",
     },
     headerCopy: {
       flex: 1,
@@ -362,71 +391,8 @@ function makeStyles(
       borderWidth: 1,
       borderColor: withAlpha(judgmentColor, 0.24),
       backgroundColor: withAlpha(colors.surface2, 0.96),
-      paddingTop: isCompact ? 10 : 12,
-      paddingRight: isCompact ? 12 : 14,
-      paddingBottom: isCompact ? 10 : 12,
-      paddingLeft: isCompact ? 38 : 42,
+      padding: isCompact ? 12 : 14,
       gap: isCompact ? 10 : 12,
-    },
-    verdictRail: {
-      position: "absolute",
-      top: 0,
-      bottom: 0,
-      left: 0,
-      width: isCompact ? 30 : 34,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: withAlpha(judgmentColor, isPositiveDelta ? 0.13 : 0.1),
-      borderRightWidth: 1,
-      borderRightColor: withAlpha(judgmentColor, 0.22),
-    },
-    verdictRailText: {
-      position: "absolute",
-      top: isCompact ? 62 : 70,
-      left: isCompact ? -29 : -27,
-      width: 88,
-      color: withAlpha(judgmentColor, 0.9),
-      fontSize: 10,
-      lineHeight: 12,
-      fontWeight: "900",
-      letterSpacing: 0,
-      textAlign: "center",
-      textTransform: "uppercase",
-      transform: [{ rotate: "-90deg" }],
-    },
-    overviewHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 10,
-    },
-    runBadge: {
-      minHeight: 28,
-      borderRadius: 999,
-      borderWidth: 1,
-      borderColor: withAlpha(judgmentColor, 0.28),
-      backgroundColor: withAlpha(judgmentColor, 0.1),
-      paddingHorizontal: 9,
-      paddingVertical: 5,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      alignSelf: "flex-start",
-      maxWidth: "100%",
-    },
-    runBadgeText: {
-      fontSize: 11,
-      lineHeight: 14,
-      fontWeight: "900",
-      letterSpacing: 0,
-      textTransform: "uppercase",
-      flexShrink: 1,
-    },
-    runBadgeTextPositive: {
-      color: HOME_GOLD,
-    },
-    runBadgeTextNegative: {
-      color: colors.negative,
     },
     evaluationDate: {
       color: withAlpha(colors.textSecondary, 0.8),
@@ -520,13 +486,6 @@ function makeStyles(
       fontWeight: "900",
       letterSpacing: 0,
     },
-    scoreRingMeta: {
-      color: withAlpha(colors.textSecondary, 0.72),
-      fontSize: 10,
-      lineHeight: 13,
-      fontWeight: "800",
-      letterSpacing: 0,
-    },
     statGrid: {
       minHeight: isCompact ? 48 : 52,
       borderRadius: ui.radius.card,
@@ -543,7 +502,7 @@ function makeStyles(
       paddingHorizontal: 10,
       paddingVertical: 8,
       justifyContent: "center",
-      gap: 3,
+      gap: 2,
     },
     statDivider: {
       width: 1,
@@ -551,8 +510,8 @@ function makeStyles(
     },
     statLabel: {
       color: withAlpha(colors.textSecondary, 0.7),
-      fontSize: 9,
-      lineHeight: 12,
+      fontSize: 10,
+      lineHeight: 13,
       fontWeight: "800",
       letterSpacing: 0,
       textTransform: "uppercase",
@@ -583,7 +542,7 @@ function makeStyles(
       borderRadius: ui.radius.card,
       borderWidth: 1,
       borderColor: withAlpha(colors.border, 0.24),
-      backgroundColor: withAlpha(colors.surface2, 0.5),
+      backgroundColor: withAlpha(CONTRACT_GOLD, 0.055),
       paddingHorizontal: isCompact ? 12 : 14,
       paddingVertical: isCompact ? 11 : 13,
     },
@@ -642,17 +601,63 @@ export function MidnightEvaluationModal({
   isSaving,
 }: MidnightEvaluationModalProps) {
   const { colors } = useTheme();
+  const reducedMotion = useReducedMotion();
   const insets = useSafeAreaInsets();
   const isPositiveDelta = evaluation.drDelta >= 0;
   const { height, width } = useWindowDimensions();
   const isCompact = height < 760 || width < 360;
   const bottomClearance = Math.max(insets.bottom, 10);
   const judgmentMessage = React.useMemo(() => getJudgmentMessage(evaluation.drDelta), [evaluation.drDelta]);
+  const revealProgress = React.useRef(new Animated.Value(0)).current;
+  const [transitionComplete, setTransitionComplete] = React.useState(false);
 
   const styles = React.useMemo(
     () => makeStyles(isCompact, bottomClearance, colors, isPositiveDelta),
     [bottomClearance, colors, isCompact, isPositiveDelta]
   );
+
+  React.useEffect(() => {
+    revealProgress.stopAnimation();
+    if (reducedMotion) {
+      revealProgress.setValue(1);
+      setTransitionComplete(true);
+      return;
+    }
+
+    revealProgress.setValue(0);
+    setTransitionComplete(false);
+    Animated.timing(revealProgress, {
+      toValue: 1,
+      duration: 1150,
+      easing: Easing.inOut(Easing.cubic),
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) setTransitionComplete(true);
+    });
+
+    return () => revealProgress.stopAnimation();
+  }, [reducedMotion, revealProgress]);
+
+  const overlayOpacity = revealProgress.interpolate({
+    inputRange: [0, 0.68, 1],
+    outputRange: [1, 1, 0],
+  });
+  const markScale = revealProgress.interpolate({
+    inputRange: [0, 0.42, 0.68, 1],
+    outputRange: [0.68, 1.06, 1, 1],
+  });
+  const ceremonyCopyOpacity = revealProgress.interpolate({
+    inputRange: [0, 0.3, 0.64, 0.82],
+    outputRange: [0, 0, 1, 1],
+  });
+  const sheetOpacity = revealProgress.interpolate({
+    inputRange: [0, 0.72, 1],
+    outputRange: [0, 0, 1],
+  });
+  const sheetTranslateY = revealProgress.interpolate({
+    inputRange: [0, 0.72, 1],
+    outputRange: [28, 28, 0],
+  });
 
   return (
     <SafeAreaView style={styles.screen} edges={["top"]}>
@@ -661,19 +666,29 @@ export function MidnightEvaluationModal({
         <View style={styles.backdropRule} />
       </View>
 
+      {!transitionComplete ? (
+        <Animated.View pointerEvents="none" style={[styles.transitionOverlay, { opacity: overlayOpacity }]}>
+          <Animated.View style={[styles.transitionGlow, { transform: [{ scale: markScale }] }]} />
+          <Animated.View style={[styles.transitionMarkFrame, { transform: [{ scale: markScale }] }]}>
+            <Image source={MIDNIGHT_ICON} style={styles.transitionMark} resizeMode="contain" />
+          </Animated.View>
+          <Animated.View style={{ alignItems: "center", opacity: ceremonyCopyOpacity }}>
+            <Text style={styles.transitionEyebrow}>Midnight</Text>
+            <Text style={styles.transitionTitle}>Day recorded</Text>
+            <View style={styles.transitionRule} />
+          </Animated.View>
+        </Animated.View>
+      ) : null}
+
       <ScrollView
+        pointerEvents={transitionComplete ? "auto" : "none"}
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         bounces={false}
       >
-        <View style={styles.sheet}>
-          <EvaluationHeader
-            evaluation={evaluation}
-            isPositiveDelta={isPositiveDelta}
-            styles={styles}
-            colors={colors}
-          />
+        <Animated.View style={[styles.sheet, { opacity: sheetOpacity, transform: [{ translateY: sheetTranslateY }] }]}>
+          <EvaluationHeader evaluation={evaluation} styles={styles} />
 
           <ResultOverview
             evaluation={evaluation}
@@ -694,18 +709,18 @@ export function MidnightEvaluationModal({
               onPress={onStartNewDay}
               disabled={isSaving}
               accessibilityRole="button"
-              accessibilityLabel={isSaving ? "Saving midnight evaluation" : "Continue after midnight evaluation"}
+              accessibilityLabel={isSaving ? "Saving midnight evaluation" : "Start a new day"}
               style={({ pressed }) => [
                 styles.cta,
                 pressed && styles.ctaPressed,
                 isSaving && styles.ctaDisabled,
               ]}
             >
-              <Text style={styles.ctaLabel}>{isSaving ? "Saving…" : "Continue"}</Text>
+              <Text style={styles.ctaLabel}>{isSaving ? "Saving…" : "Start new day"}</Text>
               <IconSymbol name="chevron.right" size={20} color={CTA_FOREGROUND} />
             </Pressable>
           </View>
-        </View>
+        </Animated.View>
       </ScrollView>
     </SafeAreaView>
   );

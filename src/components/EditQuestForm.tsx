@@ -12,16 +12,20 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  QuestCategoryOptions,
+  QuestDifficultyOptions,
+  QuestRepeatOptions,
+} from "@/src/components/QuestEditorOptions";
 import { CONTRACT_GOLD, HOME_GOLD, createStyles } from "@/src/styles";
-import { getCategoryDisplayName, getCategoryEmoji, getCategoryEmojiById } from "@/src/utils/categoryLabels";
+import { getCategoryArtById } from "@/src/utils/categoryArt";
+import { getCategoryDisplayName } from "@/src/utils/categoryLabels";
 import { withAlpha } from "@/src/utils/designSystem";
 import { getQuestXpForDifficulty } from "@/src/utils/questXp";
 import {
   getQuestRepeatLabel,
   normalizeQuestRepeat,
   normalizeScheduledWeekday,
-  QUEST_REPEAT_OPTIONS,
-  WEEKDAY_LABELS,
 } from "@/src/utils/recurrence";
 import { useTheme } from "@/src/utils/themeContext";
 import type { Category, Quest, QuestRepeat } from "@/src/utils/types";
@@ -40,229 +44,6 @@ interface EditQuestFormProps {
   ) => void;
   onCancel: () => void;
   reducedMotion: boolean;
-}
-
-const DIFFICULTY_META: Record<"easy" | "medium" | "hard", { label: string; emoji: string }> = {
-  easy: { label: "Easy", emoji: "🌱" },
-  medium: { label: "Medium", emoji: "⚡" },
-  hard: { label: "Hard", emoji: "🔥" },
-};
-
-const REPEAT_META: Record<QuestRepeat, { label: string; emoji: string }> = {
-  once: { label: "Once", emoji: "☝️" },
-  daily: { label: "Daily", emoji: "☀️" },
-  weekdays: { label: "Weekdays", emoji: "📅" },
-  weekly: { label: "Weekly", emoji: "🗓️" },
-};
-
-function CategoryChips({
-  categories,
-  selectedCategory,
-  onSelect,
-}: {
-  categories: Category[];
-  selectedCategory: string;
-  onSelect: (categoryId: string) => void;
-}) {
-  const { colors } = useTheme();
-  const styles = createStyles(colors);
-
-  return (
-    <View style={styles.editSheetChipRow}>
-      {categories.map((category) => {
-        const isSelected = selectedCategory === category.id;
-        const label = getCategoryDisplayName(category);
-        return (
-          <Pressable
-            key={category.id}
-            onPress={() => onSelect(category.id)}
-            accessibilityRole="button"
-            accessibilityLabel={`Set quest area to ${label}`}
-            accessibilityState={{ selected: isSelected }}
-            style={[
-              styles.editSheetChip,
-              {
-                backgroundColor: isSelected
-                  ? withAlpha(HOME_GOLD, 0.14)
-                  : withAlpha(colors.bg, 0.36),
-                borderColor: isSelected
-                  ? withAlpha(HOME_GOLD, 0.42)
-                  : withAlpha(colors.border, 0.24),
-              },
-              isSelected && styles.editorChipSelected,
-            ]}
-          >
-            <Text style={styles.editorChipEmoji}>{getCategoryEmoji(category)}</Text>
-            <Text
-              style={[
-                styles.editSheetChipText,
-                isSelected ? { color: colors.textPrimary } : { color: colors.textSecondary },
-              ]}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.82}
-            >
-              {label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
-function DifficultyChips({
-  selectedDifficulty,
-  onSelect,
-}: {
-  selectedDifficulty: "easy" | "medium" | "hard";
-  onSelect: (difficulty: "easy" | "medium" | "hard") => void;
-}) {
-  const { colors } = useTheme();
-  const styles = createStyles(colors);
-
-  return (
-    <View style={styles.editSheetDifficultyRow}>
-      {(["easy", "medium", "hard"] as const).map((difficulty) => {
-        const isSelected = selectedDifficulty === difficulty;
-        const meta = DIFFICULTY_META[difficulty];
-        return (
-          <Pressable
-            key={difficulty}
-            onPress={() => onSelect(difficulty)}
-            accessibilityRole="button"
-            accessibilityLabel={`Set quest intensity to ${difficulty}`}
-            accessibilityState={{ selected: isSelected }}
-            style={[
-              styles.editSheetDifficultyChip,
-              {
-                backgroundColor: isSelected
-                  ? withAlpha(HOME_GOLD, 0.14)
-                  : withAlpha(colors.bg, 0.36),
-                borderColor: isSelected
-                  ? withAlpha(HOME_GOLD, 0.42)
-                  : withAlpha(colors.border, 0.24),
-              },
-              isSelected && styles.editorChipSelected,
-            ]}
-          >
-            <Text style={styles.editorChipEmoji}>{meta.emoji}</Text>
-            <Text
-              style={[
-                styles.editSheetChipText,
-                isSelected ? { color: colors.textPrimary } : { color: colors.textSecondary },
-              ]}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.82}
-            >
-              {meta.label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
-function RepeatChips({
-  selectedRepeat,
-  selectedWeekday,
-  onRepeatSelect,
-  onWeekdaySelect,
-}: {
-  selectedRepeat: QuestRepeat;
-  selectedWeekday: number;
-  onRepeatSelect: (repeat: QuestRepeat) => void;
-  onWeekdaySelect: (weekday: number) => void;
-}) {
-  const { colors } = useTheme();
-  const styles = createStyles(colors);
-
-  return (
-    <>
-      <View style={styles.editSheetDifficultyRow}>
-        {QUEST_REPEAT_OPTIONS.map((repeat) => {
-          const isSelected = selectedRepeat === repeat;
-          const meta = REPEAT_META[repeat];
-
-          return (
-            <Pressable
-              key={repeat}
-              onPress={() => onRepeatSelect(repeat)}
-              accessibilityRole="button"
-              accessibilityLabel={`Set quest repeat to ${meta.label}`}
-              accessibilityState={{ selected: isSelected }}
-              style={[
-                styles.editSheetDifficultyChip,
-                {
-                  backgroundColor: isSelected
-                    ? withAlpha(HOME_GOLD, 0.14)
-                    : withAlpha(colors.bg, 0.36),
-                  borderColor: isSelected
-                    ? withAlpha(HOME_GOLD, 0.42)
-                    : withAlpha(colors.border, 0.24),
-                },
-                isSelected && styles.editorChipSelected,
-              ]}
-            >
-              <Text style={styles.editorChipEmoji}>{meta.emoji}</Text>
-              <Text
-                style={[
-                  styles.editSheetChipText,
-                  isSelected ? { color: colors.textPrimary } : { color: colors.textSecondary },
-                ]}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.82}
-              >
-                {meta.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      {selectedRepeat === "weekly" ? (
-        <View style={styles.editSheetWeekdayRow}>
-          {WEEKDAY_LABELS.map((label, weekday) => {
-            const isSelected = selectedWeekday === weekday;
-            return (
-              <Pressable
-                key={label}
-                onPress={() => onWeekdaySelect(weekday)}
-                accessibilityRole="button"
-                accessibilityLabel={`Schedule quest on ${label}`}
-                accessibilityState={{ selected: isSelected }}
-                style={[
-                  styles.editSheetWeekdayChip,
-                  {
-                    backgroundColor: isSelected
-                      ? withAlpha(HOME_GOLD, 0.14)
-                      : withAlpha(colors.bg, 0.36),
-                    borderColor: isSelected
-                      ? withAlpha(HOME_GOLD, 0.42)
-                      : withAlpha(colors.border, 0.24),
-                  },
-                  isSelected && styles.editorChipSelected,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.editSheetChipText,
-                    isSelected ? { color: colors.textPrimary } : { color: colors.textSecondary },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      ) : null}
-    </>
-  );
 }
 
 export function EditQuestSheet({ quest, categories, onSave, onCancel, reducedMotion }: EditQuestFormProps) {
@@ -285,6 +66,7 @@ export function EditQuestSheet({ quest, categories, onSave, onCancel, reducedMot
   const [savePressed, setSavePressed] = useState(false);
   const selectedCategory = categories.find((category) => category.id === editCategory);
   const selectedCategoryName = selectedCategory ? getCategoryDisplayName(selectedCategory) : editCategory;
+  const selectedCategoryColor = getCategoryArtById(editCategory).color;
   const repeatSummary = getQuestRepeatLabel({
     repeat: editRepeat,
     scheduledWeekday: editScheduledWeekday,
@@ -385,10 +167,10 @@ export function EditQuestSheet({ quest, categories, onSave, onCancel, reducedMot
                     },
                   ]}
                 >
-                  <Text style={styles.editorHeroEmoji}>{getCategoryEmojiById(editCategory)}</Text>
+                  <IconSymbol name="pencil" size={18} color={HOME_GOLD} />
                 </View>
                 <View style={styles.editSheetTitleGroup}>
-                  <Text style={[styles.editSheetKicker, { color: HOME_GOLD }]}>Quest editor</Text>
+                  <Text style={[styles.editSheetKicker, { color: HOME_GOLD }]}>Edit quest</Text>
                   <Text
                     style={[styles.editSheetTitle, { color: colors.textPrimary }]}
                     numberOfLines={1}
@@ -415,38 +197,55 @@ export function EditQuestSheet({ quest, categories, onSave, onCancel, reducedMot
                 <IconSymbol name="xmark" size={18} color={colors.textSecondary} />
               </Pressable>
             </View>
+
             <View
               style={[
                 styles.editSheetSummaryRow,
                 { borderBottomColor: withAlpha(colors.border, 0.18) },
               ]}
             >
-              {[
-                { label: selectedCategoryName, emoji: getCategoryEmojiById(editCategory) },
-                { label: `${automaticXp} XP`, emoji: DIFFICULTY_META[editDifficulty].emoji },
-                { label: repeatSummary, emoji: REPEAT_META[editRepeat].emoji },
-              ].map((item) => (
-                <View
-                  key={item.label}
-                  style={[
-                    styles.editSheetMetaPill,
-                    {
-                      backgroundColor: withAlpha(colors.bg, 0.38),
-                      borderColor: withAlpha(colors.border, 0.22),
-                    },
-                  ]}
-                >
-                  <Text style={styles.editSheetMetaEmoji}>{item.emoji}</Text>
-                  <Text
-                    style={[styles.editSheetMetaPillText, { color: colors.textSecondary }]}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.8}
-                  >
-                    {item.label}
-                  </Text>
-                </View>
-              ))}
+              <View
+                style={[
+                  styles.editSheetMetaPill,
+                  {
+                    backgroundColor: withAlpha(selectedCategoryColor, 0.1),
+                    borderColor: withAlpha(selectedCategoryColor, 0.3),
+                  },
+                ]}
+              >
+                <View style={[styles.editorMetaDot, { backgroundColor: selectedCategoryColor }]} />
+                <Text style={[styles.editSheetMetaPillText, { color: colors.textSecondary }]} numberOfLines={1}>
+                  {selectedCategoryName}
+                </Text>
+              </View>
+              <View
+                style={[
+                  styles.editSheetMetaPill,
+                  {
+                    backgroundColor: withAlpha(colors.bg, 0.38),
+                    borderColor: withAlpha(colors.border, 0.22),
+                  },
+                ]}
+              >
+                <IconSymbol name="star.fill" size={12} color={HOME_GOLD} />
+                <Text style={[styles.editSheetMetaPillText, { color: colors.textSecondary }]}>
+                  {automaticXp} XP
+                </Text>
+              </View>
+              <View
+                style={[
+                  styles.editSheetMetaPill,
+                  {
+                    backgroundColor: withAlpha(colors.bg, 0.38),
+                    borderColor: withAlpha(colors.border, 0.22),
+                  },
+                ]}
+              >
+                <IconSymbol name="calendar" size={12} color={colors.textSecondary} />
+                <Text style={[styles.editSheetMetaPillText, { color: colors.textSecondary }]} numberOfLines={1}>
+                  {repeatSummary}
+                </Text>
+              </View>
               {quest.contract ? (
                 <View
                   style={[
@@ -457,11 +256,8 @@ export function EditQuestSheet({ quest, categories, onSave, onCancel, reducedMot
                     },
                   ]}
                 >
-                  <IconSymbol name="shield.fill" size={13} color={CONTRACT_GOLD} />
-                  <Text
-                    style={[styles.editSheetMetaPillText, { color: CONTRACT_GOLD }]}
-                    numberOfLines={1}
-                  >
+                  <IconSymbol name="shield.fill" size={12} color={CONTRACT_GOLD} />
+                  <Text style={[styles.editSheetMetaPillText, { color: CONTRACT_GOLD }]}>
                     Contract
                   </Text>
                 </View>
@@ -470,28 +266,27 @@ export function EditQuestSheet({ quest, categories, onSave, onCancel, reducedMot
 
             <ScrollView
               style={styles.editSheetScroll}
-              contentContainerStyle={[
-                styles.editSheetFormContent,
-                { paddingBottom: 6 },
-              ]}
+              contentContainerStyle={[styles.editSheetFormContent, { paddingBottom: 8 }]}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
+              <Text style={[styles.editorIntroText, { color: colors.textSecondary }]}>
+                Refine the mission without changing its progress.
+              </Text>
               <View
                 style={[
-                  styles.editSheetSectionCard,
+                  styles.editorFormSurface,
                   {
                     backgroundColor: withAlpha(colors.surface2, 0.58),
                     borderColor: withAlpha(colors.border, 0.2),
                   },
                 ]}
               >
-                <View style={styles.editSheetSectionHeaderLine}>
-                  <Text style={[styles.editSheetSectionTitle, { color: HOME_GOLD }]}>Basics</Text>
-                  <View style={[styles.editSheetSectionRule, { backgroundColor: withAlpha(HOME_GOLD, 0.34) }]} />
-                </View>
-                <View style={styles.editSheetFieldBlock}>
-                  <Text style={[styles.editSheetLabel, { color: colors.textSecondary }]}>Quest name</Text>
+                <View style={styles.editorFieldBlock}>
+                  <View style={styles.editorFieldHeader}>
+                    <Text style={[styles.editSheetLabel, { color: colors.textSecondary }]}>Quest name</Text>
+                    <Text style={[styles.editorFieldHint, { color: colors.textSecondary }]}>Required</Text>
+                  </View>
                   <TextInput
                     placeholder="What needs to get done?"
                     placeholderTextColor={withAlpha(colors.textSecondary, 0.72)}
@@ -508,41 +303,18 @@ export function EditQuestSheet({ quest, categories, onSave, onCancel, reducedMot
                         borderWidth: 1,
                         color: colors.textPrimary,
                       },
-                      focusedInput === "title" && {
-                        borderColor: withAlpha(HOME_GOLD, 0.6),
-                        borderWidth: 1,
-                      },
+                      focusedInput === "title" && { borderColor: withAlpha(HOME_GOLD, 0.6) },
                     ]}
                   />
                 </View>
 
-                <View style={styles.editSheetFieldBlock}>
-                  <Text style={[styles.editSheetLabel, { color: colors.textSecondary }]}>Area</Text>
-                  <CategoryChips
-                    categories={categories}
-                    selectedCategory={editCategory}
-                    onSelect={handleCategoryChange}
-                  />
-                </View>
-              </View>
-
-              <View
-                style={[
-                  styles.editSheetSectionCard,
-                  {
-                    backgroundColor: withAlpha(colors.surface2, 0.58),
-                    borderColor: withAlpha(colors.border, 0.2),
-                  },
-                ]}
-              >
-                <View style={styles.editSheetSectionHeaderLine}>
-                  <Text style={[styles.editSheetSectionTitle, { color: HOME_GOLD }]}>Details</Text>
-                  <View style={[styles.editSheetSectionRule, { backgroundColor: withAlpha(HOME_GOLD, 0.34) }]} />
-                </View>
-                <View style={styles.editSheetFieldBlock}>
-                  <Text style={[styles.editSheetLabel, { color: colors.textSecondary }]}>Target</Text>
+                <View style={styles.editorFieldBlock}>
+                  <View style={styles.editorFieldHeader}>
+                    <Text style={[styles.editSheetLabel, { color: colors.textSecondary }]}>Target</Text>
+                    <Text style={[styles.editorFieldHint, { color: colors.textSecondary }]}>Optional</Text>
+                  </View>
                   <TextInput
-                    placeholder="20 min, 8 cups, $0"
+                    placeholder="20 min, 8 cups, $25"
                     placeholderTextColor={withAlpha(colors.textSecondary, 0.72)}
                     value={editTarget}
                     onChangeText={setEditTarget}
@@ -557,39 +329,40 @@ export function EditQuestSheet({ quest, categories, onSave, onCancel, reducedMot
                         borderWidth: 1,
                         color: colors.textPrimary,
                       },
-                      focusedInput === "target" && {
-                        borderColor: withAlpha(HOME_GOLD, 0.6),
-                        borderWidth: 1,
-                      },
+                      focusedInput === "target" && { borderColor: withAlpha(HOME_GOLD, 0.6) },
                     ]}
                   />
                 </View>
 
-                <View style={styles.editSheetFieldBlock}>
-                  <Text style={[styles.editSheetLabel, { color: colors.textSecondary }]}>Intensity</Text>
-                  <DifficultyChips
+                <View style={styles.editorFieldBlock}>
+                  <View style={styles.editorFieldHeader}>
+                    <Text style={[styles.editSheetLabel, { color: colors.textSecondary }]}>Area</Text>
+                    <Text style={[styles.editorFieldHint, { color: colors.textSecondary }]}>Where it counts</Text>
+                  </View>
+                  <QuestCategoryOptions
+                    categories={categories}
+                    selectedCategory={editCategory}
+                    onSelect={handleCategoryChange}
+                  />
+                </View>
+
+                <View style={styles.editorFieldBlock}>
+                  <View style={styles.editorFieldHeader}>
+                    <Text style={[styles.editSheetLabel, { color: colors.textSecondary }]}>Intensity</Text>
+                    <Text style={[styles.editorFieldHint, { color: HOME_GOLD }]}>{automaticXp} XP</Text>
+                  </View>
+                  <QuestDifficultyOptions
                     selectedDifficulty={editDifficulty}
                     onSelect={handleDifficultyChange}
                   />
                 </View>
-              </View>
 
-              <View
-                style={[
-                  styles.editSheetSectionCard,
-                  {
-                    backgroundColor: withAlpha(colors.surface2, 0.58),
-                    borderColor: withAlpha(colors.border, 0.2),
-                  },
-                ]}
-              >
-                <View style={styles.editSheetSectionHeaderLine}>
-                  <Text style={[styles.editSheetSectionTitle, { color: HOME_GOLD }]}>Schedule</Text>
-                  <View style={[styles.editSheetSectionRule, { backgroundColor: withAlpha(HOME_GOLD, 0.34) }]} />
-                </View>
-                <View style={styles.editSheetFieldBlock}>
-                  <Text style={[styles.editSheetLabel, { color: colors.textSecondary }]}>Repeat</Text>
-                  <RepeatChips
+                <View style={styles.editorFieldBlock}>
+                  <View style={styles.editorFieldHeader}>
+                    <Text style={[styles.editSheetLabel, { color: colors.textSecondary }]}>Schedule</Text>
+                    <Text style={[styles.editorFieldHint, { color: colors.textSecondary }]}>How often</Text>
+                  </View>
+                  <QuestRepeatOptions
                     selectedRepeat={editRepeat}
                     selectedWeekday={editScheduledWeekday}
                     onRepeatSelect={handleRepeatChange}
@@ -623,7 +396,10 @@ export function EditQuestSheet({ quest, categories, onSave, onCancel, reducedMot
                 ]}
                 disabled={!canSave}
               >
-                <Text style={[styles.editSheetPrimaryButtonText, { color: colors.bg }]}>Save quest</Text>
+                <View style={styles.editorButtonContent}>
+                  <IconSymbol name="checkmark" size={17} color={colors.bg} />
+                  <Text style={[styles.editSheetPrimaryButtonText, { color: colors.bg }]}>Save changes</Text>
+                </View>
               </Pressable>
             </View>
           </View>

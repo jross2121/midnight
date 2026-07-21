@@ -5,11 +5,11 @@
     "description": "Midnight is a daily discipline tracker that turns consistent effort into measurable progress.",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/midnight-icon.png",
+    "icon": "./assets/images/midnight-icon-concept-v2.png",
     "scheme": "midnight",
     "userInterfaceStyle": "automatic",
     "notification": {
-      "icon": "./assets/images/android-icon-monochrome.png",
+      "icon": "./assets/images/android-icon-monochrome-v2.png",
       "color": "#F5B84B",
       "androidMode": "default"
     },
@@ -20,10 +20,11 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#02070D",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "foregroundImage": "./assets/images/android-icon-foreground-v2.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome-v2.png"
       },
       "edgeToEdgeEnabled": true,
+      "softwareKeyboardLayoutMode": "resize",
       "predictiveBackGestureEnabled": false,
       "package": "com.jacobross.midnight",
       "versionCode": 1,
@@ -35,7 +36,7 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/midnight-icon.png"
+      "favicon": "./assets/images/midnight-icon-concept-v2.png"
     },
     "plugins": [
       "expo-router",
@@ -49,7 +50,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/midnight-icon.png",
+          "image": "./assets/images/midnight-icon-concept-v2.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#02070D",

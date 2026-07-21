@@ -19,6 +19,8 @@ const MAPPING = {
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
   'chevron.left': 'chevron-left',
+  'chevron.up': 'expand-less',
+  'chevron.down': 'expand-more',
   'chart.bar.fill': 'insert-chart',
   'calendar': 'calendar-today',
   'timer': 'timer',

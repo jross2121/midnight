@@ -3,7 +3,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
-import { Alert, Linking, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Alert, Image, Linking, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { CONTRACT_GOLD, HOME_GOLD, createStyles } from "@/src/styles";
@@ -57,6 +57,7 @@ import {
 
 const SETTINGS_ACCENT = HOME_GOLD;
 const SETTINGS_BUTTON_TEXT = "#15131A";
+const MIDNIGHT_MARK = require("../../assets/images/android-icon-foreground-v2.png");
 
 function getYesterdayDateKey() {
   const d = new Date();
@@ -106,16 +107,16 @@ export default function SettingsScreen() {
   const settingsDividerColor = isLightTheme ? "#E2E8F0" : "#1A2633";
   const settingsGoldBorder = isLightTheme ? "#F0C96E" : "#5B421B";
   const settingsCardSurface = {
-    backgroundColor: isLightTheme ? colors.surface : colors.surface2,
-    borderColor: isLightTheme ? "#E2E8F0" : colors.border,
+    backgroundColor: withAlpha(colors.surface2, isLightTheme ? 0.78 : 0.86),
+    borderColor: withAlpha(SETTINGS_ACCENT, isLightTheme ? 0.22 : 0.18),
   };
   const settingsFeatureSurface = {
-    backgroundColor: isLightTheme ? colors.surface : colors.surface2,
-    borderColor: settingsDividerColor,
+    backgroundColor: withAlpha(colors.surface2, isLightTheme ? 0.82 : 0.9),
+    borderColor: withAlpha(SETTINGS_ACCENT, isLightTheme ? 0.28 : 0.24),
   };
   const settingsInputSurface = {
-    backgroundColor: isLightTheme ? "#F8FAFC" : "#0B1117",
-    borderColor: isLightTheme ? "#E2E8F0" : "#1B2634",
+    backgroundColor: withAlpha(colors.bg, isLightTheme ? 0.56 : 0.72),
+    borderColor: withAlpha(colors.border, 0.72),
   };
 
   const loadArchive = useCallback(async () => {
@@ -683,20 +684,29 @@ export default function SettingsScreen() {
   const importFieldVisible = showImportBox || importPayload.trim().length > 0;
   const importButtonDisabled = importFieldVisible && importPayload.trim().length === 0;
   const renderSettingsSectionLabel = (label: string, marginTop = 16) => (
-    <Text
+    <View
       style={{
-        color: withAlpha(colors.textSecondary, 0.78),
-        fontSize: 11,
-        lineHeight: 16,
-        fontWeight: "900",
-        letterSpacing: 0,
-        textTransform: "uppercase",
         marginTop,
         marginBottom: 8,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
       }}
     >
-      {label}
-    </Text>
+      <View style={{ width: 18, height: 2, borderRadius: 999, backgroundColor: SETTINGS_ACCENT }} />
+      <Text
+        style={{
+          color: withAlpha(colors.textSecondary, 0.82),
+          fontSize: 11,
+          lineHeight: 16,
+          fontWeight: "900",
+          letterSpacing: 0,
+          textTransform: "uppercase",
+        }}
+      >
+        {label}
+      </Text>
+    </View>
   );
 
   return (
@@ -708,12 +718,53 @@ export default function SettingsScreen() {
       >
         <ScreenHeader
           title="Settings"
-          subtitle="Controls and backups"
+          subtitle="Shape how Midnight works for you"
           icon="chevron.left"
           onIconPress={navigateBack}
           iconAccessibilityLabel="Go back"
           style={{ marginBottom: 12 }}
         />
+
+        <View
+          style={[
+            styles.card,
+            settingsFeatureSurface,
+            {
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 14,
+              paddingVertical: 16,
+              marginBottom: 6,
+              backgroundColor: withAlpha(SETTINGS_ACCENT, 0.055),
+            },
+          ]}
+        >
+          <View
+            style={{
+              width: 58,
+              height: 58,
+              borderRadius: 17,
+              alignItems: "center",
+              justifyContent: "center",
+              borderWidth: 1,
+              borderColor: withAlpha(SETTINGS_ACCENT, 0.3),
+              backgroundColor: withAlpha(SETTINGS_ACCENT, 0.08),
+            }}
+          >
+            <Image source={MIDNIGHT_MARK} resizeMode="contain" style={{ width: 43, height: 43 }} />
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={{ color: SETTINGS_ACCENT, fontSize: 10, lineHeight: 14, fontWeight: "900", textTransform: "uppercase" }}>
+              Your setup
+            </Text>
+            <Text style={{ color: colors.textPrimary, fontSize: 19, lineHeight: 23, fontWeight: "900", marginTop: 1 }}>
+              Midnight, tuned to you
+            </Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 11, lineHeight: 16, fontWeight: "700", marginTop: 3 }}>
+              {theme === "dark" ? "Dark" : "Light"} theme · {reminderSettings.enabled ? `${enabledReminderCount} reminders active` : "Reminders paused"}
+            </Text>
+          </View>
+        </View>
 
         {renderSettingsSectionLabel("Appearance", 0)}
         <View

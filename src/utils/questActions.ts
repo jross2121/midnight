@@ -1,4 +1,31 @@
 import type { Quest } from "./types";
+import { isQuestScheduledForDate, normalizeQuestRepeat } from "./recurrence";
+
+export type TomorrowQuestAction = "copy" | "move" | null;
+
+export function getTomorrowQuestAction(
+  quest: Quest,
+  tomorrowDateKey: string
+): TomorrowQuestAction {
+  const repeat = normalizeQuestRepeat(quest.repeat);
+
+  if (repeat === "once") {
+    return quest.done ? "copy" : "move";
+  }
+
+  return isQuestScheduledForDate(quest, tomorrowDateKey) ? null : "copy";
+}
+
+export function moveQuestToDate(quest: Quest, scheduledDate: string): Quest {
+  return {
+    ...quest,
+    repeat: "once",
+    scheduledWeekday: undefined,
+    scheduledDate,
+    done: false,
+    completionReceipt: undefined,
+  };
+}
 
 export function createQuestDuplicate(
   quest: Quest,

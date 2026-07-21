@@ -6,6 +6,7 @@ import { CONTRACT_GOLD, HOME_GOLD, createStyles } from "@/src/styles";
 import { getCategoryArtById } from "@/src/utils/categoryArt";
 import { withAlpha } from "@/src/utils/designSystem";
 import { getQuestRepeatLabel } from "@/src/utils/recurrence";
+import type { TomorrowQuestAction } from "@/src/utils/questActions";
 import { useTheme } from "@/src/utils/themeContext";
 import type { Quest } from "@/src/utils/types";
 
@@ -22,6 +23,7 @@ interface QuestCardProps {
   onPrioritize: (questId: string) => void;
   onDuplicate: (questId: string) => void;
   onDoTomorrow: (questId: string) => void;
+  tomorrowAction: TomorrowQuestAction;
   reducedMotion: boolean;
 }
 
@@ -38,6 +40,7 @@ export const QuestCard = React.memo(function QuestCard({
   onPrioritize,
   onDuplicate,
   onDoTomorrow,
+  tomorrowAction,
   reducedMotion,
 }: QuestCardProps) {
   const { colors } = useTheme();
@@ -395,14 +398,18 @@ export const QuestCard = React.memo(function QuestCard({
             >
               <Text style={[styles.questActionTextSubtle, { color: colors.textSecondary }]}>Duplicate</Text>
             </Pressable>
-            <Pressable
-              style={[styles.questActionBtnSubtle, { borderColor: withAlpha(HOME_GOLD, 0.34) }]}
-              onPress={() => onDoTomorrow(quest.id)}
-              accessibilityRole="button"
-              accessibilityLabel={`Do ${quest.title} again tomorrow`}
-            >
-              <Text style={[styles.questActionTextSubtle, { color: HOME_GOLD }]}>Do tomorrow</Text>
-            </Pressable>
+            {tomorrowAction ? (
+              <Pressable
+                style={[styles.questActionBtnSubtle, { borderColor: withAlpha(HOME_GOLD, 0.34) }]}
+                onPress={() => onDoTomorrow(quest.id)}
+                accessibilityRole="button"
+                accessibilityLabel={`${tomorrowAction === "move" ? "Move" : "Do"} ${quest.title} tomorrow`}
+              >
+                <Text style={[styles.questActionTextSubtle, { color: HOME_GOLD }]}>
+                  {tomorrowAction === "move" ? "Move to tomorrow" : "Do tomorrow"}
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
         </>
       )}

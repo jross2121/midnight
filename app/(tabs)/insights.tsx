@@ -1,6 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
-import { useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -37,35 +36,17 @@ import {
 import { readEvaluationHistory, type DailyEvaluationHistoryItem } from "@/src/utils/evaluationHistory";
 import { localDateKey } from "@/src/utils/dateHelpers";
 import { getScheduledQuestsForDate } from "@/src/utils/recurrence";
-import { getRankFromDR, getRankMeta } from "@/src/utils/rank";
+import { getNextRank, getRankFromDR, getRankMeta } from "@/src/utils/rank";
 import { buildStreakSummary } from "@/src/utils/planning";
 import { useTheme } from "@/src/utils/themeContext";
 import type { Category, DrHistoryEntry, Quest, StoredState } from "@/src/utils/types";
 import { STORAGE_KEY } from "@/src/utils/types";
 
 const MAIN_CATEGORIES = getMainCategoryDisplayEntries();
-const INSIGHTS_UNLOCK_RANK = "Focused";
 const INSIGHTS_TONE = HOME_GOLD;
-const INSIGHTS_UNLOCK_TONE = HOME_GOLD;
 const INSIGHT_MINT = "#34D399";
 const INSIGHT_CONTRACT = CONTRACT_GOLD;
 const INSIGHT_VIOLET = "#A78BFA";
-const INSIGHT_ROSE = "#FB7185";
-
-const LOCKED_INSIGHT_PREVIEWS = [
-  {
-    title: "Pattern readout",
-    body: "See what your recent judgments say about momentum, pressure, and next moves.",
-  },
-  {
-    title: "Weekly review",
-    body: "Compare finish rate, contract protection, and DR changes across your latest week.",
-  },
-  {
-    title: "Execution balance",
-    body: "Spot which life domains are carrying the run and which ones need attention.",
-  },
-];
 
 type CategoryInsight = {
   id: string;
@@ -78,7 +59,7 @@ type CategoryInsight = {
 type InsightMode = "today" | "history";
 
 const INSIGHT_MODES: { id: InsightMode; label: string }[] = [
-  { id: "today", label: "Today" },
+  { id: "today", label: "Overview" },
   { id: "history", label: "History" },
 ];
 
@@ -163,7 +144,6 @@ function MiniTrendChart({
 }
 
 export default function InsightsScreen() {
-  const router = useRouter();
   const { colors } = useTheme();
   const styles = useMemo(() => createInsightsStyles(colors), [colors]);
   const [disciplineRating, setDisciplineRating] = useState<number>(defaultDisciplineRating);
@@ -216,21 +196,8 @@ export default function InsightsScreen() {
   );
 
   if (!hydrated) {
-    return <ScreenLoading label="Loading insights" />;
+    return <ScreenLoading label="Loading progress" />;
   }
-
-  const focusedMinDr = getRankMeta(INSIGHTS_UNLOCK_RANK).minDr;
-  const peakRecordedDr = Math.max(
-    disciplineRating,
-    ...drHistory.map((entry) => entry.dr),
-    ...evaluationHistory.map((entry) => Math.max(entry.drBefore, entry.drAfter))
-  );
-  const insightsUnlocked = __DEV__ || peakRecordedDr >= focusedMinDr;
-  const unlockProgressPercent = Math.min(
-    100,
-    Math.round((Math.max(0, peakRecordedDr) / focusedMinDr) * 100)
-  );
-  const unlockRemainingDr = Math.max(0, focusedMinDr - peakRecordedDr);
 
   const todaysQuests = getScheduledQuestsForDate(quests, localDateKey());
   const categoryBreakdown = MAIN_CATEGORIES.map((entry) => {
@@ -271,43 +238,43 @@ export default function InsightsScreen() {
     weekDelta,
   });
   const categoryFromHistory = getLatestCategoriesFromHistory(evaluationHistory);
-  const strongestCategory = categoryFromHistory.strongestCategory ?? categoryBreakdown[0]?.label ?? "N/A";
+  const activeCategoryBreakdown = categoryBreakdown.filter((item) => item.total > 0);
+  const bestCategory = activeCategoryBreakdown[0] ?? null;
+  const riskCategory =
+    activeCategoryBreakdown.length > 1
+      ? activeCategoryBreakdown[activeCategoryBreakdown.length - 1]
+      : null;
+  const strongestCategory = categoryFromHistory.strongestCategory ?? bestCategory?.label ?? "No signal yet";
   const weakestCategory =
     categoryFromHistory.weakestCategory ??
-    categoryBreakdown[categoryBreakdown.length - 1]?.label ??
-    "N/A";
+    riskCategory?.label ??
+    "No signal yet";
   const currentRank = getRankFromDR(disciplineRating);
   const currentDrValue = disciplineRating;
+  const currentRankMeta = getRankMeta(currentRank);
+  const nextRank = getNextRank(currentDrValue);
+  const nextRankMeta = nextRank ? getRankMeta(nextRank.name) : null;
+  const rankTierSpan = nextRankMeta
+    ? Math.max(1, nextRankMeta.minDr - currentRankMeta.minDr)
+    : 1;
+  const rankProgressPercent = nextRankMeta
+    ? clampPercent(((currentDrValue - currentRankMeta.minDr) / rankTierSpan) * 100)
+    : 100;
   const completedToday = todaysQuests.filter((quest) => quest.done).length;
   const totalToday = todaysQuests.length;
   const todayRate = getCompletionPercent(
     completedToday,
     getDailyScoringTarget(totalToday, DAILY_STANDARD)
   );
-  const bestCategory = categoryBreakdown[0];
-  const riskCategory = categoryBreakdown[categoryBreakdown.length - 1];
   const latestEvaluation = latest7History[latest7History.length - 1] ?? null;
   const latestCompletion = latestEvaluation?.completionRate ?? todayRate;
   const recentJudgments = drHistory.slice(-8).reverse();
   const streakSummary = buildStreakSummary(drHistory);
-  const bestCompletionPercent = Math.max(
-    todayRate,
-    ...evaluationHistory.map((entry) => entry.completionRate)
-  );
   const bestRecordedDr = Math.max(
     disciplineRating,
     ...drHistory.map((entry) => entry.dr),
     ...evaluationHistory.map((entry) => entry.drAfter)
   );
-  const positiveJudgmentCount = drHistory.filter(
-    (entry) => !entry.recoveryDay && entry.delta > 0
-  ).length;
-  const recoverySignal =
-    latest7History.length >= 3
-      ? latest7History
-          .slice(-3)
-          .filter((entry) => entry.completionRate >= averageCompletionRate).length
-      : 0;
   const weeklyAvgCompletion = latest7History.length
     ? Math.round(latest7History.reduce((sum, entry) => sum + entry.completionRate, 0) / latest7History.length)
     : 0;
@@ -328,15 +295,6 @@ export default function InsightsScreen() {
     if (weeklyDrDelta < 0) return "Recovery week";
     return "Calibration week";
   })();
-  const weeklyNextAction = (() => {
-    if (latest7History.length === 0) return "Finish one midnight judgment to unlock the weekly review.";
-    if (weeklyAvgCompletion < 60) return `Shrink the board and protect one contract in ${weakestCategory}.`;
-    if (weeklyContractDays < Math.max(1, Math.floor(latest7History.length / 2))) {
-      return "Make contract protection the first action of each day.";
-    }
-    if (weeklyAvgCompletion >= 85) return `Add one harder rep in ${weakestCategory}.`;
-    return `Keep the floor at 60% and push ${strongestCategory} for one extra completion.`;
-  })();
   const coachResponse = buildCoachResponse(selectedCoachPrompt, {
     todaysQuests,
     evaluationHistory,
@@ -350,258 +308,148 @@ export default function InsightsScreen() {
         ? colors.negative
         : INSIGHTS_TONE;
   const latestCompletionTone =
-    latestCompletion >= 80 ? colors.positive : latestCompletion >= 50 ? INSIGHTS_UNLOCK_TONE : colors.negative;
-  const weeklyTrendLabel = weekDelta > 0 ? "Rising" : weekDelta < 0 ? "Under pressure" : "Flat";
+    !hasHistory && totalToday === 0
+      ? colors.textSecondary
+      : latestCompletion >= 80
+        ? colors.positive
+        : latestCompletion >= 50
+          ? INSIGHTS_TONE
+          : colors.negative;
   const categoryToneForPercent = (percent: number) =>
     percent >= 80 ? colors.positive : percent >= 50 ? INSIGHTS_TONE : colors.negative;
-  const recoveryPercent = clampPercent((recoverySignal / 3) * 100);
   const contractPercent = latest7History.length
     ? clampPercent((weeklyContractDays / latest7History.length) * 100)
     : 0;
-  const trendPercent = clampPercent(50 + weekDelta * 4);
-  const momentumScore = clampPercent(
-    (todayRate + averageCompletionRate + recoveryPercent + trendPercent) / 4
-  );
-  const momentumTone =
-    momentumScore >= 75 ? INSIGHT_MINT : momentumScore >= 50 ? INSIGHTS_TONE : INSIGHT_ROSE;
-  const strengthTone = bestCategory ? categoryToneForPercent(bestCategory.completionPct) : INSIGHT_MINT;
-  const improveTone = riskCategory ? categoryToneForPercent(riskCategory.completionPct) : INSIGHT_ROSE;
-  const dashboardCards = [
+  const trendPercent = hasSufficientTrend ? clampPercent(50 + weekDelta * 4) : 0;
+  const completionTone =
+    weeklyAvgCompletion >= 80
+      ? colors.positive
+      : weeklyAvgCompletion >= 50
+        ? INSIGHTS_TONE
+        : latest7History.length
+          ? colors.negative
+          : colors.textSecondary;
+  const weeklySnapshotStats = [
     {
-      label: "Improve",
-      title: weakestCategory,
-      value: riskCategory ? `${riskCategory.completionPct}%` : "No data",
-      body: riskCategory?.total
-        ? `${riskCategory.completed}/${riskCategory.total} complete today`
-        : "Needs a tracked quest to measure.",
-      tone: improveTone,
-      percent: riskCategory?.completionPct ?? 0,
-      featured: true,
+      label: "Finish rate",
+      value: latest7History.length ? `${weeklyAvgCompletion}%` : "—",
+      detail: latest7History.length ? `${latest7History.length} judged days` : "No judgments yet",
+      tone: completionTone,
+      percent: latest7History.length ? weeklyAvgCompletion : 0,
     },
     {
-      label: "Good at",
-      title: strongestCategory,
-      value: bestCategory ? `${bestCategory.completionPct}%` : "No data",
-      body: bestCategory?.total
-        ? `${bestCategory.completed}/${bestCategory.total} complete today`
-        : "Your strongest lane will appear here.",
-      tone: strengthTone,
-      percent: bestCategory?.completionPct ?? 0,
-      featured: true,
-    },
-    {
-      label: "Today",
-      title: "Completion",
-      value: `${todayRate}%`,
-      body: `${completedToday}/${totalToday} quests complete`,
-      percent: todayRate,
-      tone: latestCompletionTone,
-      featured: false,
-    },
-    {
-      label: "Trend",
-      title: weeklyTrendLabel,
-      value: weekDelta > 0 ? `+${weekDelta}` : `${weekDelta}`,
-      body: formatWeekChange(weekDelta, hasSufficientTrend),
-      percent: trendPercent,
+      label: "DR movement",
+      value: hasSufficientTrend ? formatDelta(weeklyDrDelta) : "—",
+      detail: hasSufficientTrend ? "Across recent judgments" : "Needs 2 judgments",
       tone: trendLabelTone,
-      featured: false,
-    },
-  ];
-  const actionPlan = [
-    {
-      label: "1",
-      title: "Improve first",
-      body: riskCategory
-        ? `Put the next completed quest into ${weakestCategory}.`
-        : weeklyNextAction,
-      tone: improveTone,
+      percent: trendPercent,
     },
     {
-      label: "2",
-      title: "Keep doing",
-      body: bestCategory
-        ? `${strongestCategory} is carrying the run. Keep one easy win there.`
-        : "Build one reliable category with a repeatable quest.",
-      tone: strengthTone,
-    },
-    {
-      label: "3",
-      title: "Watch",
-      body:
-        weekDelta < 0
-          ? "DR is slipping this week. Shrink the board and protect one contract."
-          : `Momentum score is ${momentumScore}. Keep the average above 60%.`,
-      tone: weekDelta < 0 ? colors.negative : momentumTone,
+      label: "Contracts",
+      value: latest7History.length ? `${weeklyContractDays}/${latest7History.length}` : "—",
+      detail: latest7History.length ? "Protected days" : "No judgments yet",
+      tone: INSIGHT_CONTRACT,
+      percent: contractPercent,
     },
   ];
   const historyStats = [
     {
-      label: "Momentum",
-      value: `${momentumScore}`,
-      tone: momentumTone,
-      percent: momentumScore,
+      label: "7-day average",
+      value: latest7History.length ? `${weeklyAvgCompletion}%` : "—",
+      tone: completionTone,
+      percent: latest7History.length ? weeklyAvgCompletion : 0,
     },
     {
-      label: "Contracts",
-      value: `${weeklyContractDays}/${latest7History.length || 0}`,
-      tone: INSIGHT_CONTRACT,
-      percent: contractPercent,
-    },
-    {
-      label: "Recovery",
-      value: `${recoverySignal}/3`,
-      tone: INSIGHT_VIOLET,
-      percent: recoveryPercent,
-    },
-    {
-      label: "Trend",
-      value: weeklyTrendLabel,
-      percent: trendPercent,
+      label: "DR change",
+      value: hasSufficientTrend ? formatDelta(weeklyDrDelta) : "—",
       tone: trendLabelTone,
-    },
-  ];
-  const baselineStats = [
-    {
-      label: "Today",
-      value: `${todayRate}%`,
-      body: `${completedToday}/${totalToday} quests complete`,
-      tone: latestCompletionTone,
+      percent: trendPercent,
     },
     {
-      label: "Personal best",
-      value: `${bestCompletionPercent}%`,
-      body: hasHistory ? "Highest recorded day" : "Current best so far",
-      tone: INSIGHT_MINT,
+      label: "Solid streak",
+      value: `${streakSummary.solidDayStreak}d`,
+      tone: INSIGHT_VIOLET,
+      percent: clampPercent((streakSummary.solidDayStreak / 7) * 100),
     },
     {
       label: "Best DR",
       value: `${bestRecordedDr}`,
-      body: `${currentDrValue} current DR`,
+      percent: currentDrValue > 0 ? clampPercent((currentDrValue / Math.max(1, bestRecordedDr)) * 100) : 0,
       tone: INSIGHTS_TONE,
+    },
+  ];
+  const progressHeroStats = [
+    {
+      label: "Today",
+      value: totalToday > 0 ? `${todayRate}%` : "—",
+      tone: totalToday > 0 ? latestCompletionTone : colors.textSecondary,
+    },
+    {
+      label: "7-day avg",
+      value: latest7History.length ? `${weeklyAvgCompletion}%` : "—",
+      tone: latest7History.length ? INSIGHT_MINT : colors.textSecondary,
     },
     {
       label: "Solid streak",
-      value: `${streakSummary.solidDayStreak}`,
-      body: positiveJudgmentCount > 0 ? `${positiveJudgmentCount} positive judgments` : "60%+ builds the streak",
+      value: `${streakSummary.solidDayStreak}d`,
       tone: INSIGHT_VIOLET,
     },
   ];
-  const baselinePanel = (
-    <View style={styles.baselinePanel}>
-      <View style={styles.baselineHeader}>
-        <View style={styles.dashboardTitleCopy}>
-          <Text style={styles.eyebrow}>Your baseline</Text>
-          <Text style={styles.dashboardTitle}>{currentRank} progress</Text>
+  const progressHero = (
+    <View style={styles.progressHero}>
+      <View style={styles.progressHeroHeader}>
+        <View style={styles.progressRankIdentity}>
+          <View style={styles.progressRankPlate}>
+            <RankBadge rank={currentRank} size={36} color={INSIGHTS_TONE} active />
+          </View>
+          <View style={styles.dashboardTitleCopy}>
+            <Text style={styles.eyebrow}>Current rank</Text>
+            <Text style={styles.progressRankName}>{currentRank}</Text>
+          </View>
         </View>
-        <View style={styles.baselineDrPill}>
-          <Text style={styles.baselineDrValue}>{currentDrValue}</Text>
-          <Text style={styles.baselineDrLabel}>DR</Text>
+        <View style={styles.progressDrBlock}>
+          <Text style={styles.progressDrValue}>{currentDrValue}</Text>
+          <Text style={styles.progressDrLabel}>Discipline Rating</Text>
         </View>
       </View>
-      <Text style={styles.dashboardBody}>
-        Progress tracks performance. Player Card shows your rank identity; Awards holds the milestones you earn.
-      </Text>
-      <View style={styles.baselineGrid}>
-        {baselineStats.map((item) => (
-          <View
-            key={item.label}
-            style={[
-              styles.baselineStat,
-              {
-                borderColor: withAlpha(item.tone, 0.24),
-                backgroundColor: withAlpha(item.tone, 0.055),
-              },
-            ]}
-          >
-            <Text style={[styles.baselineStatValue, { color: item.tone }]}>{item.value}</Text>
-            <Text style={styles.baselineStatLabel}>{item.label}</Text>
-            <Text style={styles.baselineStatBody}>{item.body}</Text>
-          </View>
+
+      <View style={styles.rankPath}>
+        <View style={styles.rankPathHeader}>
+          <Text style={styles.rankPathLabel}>
+            {nextRank ? `${nextRank.remainingDr} DR to ${nextRank.name}` : "Highest rank reached"}
+          </Text>
+          <Text style={styles.rankPathValue}>{rankProgressPercent}%</Text>
+        </View>
+        <View style={styles.rankPathTrack}>
+          <View style={[styles.rankPathFill, { width: `${rankProgressPercent}%` }]} />
+        </View>
+      </View>
+
+      <View style={styles.progressHeroGrid}>
+        {progressHeroStats.map((item, index) => (
+          <React.Fragment key={item.label}>
+            {index > 0 ? <View style={styles.progressHeroDivider} /> : null}
+            <View style={styles.progressHeroStat}>
+              <Text style={[styles.progressHeroStatValue, { color: item.tone }]}>{item.value}</Text>
+              <Text style={styles.progressHeroStatLabel}>{item.label}</Text>
+            </View>
+          </React.Fragment>
         ))}
       </View>
     </View>
   );
-
-  if (!insightsUnlocked) {
-    return (
-      <SafeAreaView edges={["top"]} style={styles.safe}>
-        <ScrollView contentContainerStyle={styles.container}>
-          <ScreenHeader
-            title="Progress"
-            subtitle="Daily score, streaks, and personal bests"
-            icon="chart.bar.fill"
-            accent={INSIGHTS_UNLOCK_TONE}
-          />
-
-          {baselinePanel}
-
-          <View style={styles.lockedPanel}>
-            <View style={styles.lockedTopRow}>
-              <View style={styles.lockedRankPlate}>
-                <RankBadge rank={INSIGHTS_UNLOCK_RANK} size={44} color={INSIGHTS_UNLOCK_TONE} active />
-              </View>
-              <View style={styles.lockedCopy}>
-                <Text style={styles.eyebrow}>Advanced patterns</Text>
-                <Text style={styles.lockedTitle}>Reach Focused for deeper analysis</Text>
-                <Text style={styles.lockedBody}>
-                  Midnight needs enough judgments before it can interpret trends and recommend adjustments reliably.
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.unlockProgressBlock}>
-              <View style={styles.unlockProgressHeader}>
-                <Text style={styles.unlockProgressLabel}>Focused progress</Text>
-                <Text style={styles.unlockProgressValue}>{unlockProgressPercent}%</Text>
-              </View>
-              <View style={styles.unlockTrack}>
-                <View style={[styles.unlockFill, { width: `${unlockProgressPercent}%` }]} />
-              </View>
-              <View style={styles.unlockMetaRow}>
-                <Text style={styles.unlockMeta}>{peakRecordedDr} DR</Text>
-                <Text style={styles.unlockMeta}>
-                  {unlockRemainingDr > 0 ? `${unlockRemainingDr} DR to unlock` : "Ready"}
-                </Text>
-              </View>
-            </View>
-            <Pressable
-              onPress={() => router.replace("/(tabs)")}
-              accessibilityRole="button"
-              accessibilityLabel="Open Today to build Discipline Rating"
-              style={({ pressed }) => [styles.lockedAction, pressed && { opacity: 0.76 }]}
-            >
-              <Text style={styles.lockedActionText}>
-                {drHistory.length === 0 ? "Complete your first day" : "Continue Today"}
-              </Text>
-            </Pressable>
-          </View>
-
-          <View style={styles.lockedPreviewGrid}>
-            {LOCKED_INSIGHT_PREVIEWS.map((item) => (
-              <View key={item.title} style={styles.lockedPreviewCard}>
-                <View style={styles.lockedPreviewDot} />
-                <Text style={styles.lockedPreviewTitle}>{item.title}</Text>
-                <Text style={styles.lockedPreviewBody}>{item.body}</Text>
-              </View>
-            ))}
-          </View>
-        </ScrollView>
-      </SafeAreaView>
-    );
-  }
 
   return (
     <SafeAreaView edges={["top"]} style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
         <ScreenHeader
           title="Progress"
-          subtitle="See what is working and what to do next"
+          subtitle="Rank, recent execution, and history"
           icon="chart.bar.fill"
           accent={INSIGHTS_TONE}
         />
 
-        {baselinePanel}
+        {progressHero}
 
         <View style={styles.modeSwitch} accessibilityRole="tablist">
           {INSIGHT_MODES.map((mode) => {
@@ -644,82 +492,40 @@ export default function InsightsScreen() {
                   {weeklyReviewTitle}
                 </Text>
               </View>
-              <View
-                style={[
-                  styles.dashboardScore,
-                  {
-                    borderColor: withAlpha(momentumTone, 0.42),
-                    backgroundColor: withAlpha(momentumTone, 0.13),
-                  },
-                ]}
-              >
-                <Text style={styles.dashboardScoreLabel}>Momentum</Text>
-                <Text style={[styles.dashboardScoreValue, { color: momentumTone }]}>{momentumScore}</Text>
+              <View style={styles.weeklyPeriodPill}>
+                <Text style={styles.weeklyPeriodText}>
+                  {latest7History.length}/7 days
+                </Text>
               </View>
             </View>
             <Text style={styles.dashboardBody}>{compactInsightMessage}</Text>
           </View>
 
-          <View style={styles.dashboardGrid}>
-            {dashboardCards.map((card) => (
+          <View style={styles.weeklySnapshotGrid}>
+            {weeklySnapshotStats.map((stat) => (
               <View
-                key={card.label}
+                key={stat.label}
                 style={[
-                  styles.dashboardCard,
-                  card.featured && styles.dashboardCardFeatured,
+                  styles.weeklySnapshotCard,
                   {
-                    borderColor: withAlpha(card.tone, card.featured ? 0.34 : 0.24),
-                    backgroundColor: withAlpha(card.tone, card.featured ? 0.1 : 0.055),
+                    borderColor: withAlpha(stat.tone, 0.26),
+                    backgroundColor: withAlpha(stat.tone, 0.06),
                   },
                 ]}
               >
-                <View style={styles.dashboardCardTop}>
-                  <Text style={[styles.dashboardCardLabel, { color: card.tone }]}>{card.label}</Text>
-                  <Text style={[styles.dashboardCardValue, { color: card.tone }]}>{card.value}</Text>
-                </View>
-                <Text style={styles.dashboardCardTitle} numberOfLines={1}>{card.title}</Text>
-                <Text style={styles.dashboardCardBody}>{card.body}</Text>
-                <View style={styles.dashboardTrack}>
+                <Text style={styles.weeklySnapshotLabel}>{stat.label}</Text>
+                <Text style={[styles.weeklySnapshotValue, { color: stat.tone }]}>{stat.value}</Text>
+                <Text style={styles.weeklySnapshotDetail} numberOfLines={2}>{stat.detail}</Text>
+                <View style={styles.weeklySnapshotTrack}>
                   <View
                     style={[
-                      styles.dashboardFill,
+                      styles.weeklySnapshotFill,
                       {
-                        width: `${Math.max(4, card.percent)}%`,
-                        backgroundColor: card.tone,
+                        width: stat.percent > 0 ? `${Math.max(4, stat.percent)}%` : "0%",
+                        backgroundColor: stat.tone,
                       },
                     ]}
                   />
-                </View>
-              </View>
-            ))}
-          </View>
-        </View>
-
-        <View style={styles.actionPanel}>
-          <View style={styles.cardHeaderRow}>
-            <View>
-              <Text style={styles.eyebrow}>What to do next</Text>
-              <Text style={styles.cardTitle}>Three useful adjustments</Text>
-            </View>
-          </View>
-          <View style={styles.actionList}>
-            {actionPlan.map((item) => (
-              <View
-                key={item.label}
-                style={[
-                  styles.actionRow,
-                  {
-                    borderColor: withAlpha(item.tone, 0.28),
-                    backgroundColor: withAlpha(item.tone, 0.055),
-                  },
-                ]}
-              >
-                <View style={[styles.actionIndex, { backgroundColor: withAlpha(item.tone, 0.16) }]}>
-                  <Text style={[styles.actionIndexText, { color: item.tone }]}>{item.label}</Text>
-                </View>
-                <View style={styles.actionCopy}>
-                  <Text style={styles.actionTitle}>{item.title}</Text>
-                  <Text style={styles.actionBody}>{item.body}</Text>
                 </View>
               </View>
             ))}
@@ -786,10 +592,11 @@ export default function InsightsScreen() {
               <Text style={styles.eyebrow}>Categories</Text>
               <Text style={styles.cardTitle}>Today by category</Text>
             </View>
-            <Text style={styles.mutedMeta}>{categoryBreakdown.length} domains</Text>
+            <Text style={styles.mutedMeta}>{activeCategoryBreakdown.length} active</Text>
           </View>
-          <View style={styles.categoryGrid}>
-            {categoryBreakdown.map((item) => {
+          {activeCategoryBreakdown.length ? (
+            <View style={styles.categoryGrid}>
+            {activeCategoryBreakdown.map((item) => {
               const categoryTone = categoryToneForPercent(item.completionPct);
 
               return (
@@ -821,12 +628,23 @@ export default function InsightsScreen() {
                     />
                   </View>
                   <Text style={styles.categoryMeta}>
-                    {item.total > 0 ? `${item.completed}/${item.total} complete` : "level progress"}
+                    {item.completed}/{item.total} complete
                   </Text>
                 </View>
               );
             })}
-          </View>
+            </View>
+          ) : (
+            <View style={styles.categoryEmptyState}>
+              <View style={styles.categoryEmptyDot} />
+              <View style={styles.categoryEmptyCopy}>
+                <Text style={styles.categoryEmptyTitle}>No categories active today</Text>
+                <Text style={styles.categoryEmptyBody}>
+                  Add a quest on Today and its category progress will appear here.
+                </Text>
+              </View>
+            </View>
+          )}
         </View>
           </>
         ) : (
@@ -851,7 +669,7 @@ export default function InsightsScreen() {
                   style={[
                     styles.historySummaryFill,
                     {
-                      width: `${Math.max(4, item.percent)}%`,
+                      width: item.percent > 0 ? `${Math.max(4, item.percent)}%` : "0%",
                       backgroundColor: item.tone,
                     },
                   ]}
@@ -885,7 +703,9 @@ export default function InsightsScreen() {
             <View style={styles.pulseMetaGrid}>
               <View style={styles.pulseMetaTile}>
                 <Text style={styles.pulseMetaLabel}>Last signal</Text>
-                <Text style={styles.pulseMetaValue}>{Math.round(latestCompletion)}% completion</Text>
+                <Text style={styles.pulseMetaValue}>
+                  {hasHistory ? `${Math.round(latestCompletion)}% completion` : "No data yet"}
+                </Text>
               </View>
               <View style={styles.pulseMetaTile}>
                 <Text style={styles.pulseMetaLabel}>Rank</Text>
@@ -906,7 +726,11 @@ export default function InsightsScreen() {
             <Text style={styles.mutedMeta}>No evaluation history yet.</Text>
           )}
           <View style={styles.trendFooter}>
-            <Text style={styles.mutedMeta}>Last {Math.min(7, latest7History.length)} evaluations</Text>
+            <Text style={styles.mutedMeta}>
+              {hasHistory
+                ? `Last ${Math.min(7, latest7History.length)} evaluations`
+                : "Waiting for first evaluation"}
+            </Text>
             <Text style={styles.mutedMeta}>DR history</Text>
           </View>
         </View>
@@ -1054,74 +878,136 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       gap: ui.spacing.sm,
       borderColor: withAlpha(INSIGHTS_TONE, 0.24),
     },
-    baselinePanel: {
-      ...cardSurface,
-      gap: ui.spacing.sm,
-      borderColor: withAlpha(INSIGHTS_TONE, 0.24),
-      backgroundColor: withAlpha(colors.surface2, 0.78),
+    progressHero: {
+      ...heroSurface,
+      gap: 13,
+      borderColor: withAlpha(INSIGHTS_TONE, 0.32),
+      backgroundColor: withAlpha(colors.surface2, 0.92),
     },
-    baselineHeader: {
+    progressHeroHeader: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
       gap: ui.spacing.sm,
     },
-    baselineDrPill: {
-      minWidth: 68,
-      minHeight: 48,
-      borderRadius: ui.radius.md,
+    progressRankIdentity: {
+      flex: 1,
+      minWidth: 0,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: ui.spacing.sm,
+    },
+    progressRankPlate: {
+      width: 56,
+      height: 56,
+      borderRadius: 18,
       borderWidth: 1,
-      borderColor: withAlpha(INSIGHTS_TONE, 0.3),
-      backgroundColor: withAlpha(INSIGHTS_TONE, 0.09),
+      borderColor: withAlpha(INSIGHTS_TONE, 0.38),
+      backgroundColor: withAlpha(INSIGHTS_TONE, 0.1),
       alignItems: "center",
       justifyContent: "center",
-      paddingHorizontal: 10,
+      flexShrink: 0,
     },
-    baselineDrValue: {
+    progressRankName: {
+      color: colors.textPrimary,
+      fontSize: 22,
+      lineHeight: 26,
+      fontWeight: "900",
+      marginTop: 2,
+    },
+    progressDrBlock: {
+      minWidth: 78,
+      alignItems: "flex-end",
+      justifyContent: "center",
+      flexShrink: 0,
+    },
+    progressDrValue: {
       color: INSIGHTS_TONE,
-      fontSize: 20,
-      lineHeight: 23,
+      fontSize: 34,
+      lineHeight: 37,
       fontWeight: "900",
     },
-    baselineDrLabel: {
-      color: colors.textSecondary,
-      fontSize: 9,
+    progressDrLabel: {
+      color: withAlpha(colors.textSecondary, 0.78),
+      fontSize: 8,
       lineHeight: 12,
       fontWeight: "900",
       textTransform: "uppercase",
+      textAlign: "right",
     },
-    baselineGrid: {
+    rankPath: {
+      gap: 6,
+      borderTopWidth: 1,
+      borderTopColor: withAlpha(colors.border, 0.2),
+      paddingTop: 11,
+    },
+    rankPathHeader: {
       flexDirection: "row",
-      flexWrap: "wrap",
+      alignItems: "center",
       justifyContent: "space-between",
-      rowGap: ui.spacing.xs,
+      gap: ui.spacing.sm,
     },
-    baselineStat: {
-      ...tileSurface,
-      width: "48%",
-      minHeight: 104,
-      paddingHorizontal: ui.spacing.sm,
-      paddingVertical: ui.spacing.xs,
-      gap: 3,
-    },
-    baselineStatValue: {
-      fontSize: 20,
-      lineHeight: 24,
-      fontWeight: "900",
-    },
-    baselineStatLabel: {
-      color: colors.textPrimary,
+    rankPathLabel: {
+      flex: 1,
+      minWidth: 0,
+      color: withAlpha(colors.textSecondary, 0.88),
       fontSize: 11,
       lineHeight: 15,
+      fontWeight: "800",
+    },
+    rankPathValue: {
+      color: INSIGHTS_TONE,
+      fontSize: 11,
+      lineHeight: 15,
+      fontWeight: "900",
+    },
+    rankPathTrack: {
+      height: 8,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: withAlpha(INSIGHTS_TONE, 0.2),
+      backgroundColor: withAlpha(colors.bg, 0.76),
+      overflow: "hidden",
+    },
+    rankPathFill: {
+      height: "100%",
+      borderRadius: 999,
+      backgroundColor: INSIGHTS_TONE,
+    },
+    progressHeroGrid: {
+      flexDirection: "row",
+      alignItems: "stretch",
+      borderTopWidth: 1,
+      borderTopColor: withAlpha(colors.border, 0.2),
+      paddingTop: ui.spacing.sm,
+    },
+    progressHeroStat: {
+      flex: 1,
+      minWidth: 0,
+      minHeight: 50,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 4,
+      gap: 2,
+    },
+    progressHeroDivider: {
+      width: 1,
+      backgroundColor: withAlpha(colors.border, 0.22),
+      marginVertical: 5,
+    },
+    progressHeroStatValue: {
+      fontSize: 18,
+      lineHeight: 22,
+      fontWeight: "900",
+      textAlign: "center",
+    },
+    progressHeroStatLabel: {
+      color: withAlpha(colors.textSecondary, 0.82),
+      fontSize: 9,
+      lineHeight: 13,
       fontWeight: "900",
       textTransform: "uppercase",
-    },
-    baselineStatBody: {
-      color: colors.textSecondary,
-      fontSize: 11,
-      lineHeight: 15,
-      fontWeight: "700",
-      marginTop: "auto",
+      textAlign: "center",
     },
     dashboardHeader: {
       flexDirection: "column",
@@ -1158,142 +1044,66 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       lineHeight: 19,
       fontWeight: "700",
     },
-    dashboardScore: {
-      minWidth: 104,
-      minHeight: 42,
-      borderRadius: ui.radius.md,
+    weeklyPeriodPill: {
+      minHeight: 32,
+      borderRadius: 999,
       borderWidth: 1,
-      flexDirection: "row",
+      borderColor: withAlpha(INSIGHTS_TONE, 0.28),
+      backgroundColor: withAlpha(INSIGHTS_TONE, 0.09),
       alignItems: "center",
       justifyContent: "center",
-      gap: 7,
       paddingHorizontal: ui.spacing.sm,
-      paddingVertical: 7,
       flexShrink: 0,
     },
-    dashboardScoreValue: {
-      fontSize: 22,
-      lineHeight: 25,
+    weeklyPeriodText: {
+      color: INSIGHTS_TONE,
+      fontSize: 10,
+      lineHeight: 14,
       fontWeight: "900",
-      letterSpacing: 0,
-    },
-    dashboardScoreLabel: {
-      color: withAlpha(colors.textSecondary, 0.74),
-      fontSize: 9,
-      lineHeight: 12,
-      fontWeight: "900",
-      letterSpacing: 0,
       textTransform: "uppercase",
     },
-    dashboardGrid: {
+    weeklySnapshotGrid: {
       flexDirection: "row",
-      flexWrap: "wrap",
-      justifyContent: "space-between",
-      rowGap: ui.spacing.xs,
-    },
-    dashboardCard: {
-      ...tileSurface,
-      width: "48%",
-      paddingHorizontal: ui.spacing.sm,
-      paddingVertical: ui.spacing.sm,
-      minHeight: 132,
+      alignItems: "stretch",
       gap: 7,
+    },
+    weeklySnapshotCard: {
+      ...tileSurface,
+      flex: 1,
+      minWidth: 0,
+      minHeight: 116,
+      paddingHorizontal: 9,
+      paddingVertical: 9,
+      gap: 4,
       justifyContent: "space-between",
     },
-    dashboardCardFeatured: {
-      minHeight: 146,
-    },
-    dashboardCardTop: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: ui.spacing.xs,
-    },
-    dashboardCardLabel: {
+    weeklySnapshotLabel: {
+      color: withAlpha(colors.textSecondary, 0.8),
       fontSize: 9,
       lineHeight: 13,
       fontWeight: "900",
-      letterSpacing: 0,
       textTransform: "uppercase",
     },
-    dashboardCardValue: {
-      fontSize: 18,
-      lineHeight: 22,
-      fontWeight: "900",
-      textAlign: "right",
-      flexShrink: 0,
-    },
-    dashboardCardTitle: {
-      color: colors.textPrimary,
-      fontSize: 16,
-      lineHeight: 20,
+    weeklySnapshotValue: {
+      fontSize: 21,
+      lineHeight: 24,
       fontWeight: "900",
     },
-    dashboardCardBody: {
+    weeklySnapshotDetail: {
       color: withAlpha(colors.textSecondary, 0.82),
-      fontSize: 11,
-      lineHeight: 16,
+      fontSize: 9,
+      lineHeight: 13,
       fontWeight: "700",
     },
-    dashboardTrack: {
-      height: 8,
+    weeklySnapshotTrack: {
+      height: 5,
       borderRadius: 999,
-      borderWidth: 1,
-      borderColor: withAlpha(colors.border, 0.16),
       backgroundColor: withAlpha(colors.bg, 0.7),
       overflow: "hidden",
     },
-    dashboardFill: {
+    weeklySnapshotFill: {
       height: "100%",
       borderRadius: 999,
-    },
-    actionPanel: {
-      ...cardSurface,
-      gap: ui.spacing.sm,
-      borderColor: withAlpha(INSIGHTS_TONE, 0.2),
-    },
-    actionList: {
-      gap: ui.spacing.xs,
-    },
-    actionRow: {
-      flexDirection: "row",
-      alignItems: "flex-start",
-      gap: ui.spacing.sm,
-      borderWidth: 1,
-      borderRadius: ui.radius.md,
-      paddingHorizontal: ui.spacing.sm,
-      paddingVertical: ui.spacing.sm,
-    },
-    actionIndex: {
-      width: 34,
-      height: 34,
-      borderRadius: ui.radius.md,
-      alignItems: "center",
-      justifyContent: "center",
-      flexShrink: 0,
-    },
-    actionIndexText: {
-      fontSize: 11,
-      lineHeight: 14,
-      fontWeight: "900",
-      letterSpacing: 0,
-    },
-    actionCopy: {
-      flex: 1,
-      minWidth: 0,
-      gap: 3,
-    },
-    actionTitle: {
-      color: colors.textPrimary,
-      fontSize: 15,
-      lineHeight: 19,
-      fontWeight: "900",
-    },
-    actionBody: {
-      color: withAlpha(colors.textSecondary, 0.9),
-      fontSize: 13,
-      lineHeight: 19,
-      fontWeight: "700",
     },
     historySummaryGrid: {
       flexDirection: "row",
@@ -1334,140 +1144,6 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
     historySummaryFill: {
       height: "100%",
       borderRadius: 999,
-    },
-    lockedPanel: {
-      ...heroSurface,
-      gap: ui.spacing.md,
-      borderColor: withAlpha(INSIGHTS_UNLOCK_TONE, 0.3),
-      backgroundColor: withAlpha(colors.surface2, 0.88),
-    },
-    lockedTopRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: ui.spacing.sm,
-    },
-    lockedRankPlate: {
-      width: 72,
-      height: 72,
-      borderRadius: 22,
-      borderWidth: 1,
-      borderColor: withAlpha(INSIGHTS_UNLOCK_TONE, 0.5),
-      backgroundColor: withAlpha(INSIGHTS_UNLOCK_TONE, 0.1),
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    lockedCopy: {
-      flex: 1,
-      minWidth: 0,
-    },
-    lockedTitle: {
-      color: colors.textPrimary,
-      fontSize: 22,
-      lineHeight: 27,
-      fontWeight: "900",
-      marginTop: 2,
-    },
-    lockedBody: {
-      color: withAlpha(colors.textSecondary, 0.86),
-      fontSize: 12,
-      lineHeight: 17,
-      fontWeight: "700",
-      marginTop: 5,
-    },
-    unlockProgressBlock: {
-      gap: ui.spacing.xs,
-      borderTopWidth: 1,
-      borderTopColor: withAlpha(colors.border, 0.2),
-      paddingTop: ui.spacing.sm,
-    },
-    unlockProgressHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: ui.spacing.sm,
-    },
-    unlockProgressLabel: {
-      color: withAlpha(colors.textSecondary, 0.78),
-      fontSize: 10,
-      lineHeight: 15,
-      fontWeight: "900",
-      letterSpacing: 0,
-      textTransform: "uppercase",
-    },
-    unlockProgressValue: {
-      color: INSIGHTS_UNLOCK_TONE,
-      fontSize: 12,
-      lineHeight: 15,
-      fontWeight: "900",
-    },
-    unlockTrack: {
-      height: 11,
-      borderRadius: 999,
-      borderWidth: 1,
-      borderColor: withAlpha(colors.border, 0.2),
-      backgroundColor: withAlpha(colors.bg, 0.76),
-      overflow: "hidden",
-    },
-    unlockFill: {
-      height: "100%",
-      borderRadius: 999,
-      backgroundColor: INSIGHTS_UNLOCK_TONE,
-    },
-    unlockMetaRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: ui.spacing.sm,
-    },
-    unlockMeta: {
-      color: withAlpha(colors.textSecondary, 0.82),
-      fontSize: 10,
-      lineHeight: 15,
-      fontWeight: "900",
-      letterSpacing: 0,
-      textTransform: "uppercase",
-    },
-    lockedAction: {
-      minHeight: 46,
-      borderRadius: ui.radius.button,
-      backgroundColor: INSIGHTS_UNLOCK_TONE,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: ui.spacing.md,
-    },
-    lockedActionText: {
-      color: colors.bg,
-      fontSize: 12,
-      lineHeight: 16,
-      fontWeight: "900",
-    },
-    lockedPreviewGrid: {
-      gap: ui.spacing.xs,
-    },
-    lockedPreviewCard: {
-      ...tileSurface,
-      minHeight: 96,
-      gap: 6,
-      borderColor: withAlpha(INSIGHTS_UNLOCK_TONE, 0.18),
-      backgroundColor: withAlpha(colors.surface2, 0.58),
-    },
-    lockedPreviewDot: {
-      width: 22,
-      height: 4,
-      borderRadius: 999,
-      backgroundColor: withAlpha(INSIGHTS_UNLOCK_TONE, 0.8),
-    },
-    lockedPreviewTitle: {
-      color: colors.textPrimary,
-      fontSize: 15,
-      lineHeight: 19,
-      fontWeight: "900",
-    },
-    lockedPreviewBody: {
-      color: withAlpha(colors.textSecondary, 0.82),
-      fontSize: 12,
-      lineHeight: 17,
-      fontWeight: "700",
     },
     card: {
       ...cardSurface,
@@ -1823,6 +1499,41 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       lineHeight: 15,
       fontWeight: "800",
       letterSpacing: 0,
+    },
+    categoryEmptyState: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: ui.spacing.sm,
+      borderWidth: 1,
+      borderColor: withAlpha(colors.border, 0.18),
+      borderRadius: ui.radius.md,
+      backgroundColor: withAlpha(colors.bg, 0.22),
+      paddingHorizontal: ui.spacing.sm,
+      paddingVertical: ui.spacing.sm,
+    },
+    categoryEmptyDot: {
+      width: 10,
+      height: 10,
+      borderRadius: 999,
+      backgroundColor: withAlpha(INSIGHTS_TONE, 0.7),
+      flexShrink: 0,
+    },
+    categoryEmptyCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+    categoryEmptyTitle: {
+      color: colors.textPrimary,
+      fontSize: 13,
+      lineHeight: 17,
+      fontWeight: "900",
+    },
+    categoryEmptyBody: {
+      color: withAlpha(colors.textSecondary, 0.8),
+      fontSize: 11,
+      lineHeight: 16,
+      fontWeight: "700",
+      marginTop: 2,
     },
   });
 }

@@ -3,7 +3,7 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { HOME_GOLD } from "@/src/styles";
@@ -20,6 +20,8 @@ import {
 import { updateStoredState } from "@/src/utils/storedState";
 import { useTheme } from "@/src/utils/themeContext";
 import { ONBOARDING_STORAGE_KEY } from "@/src/utils/types";
+
+const MIDNIGHT_MARK = require("../assets/images/android-icon-foreground-v2.png");
 
 const TERM_ROWS = [
   {
@@ -105,7 +107,10 @@ export default function OnboardingScreen() {
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
         <View style={styles.brandBlock}>
-          <Text style={styles.brand}>MIDNIGHT</Text>
+          <View style={styles.brandRow}>
+            <Image source={MIDNIGHT_MARK} style={styles.brandMark} resizeMode="contain" />
+            <Text style={styles.brand}>MIDNIGHT</Text>
+          </View>
           <Text style={styles.brandMeta}>{isReplay ? "Quick refresher" : "Your first day"}</Text>
         </View>
 
@@ -127,13 +132,10 @@ export default function OnboardingScreen() {
 
           {step === 0 ? (
             <View style={styles.heroCard}>
-              <View style={styles.iconPlate}>
-                <IconSymbol name="checkmark.circle.fill" size={27} color={HOME_GOLD} />
-              </View>
-              <Text style={styles.eyebrow}>The whole loop</Text>
-              <Text style={styles.title}>Choose a few things. Finish what matters.</Text>
+              <Text style={styles.eyebrow}>The daily loop</Text>
+              <Text style={styles.title}>Finish what matters today.</Text>
               <Text style={styles.body}>
-                Your board resets after midnight. Until then, tap a quest when it is done. Midnight records the day and helps you plan the next one.
+                Pick a few quests and mark them done. At midnight, your day is recorded and your board resets.
               </Text>
 
               <View style={styles.loopRow}>
@@ -148,7 +150,7 @@ export default function OnboardingScreen() {
                 ))}
               </View>
 
-              <Text style={styles.reassurance}>You do not need to learn ranks, XP, or contracts yet.</Text>
+              <Text style={styles.reassurance}>Start small. You can learn the rest as you go.</Text>
             </View>
           ) : isReplay ? (
             <View style={styles.heroCard}>
@@ -221,11 +223,11 @@ export default function OnboardingScreen() {
             style={styles.footerButton}
             label={
               step === 0
-                ? isReplay ? "Review the basics" : "Set up my day"
+                ? "Continue"
                 : saving
                   ? "Saving…"
                   : isReplay
-                    ? "Return to Midnight"
+                    ? "Finish introduction"
                     : "Start my first day"
             }
             disabled={saving || (step === 1 && !isReplay && !isStarterSelectionValid)}
@@ -247,6 +249,8 @@ function createStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       paddingBottom: ui.spacing.md,
     },
     brandBlock: { alignItems: "center", paddingTop: ui.spacing.xs },
+    brandRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+    brandMark: { width: 29, height: 29 },
     brand: { color: colors.textPrimary, fontSize: 24, lineHeight: 29, fontWeight: "900" },
     brandMeta: {
       color: withAlpha(colors.textSecondary, 0.72),
@@ -270,17 +274,6 @@ function createStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       ...createCardSurface(colors, { padding: ui.spacing.md, radius: ui.radius.xl, glowOpacity: 0.05 }),
       borderColor: withAlpha(HOME_GOLD, 0.3),
       paddingVertical: ui.spacing.lg,
-    },
-    iconPlate: {
-      width: 54,
-      height: 54,
-      borderRadius: 13,
-      borderWidth: 1,
-      borderColor: withAlpha(HOME_GOLD, 0.36),
-      backgroundColor: withAlpha(HOME_GOLD, 0.1),
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: ui.spacing.md,
     },
     eyebrow: {
       color: HOME_GOLD,

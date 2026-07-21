@@ -39,6 +39,8 @@ const {
 } = require("../.test-dist/src/utils/contracts.js");
 const {
   createQuestDuplicate,
+  getTomorrowQuestAction,
+  moveQuestToDate,
 } = require("../.test-dist/src/utils/questActions.js");
 const {
   getLatestReflectionBefore,
@@ -262,6 +264,32 @@ test("tomorrow duplicates are clean one-time quests without inherited pressure",
   assert.equal(duplicate.pinned, false);
   assert.equal(duplicate.contract, false);
   assert.equal(duplicate.completionReceipt, undefined);
+});
+
+test("tomorrow actions never duplicate quests that already recur tomorrow", () => {
+  assert.equal(getTomorrowQuestAction(quest({ repeat: "daily" }), "2026-03-09"), null);
+  assert.equal(
+    getTomorrowQuestAction(quest({ repeat: "weekdays" }), "2026-03-09"),
+    null
+  );
+  assert.equal(
+    getTomorrowQuestAction(
+      quest({ repeat: "weekly", scheduledWeekday: 1 }),
+      "2026-03-09"
+    ),
+    null
+  );
+});
+
+test("unfinished one-time quests move to tomorrow instead of being copied", () => {
+  const source = quest({ repeat: "once", scheduledDate: "2026-03-08", contract: true });
+  assert.equal(getTomorrowQuestAction(source, "2026-03-09"), "move");
+
+  const moved = moveQuestToDate(source, "2026-03-09");
+  assert.equal(moved.id, source.id);
+  assert.equal(moved.scheduledDate, "2026-03-09");
+  assert.equal(moved.repeat, "once");
+  assert.equal(moved.contract, true);
 });
 
 test("daily reflections trim notes, replace the current day, and surface the latest prior note", () => {

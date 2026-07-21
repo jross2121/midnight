@@ -26,6 +26,7 @@ export default function TabLayout() {
         headerShown: false,
         tabBarButton: HapticTab,
         tabBarLabelPosition: 'below-icon',
+        tabBarHideOnKeyboard: true,
         sceneStyle: {
           paddingBottom: sceneBottomInset,
           backgroundColor: colors.bg,
@@ -117,6 +118,12 @@ export default function TabLayout() {
       />
       <Tabs.Screen
         name="guide"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="notes"
         options={{
           href: null,
         }}

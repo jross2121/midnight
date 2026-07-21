@@ -3,21 +3,27 @@ import * as Haptics from "expo-haptics";
 import React, { useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
 import { HOME_GOLD, createStyles } from "@/src/styles";
-import { getCategoryDisplayName } from "@/src/utils/categoryLabels";
+import {
+  QuestCategoryOptions,
+  QuestDifficultyOptions,
+  QuestRepeatOptions,
+} from "@/src/components/QuestEditorOptions";
 import { withAlpha } from "@/src/utils/designSystem";
 import { getQuestXpForDifficulty } from "@/src/utils/questXp";
-import { getTodayWeekday, QUEST_REPEAT_OPTIONS, WEEKDAY_LABELS } from "@/src/utils/recurrence";
+import { getTodayWeekday } from "@/src/utils/recurrence";
 import { useTheme } from "@/src/utils/themeContext";
 import type { Category, QuestRepeat } from "@/src/utils/types";
 
 interface AddQuestFormProps {
   categories: Category[];
   newTitle: string;
+  newTarget: string;
   newCategory: string;
   newDifficulty: "easy" | "medium" | "hard";
   newRepeat: QuestRepeat;
   newScheduledWeekday: number;
   onTitleChange: (text: string) => void;
+  onTargetChange: (text: string) => void;
   onCategoryChange: (categoryId: string) => void;
   onDifficultyChange: (difficulty: "easy" | "medium" | "hard") => void;
   onRepeatChange: (repeat: QuestRepeat) => void;
@@ -26,27 +32,16 @@ interface AddQuestFormProps {
   onClose: () => void;
 }
 
-const DIFFICULTY_LABELS: Record<"easy" | "medium" | "hard", string> = {
-  easy: "Easy",
-  medium: "Medium",
-  hard: "Hard",
-};
-
-const REPEAT_LABELS: Record<QuestRepeat, string> = {
-  once: "Once",
-  daily: "Daily",
-  weekdays: "Weekdays",
-  weekly: "Weekly",
-};
-
 export function AddQuestForm({
   categories,
   newTitle,
+  newTarget,
   newCategory,
   newDifficulty,
   newRepeat,
   newScheduledWeekday,
   onTitleChange,
+  onTargetChange,
   onCategoryChange,
   onDifficultyChange,
   onRepeatChange,
@@ -96,7 +91,15 @@ export function AddQuestForm({
   };
 
   return (
-    <View style={[styles.addBox, { backgroundColor: withAlpha(colors.surface2, 0.68), borderColor: withAlpha(colors.border, 0.22) }]}>
+    <View
+      style={[
+        styles.addBox,
+        {
+          backgroundColor: withAlpha(colors.surface2, 0.68),
+          borderColor: withAlpha(colors.border, 0.22),
+        },
+      ]}
+    >
       <View style={styles.addFormHeader}>
         <View style={styles.editorTitleRow}>
           <View
@@ -112,217 +115,128 @@ export function AddQuestForm({
           </View>
           <View style={styles.addFormTitleWrap}>
             <Text style={[styles.addFormKicker, { color: HOME_GOLD }]}>New quest</Text>
-            <Text style={[styles.addFormTitle, { color: colors.textPrimary }]}>Build the mission</Text>
+            <Text style={[styles.addFormTitle, { color: colors.textPrimary }]}>Build a clear mission</Text>
           </View>
         </View>
-        <View style={styles.addFormHeaderActions}>
-          <View
-            style={[
-              styles.addFormBadge,
-              {
-                backgroundColor: withAlpha(HOME_GOLD, 0.1),
-                borderColor: withAlpha(HOME_GOLD, 0.26),
-              },
-            ]}
-          >
-            <Text style={[styles.addFormBadgeText, { color: HOME_GOLD }]}>
-              {automaticXp} XP
-            </Text>
-          </View>
-          <Pressable
-            style={[
-              styles.addFormCloseButton,
-              {
-                backgroundColor: withAlpha(colors.bg, 0.44),
-                borderColor: withAlpha(colors.border, 0.22),
-              },
-            ]}
-            onPress={handleClose}
-            accessibilityRole="button"
-            accessibilityLabel="Close new quest menu"
-            hitSlop={8}
-          >
-            <IconSymbol name="xmark" size={17} color={colors.textSecondary} />
-          </Pressable>
-        </View>
-      </View>
-
-      <View style={styles.addFormField}>
-        <Text style={[styles.smallLabel, { color: colors.textSecondary }]}>Title</Text>
-        <TextInput
-          placeholder="Example: Clean 10 minutes"
-          placeholderTextColor={withAlpha(colors.textSecondary, 0.72)}
-          value={newTitle}
-          onChangeText={onTitleChange}
-          onSubmitEditing={handleAdd}
-          returnKeyType="done"
-          onFocus={() => setFocusedInput("title")}
-          onBlur={() => setFocusedInput(null)}
-          accessibilityLabel="Quest title"
+        <Pressable
           style={[
-            styles.input,
+            styles.addFormCloseButton,
             {
-              backgroundColor: withAlpha(colors.bg, 0.42),
-              color: colors.textPrimary,
-              borderColor: withAlpha(colors.border, 0.26),
+              backgroundColor: withAlpha(colors.bg, 0.44),
+              borderColor: withAlpha(colors.border, 0.22),
             },
-            focusedInput === "title" && { borderColor: withAlpha(HOME_GOLD, 0.55) },
           ]}
-        />
+          onPress={handleClose}
+          accessibilityRole="button"
+          accessibilityLabel="Close new quest menu"
+          hitSlop={8}
+        >
+          <IconSymbol name="xmark" size={17} color={colors.textSecondary} />
+        </Pressable>
       </View>
 
-      <View style={styles.addFormSectionHeader}>
-        <Text style={[styles.smallLabel, { color: colors.textSecondary }]}>Category</Text>
-      </View>
-      <View style={styles.pickerRow}>
-        {categories.map((c) => {
-          const active = newCategory === c.id;
-          const label = getCategoryDisplayName(c);
-          return (
-            <Pressable
-              key={c.id}
-              onPress={() => handleCategoryChange(c.id)}
-              accessibilityRole="button"
-              accessibilityLabel={`Set quest category to ${label}`}
-              accessibilityState={{ selected: active }}
-              style={[
-                styles.pillPick,
-                {
-                  backgroundColor: active
-                    ? withAlpha(HOME_GOLD, 0.14)
-                    : withAlpha(colors.bg, 0.34),
-                  borderColor: active
-                    ? withAlpha(HOME_GOLD, 0.42)
-                    : withAlpha(colors.border, 0.22),
-                },
-                active && styles.editorChipSelected,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.pillPickText,
-                  { color: active ? colors.textPrimary : colors.textSecondary },
-                ]}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.82}
-              >
-                {label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      <Text style={[styles.editorIntroText, { color: colors.textSecondary }]}>
+        Name the outcome, choose its effort, and decide when it returns.
+      </Text>
 
-      <View style={styles.addFormSectionHeader}>
-        <Text style={[styles.smallLabel, { color: colors.textSecondary }]}>Difficulty</Text>
-      </View>
-      <View style={styles.pickerRow}>
-        {(["easy", "medium", "hard"] as const).map((diff) => {
-          const active = newDifficulty === diff;
-          const label = DIFFICULTY_LABELS[diff];
-          return (
-            <Pressable
-              key={diff}
-              onPress={() => handleDifficultyChange(diff)}
-              accessibilityRole="button"
-              accessibilityLabel={`Set quest difficulty to ${diff}`}
-              accessibilityState={{ selected: active }}
-              style={[
-                styles.pillPick,
-                {
-                  backgroundColor: active
-                    ? withAlpha(HOME_GOLD, 0.14)
-                    : withAlpha(colors.bg, 0.34),
-                  borderColor: active
-                    ? withAlpha(HOME_GOLD, 0.42)
-                    : withAlpha(colors.border, 0.22),
-                },
-                active && styles.editorChipSelected,
-              ]}
-            >
-              <Text style={[styles.pillPickText, { color: active ? colors.textPrimary : colors.textSecondary }]}>
-                {label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      <View style={styles.addFormSectionHeader}>
-        <Text style={[styles.smallLabel, { color: colors.textSecondary }]}>Repeat</Text>
-      </View>
-      <View style={styles.pickerRow}>
-        {QUEST_REPEAT_OPTIONS.map((repeat) => {
-          const active = newRepeat === repeat;
-          const label = REPEAT_LABELS[repeat];
-
-          return (
-            <Pressable
-              key={repeat}
-              onPress={() => handleRepeatChange(repeat)}
-              accessibilityRole="button"
-              accessibilityLabel={`Set quest repeat to ${label}`}
-              accessibilityState={{ selected: active }}
-              style={[
-                styles.pillPick,
-                {
-                  backgroundColor: active
-                    ? withAlpha(HOME_GOLD, 0.14)
-                    : withAlpha(colors.bg, 0.34),
-                  borderColor: active
-                    ? withAlpha(HOME_GOLD, 0.42)
-                    : withAlpha(colors.border, 0.22),
-                },
-                active && styles.editorChipSelected,
-              ]}
-            >
-              <Text
-                style={[styles.pillPickText, { color: active ? colors.textPrimary : colors.textSecondary }]}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.82}
-              >
-                {label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      {newRepeat === "weekly" ? (
-        <View style={styles.pickerRow}>
-          {WEEKDAY_LABELS.map((label, weekday) => {
-            const active = newScheduledWeekday === weekday;
-            return (
-              <Pressable
-                key={label}
-                onPress={() => handleWeekdayChange(weekday)}
-                accessibilityRole="button"
-                accessibilityLabel={`Schedule weekly quest on ${label}`}
-                accessibilityState={{ selected: active }}
-                style={[
-                  styles.pillPick,
-                  styles.weekdayPick,
-                  {
-                    backgroundColor: active
-                      ? withAlpha(HOME_GOLD, 0.14)
-                      : withAlpha(colors.bg, 0.34),
-                    borderColor: active
-                      ? withAlpha(HOME_GOLD, 0.42)
-                      : withAlpha(colors.border, 0.22),
-                  },
-                  active && styles.editorChipSelected,
-                ]}
-              >
-                <Text style={[styles.pillPickText, { color: active ? colors.textPrimary : colors.textSecondary }]}>
-                  {label}
-                </Text>
-              </Pressable>
-            );
-          })}
+      <View
+        style={[
+          styles.editorFormSurface,
+          {
+            backgroundColor: withAlpha(colors.bg, 0.22),
+            borderColor: withAlpha(colors.border, 0.18),
+          },
+        ]}
+      >
+        <View style={styles.addFormField}>
+          <View style={styles.editorFieldHeader}>
+            <Text style={[styles.smallLabel, { color: colors.textSecondary }]}>Quest name</Text>
+            <Text style={[styles.editorFieldHint, { color: colors.textSecondary }]}>Required</Text>
+          </View>
+          <TextInput
+            placeholder="Example: Clean for 10 minutes"
+            placeholderTextColor={withAlpha(colors.textSecondary, 0.72)}
+            value={newTitle}
+            onChangeText={onTitleChange}
+            returnKeyType="next"
+            onFocus={() => setFocusedInput("title")}
+            onBlur={() => setFocusedInput(null)}
+            accessibilityLabel="Quest title"
+            style={[
+              styles.input,
+              {
+                backgroundColor: withAlpha(colors.surface2, 0.44),
+                color: colors.textPrimary,
+                borderColor: withAlpha(colors.border, 0.26),
+              },
+              focusedInput === "title" && { borderColor: withAlpha(HOME_GOLD, 0.55) },
+            ]}
+          />
         </View>
-      ) : null}
+
+        <View style={styles.addFormField}>
+          <View style={styles.editorFieldHeader}>
+            <Text style={[styles.smallLabel, { color: colors.textSecondary }]}>Target</Text>
+            <Text style={[styles.editorFieldHint, { color: colors.textSecondary }]}>Optional</Text>
+          </View>
+          <TextInput
+            placeholder="20 min, 8 cups, $25"
+            placeholderTextColor={withAlpha(colors.textSecondary, 0.72)}
+            value={newTarget}
+            onChangeText={onTargetChange}
+            onSubmitEditing={handleAdd}
+            returnKeyType="done"
+            onFocus={() => setFocusedInput("target")}
+            onBlur={() => setFocusedInput(null)}
+            accessibilityLabel="Quest target"
+            style={[
+              styles.input,
+              {
+                backgroundColor: withAlpha(colors.surface2, 0.44),
+                color: colors.textPrimary,
+                borderColor: withAlpha(colors.border, 0.26),
+              },
+              focusedInput === "target" && { borderColor: withAlpha(HOME_GOLD, 0.55) },
+            ]}
+          />
+        </View>
+
+        <View style={styles.editorFieldBlock}>
+          <View style={styles.editorFieldHeader}>
+            <Text style={[styles.smallLabel, { color: colors.textSecondary }]}>Area</Text>
+            <Text style={[styles.editorFieldHint, { color: colors.textSecondary }]}>Where it counts</Text>
+          </View>
+          <QuestCategoryOptions
+            categories={categories}
+            selectedCategory={newCategory}
+            onSelect={handleCategoryChange}
+          />
+        </View>
+
+        <View style={styles.editorFieldBlock}>
+          <View style={styles.editorFieldHeader}>
+            <Text style={[styles.smallLabel, { color: colors.textSecondary }]}>Intensity</Text>
+            <Text style={[styles.editorFieldHint, { color: HOME_GOLD }]}>{automaticXp} XP</Text>
+          </View>
+          <QuestDifficultyOptions
+            selectedDifficulty={newDifficulty}
+            onSelect={handleDifficultyChange}
+          />
+        </View>
+
+        <View style={styles.editorFieldBlock}>
+          <View style={styles.editorFieldHeader}>
+            <Text style={[styles.smallLabel, { color: colors.textSecondary }]}>Schedule</Text>
+            <Text style={[styles.editorFieldHint, { color: colors.textSecondary }]}>How often</Text>
+          </View>
+          <QuestRepeatOptions
+            selectedRepeat={newRepeat}
+            selectedWeekday={newScheduledWeekday}
+            onRepeatSelect={handleRepeatChange}
+            onWeekdaySelect={handleWeekdayChange}
+          />
+        </View>
+      </View>
 
       <Pressable
         onPress={handleAdd}
@@ -339,7 +253,10 @@ export function AddQuestForm({
           addPressed && styles.btnPressed,
         ]}
       >
-        <Text style={[styles.addBtnText, { color: colors.bg }]}>Add quest</Text>
+        <View style={styles.editorButtonContent}>
+          <IconSymbol name="plus" size={17} color={colors.bg} />
+          <Text style={[styles.addBtnText, { color: colors.bg }]}>Add quest</Text>
+        </View>
       </Pressable>
     </View>
   );

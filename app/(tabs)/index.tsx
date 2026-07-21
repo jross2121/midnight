@@ -9,6 +9,7 @@ import {
   AppState,
   Alert,
   Easing,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -23,6 +24,7 @@ import { Circle, Svg } from "react-native-svg";
 import { AddQuestForm } from "@/src/components/AddQuestForm";
 import { EditQuestForm } from "@/src/components/EditQuestForm";
 import { MidnightEvaluationModal } from "@/src/components/MidnightEvaluationModal";
+import { AppInfoDialog } from "@/src/components/AppInfoDialog";
 import { QuestCard } from "@/src/components/QuestCard";
 import { CONTRACT_GOLD, HOME_GOLD, createStyles } from "@/src/styles";
 import { mergeAchievements } from "@/src/utils/achievements";
@@ -73,7 +75,11 @@ import {
   uncompleteQuestInStoredState,
 } from "@/src/utils/questCompletion";
 import { getQuestXpForDifficulty } from "@/src/utils/questXp";
-import { createQuestDuplicate } from "@/src/utils/questActions";
+import {
+  createQuestDuplicate,
+  getTomorrowQuestAction,
+  moveQuestToDate,
+} from "@/src/utils/questActions";
 import { getLatestReflectionBefore, upsertDailyReflection } from "@/src/utils/reflections";
 import { normalizeRecoveryDays } from "@/src/utils/recoveryDays";
 import {
@@ -184,6 +190,7 @@ export default function HomeScreen() {
   const styles = createStyles(colors);
   const drHeroAnim = useRef(new Animated.Value(0)).current;
   const rankProgressAnim = useRef(new Animated.Value(0)).current;
+  const todayScrollRef = useRef<ScrollView>(null);
   const [showDevActions, setShowDevActions] = useState(false);
   const [countdownToMidnight, setCountdownToMidnight] = useState(() => getCountdownToMidnight());
 
@@ -205,6 +212,7 @@ export default function HomeScreen() {
   const [recoveryDays, setRecoveryDays] = useState<string[]>([]);
   const [reflectionDraft, setReflectionDraft] = useState("");
   const [showTodayDetails, setShowTodayDetails] = useState(false);
+  const [showProgressInfo, setShowProgressInfo] = useState(false);
   const [undoQuest, setUndoQuest] = useState<{
     id: string;
     title: string;
@@ -218,6 +226,7 @@ export default function HomeScreen() {
   // Add quest form state
   const [showAdd, setShowAdd] = useState(false);
   const [newTitle, setNewTitle] = useState("");
+  const [newTarget, setNewTarget] = useState("");
   const [newCategory, setNewCategory] = useState<string>("health");
   const [newDifficulty, setNewDifficulty] = useState<"easy" | "medium" | "hard">("easy");
   const [newRepeat, setNewRepeat] = useState<QuestRepeat>("daily");
@@ -743,6 +752,16 @@ export default function HomeScreen() {
   }, [checkForLiveMidnightEvaluation]);
 
   const todayDateKey = localDateKey();
+  const tomorrowDateKey = offsetDateKey(todayDateKey, 1);
+  const todayDisplayDate = useMemo(
+    () =>
+      new Date(`${todayDateKey}T12:00:00`).toLocaleDateString(undefined, {
+        weekday: "long",
+        month: "short",
+        day: "numeric",
+      }),
+    [todayDateKey]
+  );
   const questLimitDateKeys = useMemo(() => getUpcomingDateKeys(todayDateKey), [todayDateKey]);
   const todayReflection = useMemo(
     () => dailyReflections.find((reflection) => reflection.date === todayDateKey) ?? null,
@@ -794,6 +813,7 @@ export default function HomeScreen() {
     () => getCompletionPercent(doneCount, dayScoreTarget),
     [dayScoreTarget, doneCount]
   );
+  const remainingQuestCount = Math.max(0, totalQuestCount - doneCount);
   const remainingForStandard = Math.max(0, dayScoreTarget - doneCount);
   const todayHeadline =
     totalQuestCount === 0
@@ -884,25 +904,8 @@ export default function HomeScreen() {
     [colors.textSecondary, sortedQuests]
   );
 
-  const nextMove = useMemo(() => sortedQuests.find((quest) => !quest.done) ?? null, [sortedQuests]);
-  const nextMoveReason = useMemo(() => {
-    if (!nextMove && quests.length === 0) {
-      return "Add one small quest you can finish today. That is enough to begin.";
-    }
-    if (!nextMove && totalQuestCount === 0) {
-      return "No active quests are scheduled today. Add one here or adjust the week in Plan.";
-    }
-    if (!nextMove) return "All quests are complete. Your result will be recorded after midnight.";
-    if (nextMove.pinned) return "You marked this as your next quest.";
-    if (nextMove.contract) return "This is a contract, so it is the safest thing to finish first.";
-    if (nextMove.difficulty === "hard") return "This is the hardest open quest. Do it while your energy is available.";
-    return "This is the clearest next action on today's board.";
-  }, [nextMove, quests.length, totalQuestCount]);
   const showProgressHelp = () => {
-    Alert.alert(
-      "How progress works",
-      "Completing a quest gives category XP immediately. After midnight, your Day Score changes Discipline Rating (DR) once. DR raises your rank and eventually unlocks deeper Progress insights."
-    );
+    setShowProgressInfo(true);
   };
   const completeQuest = (questId: string) => {
     const quest = quests.find((q) => q.id === questId);
@@ -984,8 +987,31 @@ export default function HomeScreen() {
   };
 
   const duplicateQuest = (questId: string) => addQuestCopy(questId);
-  const doQuestTomorrow = (questId: string) =>
-    addQuestCopy(questId, offsetDateKey(todayDateKey, 1));
+  const doQuestTomorrow = (questId: string) => {
+    const source = quests.find((quest) => quest.id === questId);
+    if (!source) return;
+
+    const action = getTomorrowQuestAction(source, tomorrowDateKey);
+    if (!action) {
+      setOpenQuestId(null);
+      Alert.alert("Already scheduled", `“${source.title}” is already set to appear tomorrow.`);
+      return;
+    }
+
+    if (action === "move") {
+      setQuests((current) =>
+        current.map((quest) =>
+          quest.id === questId ? moveQuestToDate(quest, tomorrowDateKey) : quest
+        )
+      );
+      setOpenQuestId(null);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      Alert.alert("Moved to tomorrow", `“${source.title}” will appear tomorrow instead of today.`);
+      return;
+    }
+
+    addQuestCopy(questId, tomorrowDateKey);
+  };
 
   const uncompleteQuest = (questId: string) => {
     const result = uncompleteQuestInStoredState(
@@ -1216,6 +1242,7 @@ export default function HomeScreen() {
     setEditingQuestId(null);
     setOpenQuestId(null);
     setNewTitle("");
+    setNewTarget("");
     setNewCategory("health");
     setNewDifficulty("easy");
     setNewRepeat("daily");
@@ -1244,7 +1271,7 @@ export default function HomeScreen() {
       title,
       categoryId: newCategory,
       xp: getQuestXpForDifficulty(safeDifficulty),
-      target: "",
+      target: newTarget.trim(),
       difficulty: safeDifficulty,
       repeat: safeRepeat,
       scheduledWeekday:
@@ -1265,6 +1292,7 @@ export default function HomeScreen() {
     setQuests((prev) => [...prev, nextQuest]);
 
     setNewTitle("");
+    setNewTarget("");
     setNewDifficulty("easy");
     setNewRepeat("daily");
     setNewScheduledWeekday(getTodayWeekday());
@@ -1282,73 +1310,6 @@ export default function HomeScreen() {
     );
   };
 
-  const nextMovePanel = (
-    <View style={styles.nextMoveCard}>
-      <View style={styles.nextMoveTopRow}>
-        <View style={styles.nextMoveIdentity}>
-          <View
-            style={[
-              styles.nextMoveArtBadge,
-              {
-                backgroundColor: withAlpha(nextMove?.contract ? CONTRACT_GOLD : HOME_GOLD, 0.11),
-                borderColor: withAlpha(nextMove?.contract ? CONTRACT_GOLD : HOME_GOLD, 0.32),
-              },
-            ]}
-          >
-            <IconSymbol
-              name={nextMove?.contract ? "shield.fill" : totalQuestCount === 0 ? "plus" : "checkmark.circle.fill"}
-              size={22}
-              color={nextMove?.contract ? CONTRACT_GOLD : HOME_GOLD}
-            />
-          </View>
-          <View style={styles.nextMoveTextWrap}>
-            <Text style={styles.nextMoveEyebrow}>Do this next</Text>
-            <Text style={styles.nextMoveTitle} numberOfLines={2}>
-              {nextMove
-                ? nextMove.title
-                : totalQuestCount === 0
-                  ? "Add your first quest"
-                  : "Today is complete"}
-            </Text>
-          </View>
-        </View>
-        {nextMove?.contract ? (
-          <View style={styles.nextMoveBadge}>
-            <IconSymbol name="shield.fill" size={12} color={CONTRACT_GOLD} />
-            <Text style={styles.nextMoveBadgeText}>Contract</Text>
-          </View>
-        ) : null}
-      </View>
-      <Text style={styles.nextMoveReason}>{nextMoveReason}</Text>
-      {nextMove ? (
-        <Pressable
-          style={styles.nextMoveButtonWide}
-          onPress={() => completeQuest(nextMove.id)}
-          accessibilityRole="button"
-          accessibilityLabel={`Complete ${nextMove.title}`}
-        >
-          <IconSymbol name="checkmark" size={18} color={colors.bg} />
-          <Text style={styles.nextMoveButtonText}>Mark complete</Text>
-        </Pressable>
-      ) : totalQuestCount === 0 ? (
-        <Pressable
-          style={styles.nextMoveButtonWide}
-          onPress={() => setShowAdd(true)}
-          accessibilityRole="button"
-          accessibilityLabel="Add a quest for today"
-        >
-          <IconSymbol name="plus" size={18} color={colors.bg} />
-          <Text style={styles.nextMoveButtonText}>Add a quest</Text>
-        </Pressable>
-      ) : (
-        <View style={styles.nextMoveCompleteRow}>
-          <IconSymbol name="checkmark.circle.fill" size={20} color={colors.positive} />
-          <Text style={styles.nextMoveCompleteText}>Nothing else needs your attention.</Text>
-        </View>
-      )}
-    </View>
-  );
-
   if (pendingEvaluation) {
     return (
       <MidnightEvaluationModal
@@ -1362,11 +1323,16 @@ export default function HomeScreen() {
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       <SafeAreaView edges={["top"]} style={[styles.safe, { backgroundColor: "transparent" }]}>
-        <ScrollView
-          contentContainerStyle={styles.container}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+        <KeyboardAvoidingView
+          style={styles.keyboardAvoiding}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
+          <ScrollView
+            ref={todayScrollRef}
+            contentContainerStyle={styles.container}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+          >
           <View style={[styles.sectionBand, styles.sectionBandTight]}>
             <View style={styles.homeTopBar}>
               <Pressable
@@ -1380,21 +1346,35 @@ export default function HomeScreen() {
                   <MoonMark size={16} color={HOME_GOLD} cutoutColor={colors.bg} />
                   <Text style={[styles.title, { color: colors.textPrimary }]}>MIDNIGHT</Text>
                 </View>
-                <Text style={styles.homeSubtitle}>Today</Text>
+                <Text style={styles.homeSubtitle}>{todayDisplayDate}</Text>
               </Pressable>
               <View style={styles.homeMetaPill}>
-                <Text style={styles.homeMetaText}>Live</Text>
+                <View
+                  style={[
+                    styles.homeMetaDot,
+                    { backgroundColor: remainingQuestCount === 0 && totalQuestCount > 0 ? colors.positive : HOME_GOLD },
+                  ]}
+                />
+                <Text style={styles.homeMetaText}>
+                  {totalQuestCount === 0
+                    ? "Open"
+                    : remainingQuestCount === 0
+                      ? "Complete"
+                      : `${remainingQuestCount} left`}
+                </Text>
               </View>
             </View>
-
-            {nextMovePanel}
 
             <View style={styles.todayHero}>
               <View style={styles.todayHeroTop}>
                 <View style={styles.todayHeroCopy}>
-                  <Text style={styles.todayEyebrow}>Tonight&apos;s judgment</Text>
+                  <Text style={styles.todayEyebrow}>Today&apos;s progress</Text>
                   <Text style={styles.todayHeadline}>{todayHeadline}</Text>
-                  {showTodayDetails ? <Text style={styles.todaySummary}>{todaySummary}</Text> : null}
+                  <Text style={styles.todayCompletionLine}>
+                    {totalQuestCount === 0
+                      ? "No quests scheduled yet"
+                      : `${doneCount} of ${totalQuestCount} completed`}
+                  </Text>
                 </View>
                 <View style={styles.todayScorePlate}>
                   <Text style={styles.todayScoreValue}>{dayScorePercent}%</Text>
@@ -1413,133 +1393,97 @@ export default function HomeScreen() {
                 style={({ pressed }) => [styles.todayDetailsToggle, pressed && styles.btnPressed]}
               >
                 <Text style={styles.todayDetailsToggleText}>
-                  {showTodayDetails ? "Hide scoring details" : "Show scoring details"}
+                  {showTodayDetails ? "Hide today’s stats" : "Today’s stats"}
                 </Text>
                 <IconSymbol name={showTodayDetails ? "chevron.left" : "chevron.right"} size={17} color={HOME_GOLD} />
               </Pressable>
 
               {showTodayDetails ? (
-              <>
-              <View style={styles.todayMetricRow}>
-                <View style={styles.todayMetric}>
-                  <Text style={styles.todayMetricValue}>{doneCount}/{dayScoreTarget}</Text>
-                  <Text style={styles.todayMetricLabel}>Toward standard</Text>
-                </View>
-                <View style={styles.todayMetricDivider} />
-                <View style={styles.todayMetric}>
-                   {drHistory.length > 0 ? (
-                     <Animated.Text
-                       style={[
-                         styles.todayMetricValue,
-                         styles.todayDrValue,
-                         {
-                           opacity: drHeroAnim,
-                           transform: [{ scale: drHeroAnim }],
-                         },
-                       ]}
-                     >
-                       {disciplineRating}
-                     </Animated.Text>
-                   ) : (
-                     <Text style={styles.todayMetricValue}>—</Text>
-                   )}
-                   <Text style={styles.todayMetricLabel}>
-                     {drHistory.length > 0 ? "Discipline Rating" : "DR after midnight"}
-                   </Text>
-                </View>
-                <View style={styles.todayMetricDivider} />
-                <View style={styles.todayMetric}>
-                  <Text style={styles.todayMetricValue} numberOfLines={1} adjustsFontSizeToFit>
-                    {countdownToMidnight}
-                  </Text>
-                  <Text style={styles.todayMetricLabel}>Until midnight</Text>
-                </View>
-              </View>
-
-              {drHistory.length > 0 ? (
-                <View style={styles.todayRankStrip}>
-                  <View style={styles.todayRankCopy}>
-                    <Text style={styles.todayRankName}>{rankLabel}</Text>
-                    <Text style={styles.todayRankNext}>
-                      {nextRank ? `${nextRank.remainingDr} DR to ${nextRank.name}` : "Highest rank reached"}
+                <View style={styles.todayDetailsPanel}>
+                  <Text style={styles.todaySummary}>{todaySummary}</Text>
+                  <View style={styles.todayMetricRow}>
+                    <View style={styles.todayMetric}>
+                      <Text style={styles.todayMetricValue}>{doneCount}/{dayScoreTarget}</Text>
+                      <Text style={styles.todayMetricLabel}>Toward standard</Text>
+                    </View>
+                    <View style={styles.todayMetricDivider} />
+                    <View style={styles.todayMetric}>
+                      {drHistory.length > 0 ? (
+                        <Animated.Text
+                          style={[
+                            styles.todayMetricValue,
+                            styles.todayDrValue,
+                            {
+                              opacity: drHeroAnim,
+                              transform: [{ scale: drHeroAnim }],
+                            },
+                          ]}
+                        >
+                          {disciplineRating}
+                        </Animated.Text>
+                      ) : (
+                        <Text style={styles.todayMetricValue}>—</Text>
+                      )}
+                      <Text style={styles.todayMetricLabel}>
+                        {drHistory.length > 0 ? "Discipline Rating" : "DR after midnight"}
+                      </Text>
+                    </View>
+                    <View style={styles.todayMetricDivider} />
+                    <View style={styles.todayMetric}>
+                      <Text style={styles.todayMetricValue} numberOfLines={1} adjustsFontSizeToFit>
+                        {countdownToMidnight}
+                      </Text>
+                      <Text style={styles.todayMetricLabel}>Until midnight</Text>
+                    </View>
+                  </View>
+                  {drHistory.length > 0 ? (
+                    <View style={styles.todayRankStrip}>
+                      <View style={styles.todayRankCopy}>
+                        <Text style={styles.todayRankName}>{rankLabel}</Text>
+                        <Text style={styles.todayRankNext}>
+                          {nextRank ? `${nextRank.remainingDr} DR to ${nextRank.name}` : "Highest rank reached"}
+                        </Text>
+                      </View>
+                      <View style={styles.todayRankTrack}>
+                        <Animated.View style={[styles.todayRankFill, { width: animatedRankProgressWidth }]} />
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={styles.firstDayHint}>
+                      <View style={styles.firstDayHintCopy}>
+                        <Text style={styles.firstDayHintTitle}>First-day mode</Text>
+                        <Text style={styles.firstDayHintText}>
+                          Finish quests now. Scores and ranks make sense after your first midnight review.
+                        </Text>
+                      </View>
+                      <Pressable
+                        onPress={showProgressHelp}
+                        accessibilityRole="button"
+                        accessibilityLabel="Explain XP, Discipline Rating, and ranks"
+                        style={({ pressed }) => [styles.termHelpButton, pressed && styles.btnPressed]}
+                      >
+                        <Text style={styles.termHelpButtonText}>?</Text>
+                      </Pressable>
+                    </View>
+                  )}
+                  <View style={styles.todayRuleRow}>
+                    <Text style={[styles.todayRuleText, styles.todayRuleTextFlex]}>
+                      Midnight records today&apos;s completion rate once.
                     </Text>
-                  </View>
-                  <View style={styles.todayRankTrack}>
-                    <Animated.View style={[styles.todayRankFill, { width: animatedRankProgressWidth }]} />
+                    {drHistory.length > 0 ? (
+                      <Pressable
+                        onPress={showProgressHelp}
+                        accessibilityRole="button"
+                        accessibilityLabel="Explain XP, Discipline Rating, and ranks"
+                        style={({ pressed }) => [styles.termHelpButton, pressed && styles.btnPressed]}
+                      >
+                        <Text style={styles.termHelpButtonText}>?</Text>
+                      </Pressable>
+                    ) : null}
                   </View>
                 </View>
-              ) : (
-                <View style={styles.firstDayHint}>
-                  <View style={styles.firstDayHintCopy}>
-                    <Text style={styles.firstDayHintTitle}>First-day mode</Text>
-                    <Text style={styles.firstDayHintText}>Finish quests now. Scores and ranks make sense after your first midnight review.</Text>
-                  </View>
-                  <Pressable
-                    onPress={showProgressHelp}
-                    accessibilityRole="button"
-                    accessibilityLabel="Explain XP, Discipline Rating, and ranks"
-                    style={({ pressed }) => [styles.termHelpButton, pressed && styles.btnPressed]}
-                  >
-                    <Text style={styles.termHelpButtonText}>?</Text>
-                  </Pressable>
-                </View>
-              )}
-
-              <View style={styles.todayRuleRow}>
-                <Text style={[styles.todayRuleText, styles.todayRuleTextFlex]}>
-                  After midnight, today&apos;s completion rate changes your Discipline Rating once.
-                </Text>
-                {drHistory.length > 0 ? (
-                  <Pressable
-                    onPress={showProgressHelp}
-                    accessibilityRole="button"
-                    accessibilityLabel="Explain XP, Discipline Rating, and ranks"
-                    style={({ pressed }) => [styles.termHelpButton, pressed && styles.btnPressed]}
-                  >
-                    <Text style={styles.termHelpButtonText}>?</Text>
-                  </Pressable>
-                ) : null}
-              </View>
-              </>
               ) : null}
             </View>
-
-            {lifetimeCompletedQuestCount > 0 || contractQuests.length > 0 ? (
-            <View style={styles.contractPanel}>
-              <View style={styles.contractHeaderRow}>
-                <View style={styles.contractTitleRow}>
-                  <View style={styles.contractArtBadge}>
-                    <IconSymbol name="shield.fill" size={18} color={CONTRACT_GOLD} />
-                  </View>
-                  <View style={styles.contractCopy}>
-                    <Text style={styles.contractEyebrow}>Contracts</Text>
-                    <Text style={styles.contractTitle}>
-                      {contractQuests.length === 0
-                        ? "No must-do quests selected"
-                        : `${contractDoneCount} of ${contractQuests.length} protected`}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.contractCounterPill}>
-                  <Text style={styles.contractCounterText}>{contractQuests.length}/3</Text>
-                </View>
-              </View>
-              {contractQuests.length > 0 ? (
-                <View style={styles.contractProgressTrack}>
-                  <View
-                    style={[
-                      styles.contractProgressFill,
-                      {
-                        width: `${Math.round((contractDoneCount / contractQuests.length) * 100)}%`,
-                        backgroundColor: CONTRACT_GOLD,
-                      },
-                    ]}
-                  />
-                </View>
-              ) : null}
-              <Text style={styles.contractStatusText}>{contractStatusText}</Text>
-            </View>
-            ) : null}
 
             {__DEV__ && showDevActions ? (
               <View style={styles.devActionRow}>
@@ -1571,10 +1515,8 @@ export default function HomeScreen() {
                     <IconSymbol name="flag.fill" size={18} color={HOME_GOLD} />
                   </View>
                   <View style={styles.queueHeaderCopy}>
-                    <Text style={styles.queueEyebrow}>Today&apos;s quests</Text>
-                    <Text style={styles.queueHeadline}>
-                      {totalQuestCount === 0 ? "Build your day" : `${doneCount} of ${totalQuestCount} complete`}
-                    </Text>
+                    <Text style={styles.queueEyebrow}>Your board</Text>
+                    <Text style={styles.queueHeadline}>Today&apos;s quests</Text>
                   </View>
                 </View>
                 <Pressable
@@ -1590,9 +1532,7 @@ export default function HomeScreen() {
 
               <Text style={styles.queueHelpText}>
                 {totalQuestCount > 0
-                  ? lifetimeCompletedQuestCount === 0
-                    ? "Tap the circle when you finish. You will earn XP immediately; the rest can wait."
-                    : "Tap the circle when you finish. Tap a quest to edit it or make it a contract."
+                  ? "Use the circle to complete. Tap a quest for details."
                   : "Add one clear action you can finish before midnight."}
               </Text>
               {hiddenScheduledQuestCount > 0 || pausedQuestCount > 0 ? (
@@ -1616,11 +1556,13 @@ export default function HomeScreen() {
               <AddQuestForm
                 categories={categories}
                 newTitle={newTitle}
+                newTarget={newTarget}
                 newCategory={newCategory}
                 newDifficulty={newDifficulty}
                 newRepeat={newRepeat}
                 newScheduledWeekday={newScheduledWeekday}
                 onTitleChange={setNewTitle}
+                onTargetChange={setNewTarget}
                 onCategoryChange={setNewCategory}
                 onDifficultyChange={setNewDifficulty}
                 onRepeatChange={setNewRepeat}
@@ -1646,7 +1588,7 @@ export default function HomeScreen() {
                 <View style={styles.emptyQuestCard}>
                   <Text style={styles.emptyQuestTitle}>No quests queued</Text>
                   <Text style={styles.emptyQuestText}>
-                    Add one small action so the day has something concrete to judge.
+                    Add one small action so today has a clear finish line.
                   </Text>
                   <View style={styles.emptyQuestActions}>
                     <Pressable
@@ -1692,6 +1634,9 @@ export default function HomeScreen() {
                             {completedInGroup}/{group.quests.length}
                           </Text>
                         </View>
+                        {group.id === "contracts" ? (
+                          <Text style={styles.questQueueSupport}>{contractStatusText}</Text>
+                        ) : null}
                         <View style={styles.questQueueList}>
                           {group.quests.map((q) => (
                             <QuestCard
@@ -1711,6 +1656,7 @@ export default function HomeScreen() {
                               onPrioritize={toggleQuestPriority}
                               onDuplicate={duplicateQuest}
                               onDoTomorrow={doQuestTomorrow}
+                              tomorrowAction={getTomorrowQuestAction(q, tomorrowDateKey)}
                               reducedMotion={reducedMotion}
                             />
                           ))}
@@ -1743,6 +1689,12 @@ export default function HomeScreen() {
               <TextInput
                 value={reflectionDraft}
                 onChangeText={(value) => setReflectionDraft(value.slice(0, 280))}
+                onFocus={() => {
+                  setTimeout(
+                    () => todayScrollRef.current?.scrollToEnd({ animated: true }),
+                    Platform.OS === "ios" ? 300 : 180,
+                  );
+                }}
                 placeholder="One sentence is enough…"
                 placeholderTextColor={colors.textSecondary}
                 multiline
@@ -1772,7 +1724,8 @@ export default function HomeScreen() {
               </View>
             </View>
           </View>
-        </ScrollView>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
       {undoQuest ? (
         <View
@@ -1805,6 +1758,12 @@ export default function HomeScreen() {
           </Pressable>
         </View>
       ) : null}
+      <AppInfoDialog
+        visible={showProgressInfo}
+        title="How progress works"
+        body="Completing a quest gives category XP immediately. After midnight, your Day Score changes Discipline Rating (DR) once. DR raises your rank and eventually unlocks deeper Progress insights."
+        onClose={() => setShowProgressInfo(false)}
+      />
     </View>
   );
 }
