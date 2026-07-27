@@ -2,10 +2,12 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { EditQuestForm } from "@/src/components/EditQuestForm";
+import { AddQuestForm } from "@/src/components/AddQuestForm";
+import { AppActionDialog, type AppDialogAction } from "@/src/components/AppInfoDialog";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { ScreenLoading } from "@/src/components/ScreenLoading";
 import { CONTRACT_GOLD } from "@/src/styles";
@@ -169,10 +171,10 @@ function pluralize(count: number, singular: string, plural = `${singular}s`): st
 function PlanMetricTile({ label, value, tone, styles }: MetricTileProps) {
   return (
     <View style={[styles.heroMetric, { borderColor: withAlpha(tone, 0.28) }]}>
-      <Text style={[styles.heroMetricValue, { color: tone }]} numberOfLines={1}>
+      <Text style={[styles.heroMetricValue, { color: tone }]}>
         {value}
       </Text>
-      <Text style={styles.heroMetricLabel} numberOfLines={1}>
+      <Text style={styles.heroMetricLabel}>
         {label}
       </Text>
     </View>
@@ -528,6 +530,7 @@ function QuestLibraryRow({
   onTogglePause,
   onToggleContract,
   onEdit,
+  onArchive,
 }: {
   quest: Quest;
   colors: ThemeColors;
@@ -535,11 +538,12 @@ function QuestLibraryRow({
   onTogglePause: (questId: string) => void;
   onToggleContract: (questId: string) => void;
   onEdit: (questId: string) => void;
+  onArchive: (questId: string) => void;
 }) {
   const tone = getQuestTone(quest);
   const categoryLabel = getCategoryDisplayNameById(quest.categoryId);
   const difficultyLabel = quest.difficulty === "hard" ? "Hard" : quest.difficulty === "medium" ? "Medium" : "Easy";
-  const statusLabel = quest.paused ? "Resting" : quest.contract ? "Guarded" : null;
+  const statusLabel = quest.paused ? "Frozen" : quest.contract ? "Guarded" : null;
   const statusTone = quest.paused ? PLAN_TONES.slate : quest.contract ? PLAN_TONES.contract : PLAN_TONES.gold;
 
   return (
@@ -598,7 +602,7 @@ function QuestLibraryRow({
         <Pressable
           onPress={() => onTogglePause(quest.id)}
           accessibilityRole="button"
-          accessibilityLabel={quest.paused ? `Resume ${quest.title}` : `Rest ${quest.title}`}
+          accessibilityLabel={quest.paused ? `Unfreeze ${quest.title}` : `Freeze ${quest.title}`}
           accessibilityState={{ checked: Boolean(quest.paused) }}
           style={({ pressed }) => [
             styles.smallButton,
@@ -607,7 +611,7 @@ function QuestLibraryRow({
           ]}
         >
           <Text style={[styles.smallButtonText, quest.paused ? { color: colors.bg } : { color: colors.textSecondary }]}>
-            {quest.paused ? "Resume" : "Rest"}
+            {quest.paused ? "Unfreeze" : "Freeze"}
           </Text>
         </Pressable>
 
@@ -625,6 +629,19 @@ function QuestLibraryRow({
           <Text style={[styles.smallButtonText, { color: quest.contract ? PLAN_TONES.contract : colors.textSecondary }]}>
             {quest.contract ? "Remove" : "Protect"}
           </Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => onArchive(quest.id)}
+          accessibilityRole="button"
+          accessibilityLabel={`Remove ${quest.title} from the library`}
+          style={({ pressed }) => [
+            styles.smallButton,
+            styles.ghostButton,
+            pressed && styles.pressed,
+          ]}
+        >
+          <Text style={[styles.smallButtonText, { color: colors.negative }]}>Remove</Text>
         </Pressable>
       </View>
     </View>
@@ -691,13 +708,27 @@ function ContractDecisionRow({
 
 export default function PlanScreen() {
   const { colors } = useTheme();
+  const { fontScale } = useWindowDimensions();
+  const usesLargeText = fontScale > 1.15;
   const reducedMotion = useReducedMotion();
-  const styles = useMemo(() => createPlanStyles(colors), [colors]);
+  const styles = useMemo(() => createPlanStyles(colors, usesLargeText), [colors, usesLargeText]);
   const [state, setState] = useState<StoredState>(() => buildEmptyState());
   const [hydrated, setHydrated] = useState(false);
   const [selectedDateKey, setSelectedDateKey] = useState(() => localDateKey());
   const [editingQuestId, setEditingQuestId] = useState<string | null>(null);
+  const [showAddQuest, setShowAddQuest] = useState(false);
+  const [newTitle, setNewTitle] = useState("");
+  const [newTarget, setNewTarget] = useState("");
+  const [newCategory, setNewCategory] = useState("health");
+  const [newDifficulty, setNewDifficulty] = useState<"easy" | "medium" | "hard">("easy");
+  const [newRepeat, setNewRepeat] = useState<QuestRepeat>("daily");
+  const [newScheduledWeekday, setNewScheduledWeekday] = useState(getTodayWeekday());
   const [planView, setPlanView] = useState<PlanView>("today");
+  const [planDialog, setPlanDialog] = useState<{
+    title: string;
+    body: string;
+    actions: AppDialogAction[];
+  } | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
   const loadPlanState = useCallback(async () => {
@@ -932,16 +963,50 @@ export default function PlanScreen() {
         return;
       }
 
-      Alert.alert(
-        "Protect as a contract?",
-        getContractConfirmationCopy(target.title),
-        [
-          { text: "Not now", style: "cancel" },
-          { text: "Protect quest", onPress: () => applyQuestContractToggle(questId) },
-        ]
-      );
+      setPlanDialog({
+        title: "Protect as a contract?",
+        body: getContractConfirmationCopy(target.title),
+        actions: [
+          { label: "Protect quest", emphasis: "primary", onPress: () => applyQuestContractToggle(questId) },
+          { label: "Not now", onPress: () => undefined },
+        ],
+      });
     },
     [applyQuestContractToggle, contractCount, state.quests]
+  );
+
+  const archiveQuest = useCallback(
+    (questId: string) => {
+      updateStoredState((current) => {
+        const target = current.quests.find((quest) => quest.id === questId);
+        if (!target) return current;
+        return {
+          ...current,
+          quests: current.quests.filter((quest) => quest.id !== questId),
+          archivedQuests: [
+            ...current.archivedQuests.filter((quest) => quest.id !== questId),
+            { ...target, archivedAt: new Date().toISOString() },
+          ],
+        };
+      });
+    },
+    [updateStoredState]
+  );
+
+  const requestArchiveQuest = useCallback(
+    (questId: string) => {
+      const target = state.quests.find((quest) => quest.id === questId);
+      if (!target) return;
+      setPlanDialog({
+        title: "Remove from library?",
+        body: `“${target.title}” will leave your plan and move to the archive in Settings. Its earned history will remain.`,
+        actions: [
+          { label: "Remove quest", emphasis: "danger", onPress: () => archiveQuest(questId) },
+          { label: "Keep quest", onPress: () => undefined },
+        ],
+      });
+    },
+    [archiveQuest, state.quests]
   );
 
   const addQuestFromTemplate = useCallback(
@@ -1005,14 +1070,13 @@ export default function PlanScreen() {
         return;
       }
 
-      Alert.alert(
-        "Add this starter",
-        `${getContractConfirmationCopy(template.title)} You can also add it as a regular quest.`,
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Add regular", onPress: () => addQuestFromTemplate(templateId) },
+      setPlanDialog({
+        title: "Add this starter",
+        body: `${getContractConfirmationCopy(template.title)} Choose how it should enter your plan.`,
+        actions: [
           {
-            text: "Protect quest",
+            label: "Protect as contract",
+            emphasis: "primary",
             onPress: () => {
               if (contractCount >= 3) {
                 Alert.alert("Contract limit reached", "Add it as a regular quest or remove another contract first.");
@@ -1021,11 +1085,60 @@ export default function PlanScreen() {
               addQuestFromTemplate(templateId, true);
             },
           },
-        ]
-      );
+          { label: "Add as regular quest", onPress: () => addQuestFromTemplate(templateId) },
+          { label: "Cancel", onPress: () => undefined },
+        ],
+      });
     },
     [addQuestFromTemplate, contractCount]
   );
+
+  const addCustomQuest = useCallback(() => {
+    const title = newTitle.trim();
+    if (!title) return;
+
+    const repeat = normalizeQuestRepeat(newRepeat);
+    const nextQuest: Quest = {
+      id: `q${Date.now()}`,
+      title,
+      categoryId: newCategory,
+      xp: getQuestXpForDifficulty(newDifficulty),
+      target: newTarget.trim(),
+      difficulty: newDifficulty,
+      repeat,
+      scheduledWeekday:
+        repeat === "weekly"
+          ? normalizeScheduledWeekday(newScheduledWeekday, getTodayWeekday())
+          : undefined,
+      done: false,
+      pinned: false,
+      contract: false,
+      paused: false,
+    };
+    const conflict = findDailyQuestLimitConflict([...state.quests, nextQuest], questLimitDateKeys);
+    if (conflict) {
+      showQuestLimitAlert(conflict);
+      return;
+    }
+
+    updateStoredState((current) => ({ ...current, quests: [...current.quests, nextQuest] }));
+    setNewTitle("");
+    setNewTarget("");
+    setNewDifficulty("easy");
+    setNewRepeat("daily");
+    setNewScheduledWeekday(getTodayWeekday());
+    setShowAddQuest(false);
+  }, [
+    newCategory,
+    newDifficulty,
+    newRepeat,
+    newScheduledWeekday,
+    newTarget,
+    newTitle,
+    questLimitDateKeys,
+    state.quests,
+    updateStoredState,
+  ]);
 
   const applyRecoveryDayToggle = useCallback(
     (armed: boolean) => {
@@ -1051,14 +1164,14 @@ export default function PlanScreen() {
       return;
     }
 
-    Alert.alert(
-      "Arm Recovery Day?",
-      "Tonight will freeze DR and both streaks. Quests still award XP, but the day will not improve rank or unlock awards. You can cancel before midnight.",
-      [
-        { text: "Not now", style: "cancel" },
-        { text: "Arm Recovery Day", onPress: () => applyRecoveryDayToggle(true) },
-      ]
-    );
+    setPlanDialog({
+      title: "Arm Recovery Day?",
+      body: "Tonight will freeze DR and both streaks. Quests still award XP, but the day will not improve rank or unlock awards. You can cancel before midnight.",
+      actions: [
+        { label: "Arm Recovery Day", emphasis: "primary", onPress: () => applyRecoveryDayToggle(true) },
+        { label: "Not now", onPress: () => undefined },
+      ],
+    });
   }, [applyRecoveryDayToggle, recoveryStatus, today]);
 
   const editQuest = useCallback(
@@ -1202,7 +1315,7 @@ export default function PlanScreen() {
               <PlanSectionHeader
                 eyebrow="Optional reset"
                 title="Recovery Day"
-                meta={recoveryStatus.armed ? "armed" : recoveryStatus.available ? "available" : "cooldown"}
+                meta={recoveryStatus.armed ? "ARMED" : recoveryStatus.available ? "AVAILABLE" : "COOLDOWN"}
                 styles={styles}
               />
               <View
@@ -1258,7 +1371,7 @@ export default function PlanScreen() {
               <PlanSectionHeader eyebrow="Scheduled" title="Today&apos;s board" meta={`${todaysQuests.length}/${MAX_ACTIVE_QUESTS_PER_DAY} quests`} styles={styles} />
               <View style={styles.questList}>
                 {todaysQuests.map((quest) => (
-                  <QuestLibraryRow key={`today-${quest.id}`} quest={quest} colors={colors} styles={styles} onEdit={setEditingQuestId} onTogglePause={toggleQuestPause} onToggleContract={toggleQuestContract} />
+                  <QuestLibraryRow key={`today-${quest.id}`} quest={quest} colors={colors} styles={styles} onEdit={setEditingQuestId} onTogglePause={toggleQuestPause} onToggleContract={toggleQuestContract} onArchive={requestArchiveQuest} />
                 ))}
                 {todaysQuests.length === 0 ? (
                   <View style={styles.emptyCard}>
@@ -1288,7 +1401,7 @@ export default function PlanScreen() {
                   return (
                     <View key={`contract-slot-${index}`} style={[styles.contractSlot, quest ? styles.contractSlotFilled : styles.contractSlotOpen]}>
                       <Text style={[styles.contractSlotLabel, quest && styles.contractSlotLabelFilled]}>Slot {index + 1}</Text>
-                      <Text style={styles.contractSlotTitle} numberOfLines={1}>{quest?.title ?? "Available"}</Text>
+                      <Text style={styles.contractSlotTitle} numberOfLines={1}>{quest?.title ?? "AVAILABLE"}</Text>
                     </View>
                   );
                 })}
@@ -1329,7 +1442,7 @@ export default function PlanScreen() {
               </View>
               <View style={styles.questList}>
                 {selectedDayQuests.map((quest) => (
-                  <QuestLibraryRow key={`selected-day-${quest.id}`} quest={quest} colors={colors} styles={styles} onEdit={setEditingQuestId} onTogglePause={toggleQuestPause} onToggleContract={toggleQuestContract} />
+                  <QuestLibraryRow key={`selected-day-${quest.id}`} quest={quest} colors={colors} styles={styles} onEdit={setEditingQuestId} onTogglePause={toggleQuestPause} onToggleContract={toggleQuestContract} onArchive={requestArchiveQuest} />
                 ))}
                 {selectedDayQuests.length === 0 ? (
                   <View style={styles.emptyCard}>
@@ -1357,7 +1470,7 @@ export default function PlanScreen() {
           <>
             {recommendedTemplates.length > 0 ? (
               <View style={styles.section}>
-                <PlanSectionHeader eyebrow="Start here" title="Quick add" meta="recommended" styles={styles} />
+                <PlanSectionHeader eyebrow="Start here" title="Quick add" meta="RECOMMENDED" styles={styles} />
                 <Text style={styles.sectionIntro}>Tap a starter to add it immediately. You can edit its schedule and difficulty afterward.</Text>
                 <View style={styles.templateGrid}>
                   {recommendedTemplates.map(({ template, label }) => {
@@ -1382,14 +1495,46 @@ export default function PlanScreen() {
             ) : null}
 
             <View style={styles.section}>
-              <PlanSectionHeader eyebrow="All quests" title="Your library" meta={`${libraryQuestCount} total`} styles={styles} />
-              <Text style={styles.sectionIntro}>Edit schedules here, pause quests you do not need, or choose contracts.</Text>
+              <View style={styles.libraryHeaderRow}>
+                <View style={styles.libraryHeaderCopy}>
+                  <PlanSectionHeader eyebrow="All quests" title="Your library" meta={`${libraryQuestCount} total`} styles={styles} />
+                </View>
+                <Pressable
+                  onPress={() => setShowAddQuest((current) => !current)}
+                  accessibilityRole="button"
+                  accessibilityLabel={showAddQuest ? "Cancel adding quest" : "Add a new quest"}
+                  style={({ pressed }) => [styles.libraryAddButton, pressed && styles.pressed]}
+                >
+                  <IconSymbol name={showAddQuest ? "xmark" : "plus"} size={14} color={colors.bg} />
+                  <Text style={styles.libraryAddButtonText}>{showAddQuest ? "Cancel" : "Add quest"}</Text>
+                </Pressable>
+              </View>
+              {showAddQuest ? (
+                <AddQuestForm
+                  categories={state.categories}
+                  newTitle={newTitle}
+                  newTarget={newTarget}
+                  newCategory={newCategory}
+                  newDifficulty={newDifficulty}
+                  newRepeat={newRepeat}
+                  newScheduledWeekday={newScheduledWeekday}
+                  onTitleChange={setNewTitle}
+                  onTargetChange={setNewTarget}
+                  onCategoryChange={setNewCategory}
+                  onDifficultyChange={setNewDifficulty}
+                  onRepeatChange={setNewRepeat}
+                  onScheduledWeekdayChange={setNewScheduledWeekday}
+                  onAdd={addCustomQuest}
+                  onClose={() => setShowAddQuest(false)}
+                />
+              ) : null}
+              <Text style={styles.sectionIntro}>Edit schedules, freeze quests you want to keep out of rotation, or remove them to the archive.</Text>
               <View style={styles.questList}>
                 {activeQuests.map((quest) => (
-                  <QuestLibraryRow key={`active-${quest.id}`} quest={quest} colors={colors} styles={styles} onEdit={setEditingQuestId} onTogglePause={toggleQuestPause} onToggleContract={toggleQuestContract} />
+                  <QuestLibraryRow key={`active-${quest.id}`} quest={quest} colors={colors} styles={styles} onEdit={setEditingQuestId} onTogglePause={toggleQuestPause} onToggleContract={toggleQuestContract} onArchive={requestArchiveQuest} />
                 ))}
                 {pausedQuests.map((quest) => (
-                  <QuestLibraryRow key={`paused-${quest.id}`} quest={quest} colors={colors} styles={styles} onEdit={setEditingQuestId} onTogglePause={toggleQuestPause} onToggleContract={toggleQuestContract} />
+                  <QuestLibraryRow key={`paused-${quest.id}`} quest={quest} colors={colors} styles={styles} onEdit={setEditingQuestId} onTogglePause={toggleQuestPause} onToggleContract={toggleQuestContract} onArchive={requestArchiveQuest} />
                 ))}
                 {libraryQuestCount === 0 ? (
                   <View style={styles.emptyCard}>
@@ -1412,11 +1557,18 @@ export default function PlanScreen() {
           reducedMotion={reducedMotion}
         />
       ) : null}
+      <AppActionDialog
+        visible={Boolean(planDialog)}
+        title={planDialog?.title ?? ""}
+        body={planDialog?.body ?? ""}
+        actions={planDialog?.actions ?? []}
+        onClose={() => setPlanDialog(null)}
+      />
     </SafeAreaView>
   );
 }
 
-function createPlanStyles(colors: ThemeColors) {
+function createPlanStyles(colors: ThemeColors, usesLargeText: boolean) {
   return StyleSheet.create({
     safe: {
       flex: 1,
@@ -1603,7 +1755,7 @@ function createPlanStyles(colors: ThemeColors) {
       textTransform: "uppercase",
     },
     heroMetricRow: {
-      flexDirection: "row",
+      flexDirection: usesLargeText ? "column" : "row",
       gap: 9,
     },
     heroMetric: {
@@ -1701,6 +1853,32 @@ function createPlanStyles(colors: ThemeColors) {
       gap: 10,
       borderTopWidth: 0,
       paddingTop: 0,
+    },
+    libraryHeaderRow: {
+      flexDirection: usesLargeText ? "column" : "row",
+      alignItems: usesLargeText ? "stretch" : "center",
+      gap: 10,
+    },
+    libraryHeaderCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+    libraryAddButton: {
+      minHeight: 40,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 7,
+      paddingHorizontal: 13,
+      borderRadius: 8,
+      backgroundColor: PLAN_TONES.gold,
+    },
+    libraryAddButtonText: {
+      color: colors.bg,
+      fontSize: 12,
+      lineHeight: 16,
+      fontWeight: "900",
+      textTransform: "uppercase",
     },
     sectionIntro: {
       color: withAlpha(colors.textSecondary, 0.86),

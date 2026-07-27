@@ -14,6 +14,20 @@ type AppInfoDialogProps = {
   onClose: () => void;
 };
 
+export type AppDialogAction = {
+  label: string;
+  onPress: () => void;
+  emphasis?: "primary" | "neutral" | "danger";
+};
+
+type AppActionDialogProps = {
+  visible: boolean;
+  title: string;
+  body: string;
+  actions: AppDialogAction[];
+  onClose: () => void;
+};
+
 export function AppInfoDialog({ visible, title, body, onClose }: AppInfoDialogProps) {
   const { colors } = useTheme();
   const styles = createStyles(colors);
@@ -36,6 +50,66 @@ export function AppInfoDialog({ visible, title, body, onClose }: AppInfoDialogPr
           >
             <Text style={styles.buttonText}>Got it</Text>
           </Pressable>
+        </View>
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+export function AppActionDialog({
+  visible,
+  title,
+  body,
+  actions,
+  onClose,
+}: AppActionDialogProps) {
+  const { colors } = useTheme();
+  const styles = createStyles(colors);
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+      <SafeAreaView style={styles.root}>
+        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close dialog" />
+        <View style={styles.dialog} accessibilityViewIsModal>
+          <View style={styles.iconPlate}>
+            <IconSymbol name="shield.fill" size={22} color={HOME_GOLD} />
+          </View>
+          <Text accessibilityRole="header" style={styles.title}>{title}</Text>
+          <Text style={styles.body}>{body}</Text>
+          <View style={styles.actionStack}>
+            {actions.map((action) => {
+              const emphasis = action.emphasis ?? "neutral";
+              return (
+                <Pressable
+                  key={action.label}
+                  onPress={() => {
+                    onClose();
+                    action.onPress();
+                  }}
+                  accessibilityRole="button"
+                  style={({ pressed }) => [
+                    styles.actionButton,
+                    emphasis === "primary" && styles.actionButtonPrimary,
+                    emphasis === "danger" && {
+                      borderColor: withAlpha(colors.negative, 0.48),
+                      backgroundColor: withAlpha(colors.negative, 0.09),
+                    },
+                    pressed && styles.buttonPressed,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.actionButtonText,
+                      emphasis === "primary" && styles.actionButtonTextPrimary,
+                      emphasis === "danger" && { color: colors.negative },
+                    ]}
+                  >
+                    {action.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
       </SafeAreaView>
     </Modal>
@@ -105,6 +179,33 @@ function createStyles(colors: ThemeColors) {
       color: "#101722",
       fontSize: 14,
       fontWeight: "900",
+    },
+    actionStack: {
+      gap: 9,
+      marginTop: ui.spacing.lg,
+    },
+    actionButton: {
+      minHeight: 48,
+      borderRadius: ui.radius.button,
+      borderWidth: 1,
+      borderColor: withAlpha(HOME_GOLD, 0.28),
+      backgroundColor: withAlpha(HOME_GOLD, 0.06),
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: ui.spacing.md,
+    },
+    actionButtonPrimary: {
+      borderColor: HOME_GOLD,
+      backgroundColor: HOME_GOLD,
+    },
+    actionButtonText: {
+      color: HOME_GOLD,
+      fontSize: 13,
+      lineHeight: 17,
+      fontWeight: "900",
+    },
+    actionButtonTextPrimary: {
+      color: "#101722",
     },
   });
 }

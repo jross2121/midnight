@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CONTRACT_GOLD, HOME_GOLD } from "@/src/styles";
 import { DisciplineCalendar, type DisciplineCalendarDay } from "@/src/components/DisciplineCalendar";
@@ -9,6 +9,7 @@ import { DisciplinePatterns } from "@/src/components/DisciplinePatterns";
 import { RankBadge } from "@/src/components/RankBadge";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { ScreenLoading } from "@/src/components/ScreenLoading";
+import { IconSymbol } from "@/components/ui/icon-symbol";
 import { getMainCategoryDisplayEntries } from "@/src/utils/categoryLabels";
 import {
     defaultCategories,
@@ -145,7 +146,9 @@ function MiniTrendChart({
 
 export default function InsightsScreen() {
   const { colors } = useTheme();
-  const styles = useMemo(() => createInsightsStyles(colors), [colors]);
+  const { fontScale } = useWindowDimensions();
+  const usesLargeText = fontScale > 1.15;
+  const styles = useMemo(() => createInsightsStyles(colors, usesLargeText), [colors, usesLargeText]);
   const [disciplineRating, setDisciplineRating] = useState<number>(defaultDisciplineRating);
   const [evaluationHistory, setEvaluationHistory] = useState<DailyEvaluationHistoryItem[]>([]);
   const [drHistory, setDrHistory] = useState<DrHistoryEntry[]>(defaultDrHistory);
@@ -239,6 +242,7 @@ export default function InsightsScreen() {
   });
   const categoryFromHistory = getLatestCategoriesFromHistory(evaluationHistory);
   const activeCategoryBreakdown = categoryBreakdown.filter((item) => item.total > 0);
+  const openCategoryBreakdown = activeCategoryBreakdown.filter((item) => item.completed < item.total);
   const bestCategory = activeCategoryBreakdown[0] ?? null;
   const riskCategory =
     activeCategoryBreakdown.length > 1
@@ -316,7 +320,7 @@ export default function InsightsScreen() {
           ? INSIGHTS_TONE
           : colors.negative;
   const categoryToneForPercent = (percent: number) =>
-    percent >= 80 ? colors.positive : percent >= 50 ? INSIGHTS_TONE : colors.negative;
+    percent >= 80 ? colors.positive : percent >= 50 ? INSIGHTS_TONE : INSIGHT_CONTRACT;
   const contractPercent = latest7History.length
     ? clampPercent((weeklyContractDays / latest7History.length) * 100)
     : 0;
@@ -515,7 +519,7 @@ export default function InsightsScreen() {
               >
                 <Text style={styles.weeklySnapshotLabel}>{stat.label}</Text>
                 <Text style={[styles.weeklySnapshotValue, { color: stat.tone }]}>{stat.value}</Text>
-                <Text style={styles.weeklySnapshotDetail} numberOfLines={2}>{stat.detail}</Text>
+                <Text style={styles.weeklySnapshotDetail}>{stat.detail}</Text>
                 <View style={styles.weeklySnapshotTrack}>
                   <View
                     style={[
@@ -590,10 +594,27 @@ export default function InsightsScreen() {
           <View style={styles.cardHeaderRow}>
             <View>
               <Text style={styles.eyebrow}>Categories</Text>
-              <Text style={styles.cardTitle}>Today by category</Text>
+              <Text style={styles.cardTitle}>Today&apos;s category progress</Text>
             </View>
             <Text style={styles.mutedMeta}>{activeCategoryBreakdown.length} active</Text>
           </View>
+          {openCategoryBreakdown.length > 0 ? (
+            <View style={styles.categoryWarning}>
+              <View style={styles.categoryWarningIcon}>
+                <IconSymbol name="flag.fill" size={16} color={INSIGHT_CONTRACT} />
+              </View>
+              <View style={styles.categoryWarningCopy}>
+                <Text style={styles.categoryWarningTitle}>
+                  {openCategoryBreakdown.length === 1
+                    ? `${openCategoryBreakdown[0].label} still has an open quest`
+                    : `${openCategoryBreakdown.length} categories still have open quests`}
+                </Text>
+                <Text style={styles.categoryWarningBody}>
+                  This is a progress signal, not a penalty. Finish what matters and let the rest wait.
+                </Text>
+              </View>
+            </View>
+          ) : null}
           {activeCategoryBreakdown.length ? (
             <View style={styles.categoryGrid}>
             {activeCategoryBreakdown.map((item) => {
@@ -612,7 +633,7 @@ export default function InsightsScreen() {
                 >
                   <View style={styles.categoryTopRow}>
                     <View style={[styles.categoryDot, { backgroundColor: categoryTone }]} />
-                    <Text style={styles.categoryLabel} numberOfLines={1}>{item.label}</Text>
+                    <Text style={styles.categoryLabel}>{item.label}</Text>
                     <Text style={[styles.categoryPct, { color: categoryTone }]}>{item.completionPct}%</Text>
                   </View>
                   <View style={styles.progressTrack}>
@@ -803,7 +824,7 @@ export default function InsightsScreen() {
   );
 }
 
-function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
+function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"], usesLargeText: boolean) {
   const cardSurface = createCardSurface(colors, {
     padding: ui.spacing.md,
     radius: ui.radius.card,
@@ -1063,7 +1084,7 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       textTransform: "uppercase",
     },
     weeklySnapshotGrid: {
-      flexDirection: "row",
+      flexDirection: usesLargeText ? "column" : "row",
       alignItems: "stretch",
       gap: 7,
     },
@@ -1445,9 +1466,46 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"]) {
       justifyContent: "space-between",
       rowGap: ui.spacing.xs,
     },
+    categoryWarning: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: ui.spacing.sm,
+      borderWidth: 1,
+      borderColor: withAlpha(INSIGHT_CONTRACT, 0.3),
+      borderRadius: ui.radius.md,
+      backgroundColor: withAlpha(INSIGHT_CONTRACT, 0.07),
+      paddingHorizontal: ui.spacing.sm,
+      paddingVertical: ui.spacing.sm,
+    },
+    categoryWarningIcon: {
+      width: 32,
+      height: 32,
+      borderRadius: 10,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: withAlpha(INSIGHT_CONTRACT, 0.11),
+      flexShrink: 0,
+    },
+    categoryWarningCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+    categoryWarningTitle: {
+      color: colors.textPrimary,
+      fontSize: 12,
+      lineHeight: 17,
+      fontWeight: "900",
+    },
+    categoryWarningBody: {
+      color: withAlpha(colors.textSecondary, 0.82),
+      fontSize: 11,
+      lineHeight: 16,
+      fontWeight: "700",
+      marginTop: 2,
+    },
     categoryCard: {
       ...tileSurface,
-      width: "48%",
+      width: usesLargeText ? "100%" : "48%",
       paddingHorizontal: ui.spacing.sm,
       paddingVertical: ui.spacing.xs,
       gap: 7,

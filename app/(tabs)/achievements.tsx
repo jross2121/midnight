@@ -1,8 +1,8 @@
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useFocusEffect } from "@react-navigation/native";
-import { useRouter } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ScreenHeader } from "@/src/components/ScreenHeader";
@@ -690,8 +690,11 @@ const localAwardArtStyles = StyleSheet.create({
 
 export default function AchievementsScreen() {
   const router = useRouter();
+  const { awardId } = useLocalSearchParams<{ awardId?: string }>();
   const { colors } = useTheme();
-  const styles = useMemo(() => createAchievementStyles(colors), [colors]);
+  const { fontScale } = useWindowDimensions();
+  const usesLargeText = fontScale > 1.15;
+  const styles = useMemo(() => createAchievementStyles(colors, usesLargeText), [colors, usesLargeText]);
   const [achievements, setAchievements] = useState<Achievement[]>(defaultAchievements);
   const [categories, setCategories] = useState<Category[]>(defaultCategories);
   const [quests, setQuests] = useState<Quest[]>(defaultQuests);
@@ -700,6 +703,12 @@ export default function AchievementsScreen() {
   const [lifetimeCompletedQuestCount, setLifetimeCompletedQuestCount] = useState(0);
   const [selectedCollection, setSelectedCollection] = useState<AwardTrackId>("all");
   const [selectedAwardId, setSelectedAwardId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof awardId === "string" && awardId.length > 0) {
+      setSelectedAwardId(awardId);
+    }
+  }, [awardId]);
   const [equippedBadgeIds, setEquippedBadgeIds] = useState<(string | null)[]>(createEquippedBadgeSlots([]));
   const [hydrated, setHydrated] = useState(false);
   const navigateBack = () => {
@@ -898,13 +907,9 @@ export default function AchievementsScreen() {
 
         {featuredAward ? (
           <Pressable
-            onPress={() => equipAward(featuredAward)}
+            onPress={() => setSelectedAwardId(featuredAward.achievement.id)}
             accessibilityRole="button"
-            accessibilityLabel={
-              featuredAward.unlocked
-                ? `Equip award ${featuredAward.achievement.name}`
-                : `View award ${featuredAward.achievement.name}`
-            }
+            accessibilityLabel={`View award ${featuredAward.achievement.name}`}
             style={({ pressed }) => [styles.featuredPanel, pressed && styles.pressed]}
           >
             <AwardEmblem item={featuredAward} size="large" />
@@ -1103,13 +1108,9 @@ export default function AchievementsScreen() {
             return (
               <Pressable
                 key={item.achievement.id}
-                onPress={() => equipAward(item)}
+                onPress={() => setSelectedAwardId(item.achievement.id)}
                 accessibilityRole="button"
-                accessibilityLabel={
-                  item.unlocked
-                    ? `Equip award ${item.achievement.name}`
-                    : `View award ${item.achievement.name}`
-                }
+                accessibilityLabel={`View award ${item.achievement.name}`}
                 accessibilityState={{ selected: selectedAward?.achievement.id === item.achievement.id }}
                 style={({ pressed }) => [
                   styles.awardCard,
@@ -1180,7 +1181,7 @@ export default function AchievementsScreen() {
   );
 }
 
-function createAchievementStyles(colors: ThemeColors) {
+function createAchievementStyles(colors: ThemeColors, usesLargeText: boolean) {
   const cardSurface = createCardSurface(colors, {
     padding: ui.spacing.md,
     radius: ui.radius.card,
@@ -1516,7 +1517,7 @@ function createAchievementStyles(colors: ThemeColors) {
     },
     awardCard: {
       ...tileSurface,
-      width: "48.8%",
+      width: usesLargeText ? "100%" : "48.8%",
       minHeight: 172,
       gap: 7,
     },

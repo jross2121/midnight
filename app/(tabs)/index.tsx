@@ -22,9 +22,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Circle, Svg } from "react-native-svg";
 
 import { AddQuestForm } from "@/src/components/AddQuestForm";
+import { AwardUnlockCelebration } from "@/src/components/AwardUnlockCelebration";
 import { EditQuestForm } from "@/src/components/EditQuestForm";
 import { MidnightEvaluationModal } from "@/src/components/MidnightEvaluationModal";
-import { AppInfoDialog } from "@/src/components/AppInfoDialog";
+import { AppActionDialog, AppInfoDialog, type AppDialogAction } from "@/src/components/AppInfoDialog";
 import { QuestCard } from "@/src/components/QuestCard";
 import { CONTRACT_GOLD, HOME_GOLD, createStyles } from "@/src/styles";
 import { mergeAchievements } from "@/src/utils/achievements";
@@ -213,6 +214,12 @@ export default function HomeScreen() {
   const [reflectionDraft, setReflectionDraft] = useState("");
   const [showTodayDetails, setShowTodayDetails] = useState(false);
   const [showProgressInfo, setShowProgressInfo] = useState(false);
+  const [actionDialog, setActionDialog] = useState<{
+    title: string;
+    body: string;
+    actions: AppDialogAction[];
+  } | null>(null);
+  const [awardCelebration, setAwardCelebration] = useState<{ id: string; name: string } | null>(null);
   const [undoQuest, setUndoQuest] = useState<{
     id: string;
     title: string;
@@ -950,6 +957,9 @@ export default function HomeScreen() {
       category: categoryName(quest.categoryId),
       awardName: unlockedAward?.name,
     });
+    if (unlockedAward) {
+      setAwardCelebration({ id: unlockedAward.id, name: unlockedAward.name });
+    }
   };
 
   const toggleQuestPriority = (questId: string) => {
@@ -1177,14 +1187,14 @@ export default function HomeScreen() {
       return;
     }
 
-    Alert.alert(
-      "Protect as a contract?",
-      getContractConfirmationCopy(target.title),
-      [
-        { text: "Not now", style: "cancel" },
-        { text: "Protect quest", onPress: () => applyContractToggle(questId) },
-      ]
-    );
+    setActionDialog({
+      title: "Protect as a contract?",
+      body: getContractConfirmationCopy(target.title),
+      actions: [
+        { label: "Protect quest", emphasis: "primary", onPress: () => applyContractToggle(questId) },
+        { label: "Not now", onPress: () => undefined },
+      ],
+    });
   };
 
   const toggleQuestOpen = (questId: string) => {
@@ -1763,6 +1773,25 @@ export default function HomeScreen() {
         title="How progress works"
         body="Completing a quest gives category XP immediately. After midnight, your Day Score changes Discipline Rating (DR) once. DR raises your rank and eventually unlocks deeper Progress insights."
         onClose={() => setShowProgressInfo(false)}
+      />
+      <AppActionDialog
+        visible={Boolean(actionDialog)}
+        title={actionDialog?.title ?? ""}
+        body={actionDialog?.body ?? ""}
+        actions={actionDialog?.actions ?? []}
+        onClose={() => setActionDialog(null)}
+      />
+      <AwardUnlockCelebration
+        visible={Boolean(awardCelebration)}
+        awardName={awardCelebration?.name ?? ""}
+        onClose={() => setAwardCelebration(null)}
+        onViewAward={() => {
+          const awardId = awardCelebration?.id;
+          setAwardCelebration(null);
+          if (awardId) {
+            router.push({ pathname: "/(tabs)/achievements", params: { awardId } });
+          }
+        }}
       />
     </View>
   );
