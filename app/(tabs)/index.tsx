@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
@@ -23,6 +23,15 @@ import { Circle, Svg } from "react-native-svg";
 
 import { AddQuestForm } from "@/src/components/AddQuestForm";
 import { AwardUnlockCelebration } from "@/src/components/AwardUnlockCelebration";
+import { FixedPercent } from "@/src/components/FixedPercent";
+import { RankPromotionCelebration } from "@/src/components/RankPromotionCelebration";
+import {
+  GuidedSpotlightTour,
+  PLAN_TOUR_ELIGIBLE_KEY,
+  TODAY_TOUR_ELIGIBLE_KEY,
+  TODAY_TOUR_STORAGE_KEY,
+  type SpotlightStep,
+} from "@/src/components/GuidedSpotlightTour";
 import { EditQuestForm } from "@/src/components/EditQuestForm";
 import { MidnightEvaluationModal } from "@/src/components/MidnightEvaluationModal";
 import { AppActionDialog, AppInfoDialog, type AppDialogAction } from "@/src/components/AppInfoDialog";
@@ -109,6 +118,7 @@ import type {
   DrHistoryEntry,
   Quest,
   QuestRepeat,
+  RankPromotionRecord,
   StoredState,
 } from "@/src/utils/types";
 
@@ -186,12 +196,16 @@ function MoonMark({ size, color, cutoutColor }: MoonMarkProps) {
 ======================= */
 export default function HomeScreen() {
   const router = useRouter();
+  const { startTour } = useLocalSearchParams<{ startTour?: string }>();
   const { colors } = useTheme();
   const reducedMotion = useReducedMotion();
   const styles = createStyles(colors);
   const drHeroAnim = useRef(new Animated.Value(0)).current;
   const rankProgressAnim = useRef(new Animated.Value(0)).current;
   const todayScrollRef = useRef<ScrollView>(null);
+  const progressTourRef = useRef<View>(null);
+  const addQuestTourRef = useRef<View>(null);
+  const questBoardTourRef = useRef<View>(null);
   const [showDevActions, setShowDevActions] = useState(false);
   const [countdownToMidnight, setCountdownToMidnight] = useState(() => getCountdownToMidnight());
 
@@ -214,12 +228,14 @@ export default function HomeScreen() {
   const [reflectionDraft, setReflectionDraft] = useState("");
   const [showTodayDetails, setShowTodayDetails] = useState(false);
   const [showProgressInfo, setShowProgressInfo] = useState(false);
+  const [showGuidedTour, setShowGuidedTour] = useState(false);
   const [actionDialog, setActionDialog] = useState<{
     title: string;
     body: string;
     actions: AppDialogAction[];
   } | null>(null);
   const [awardCelebration, setAwardCelebration] = useState<{ id: string; name: string } | null>(null);
+  const [rankPromotionQueue, setRankPromotionQueue] = useState<RankPromotionRecord[]>([]);
   const [undoQuest, setUndoQuest] = useState<{
     id: string;
     title: string;
@@ -244,6 +260,27 @@ export default function HomeScreen() {
   const [openQuestId, setOpenQuestId] = useState<string | null>(null);
   const observedDateRef = useRef(localDateKey());
   const liveMidnightCheckRef = useRef(false);
+
+  const guidedTourSteps = useMemo<SpotlightStep[]>(
+    () => [
+      {
+        title: "Read today at a glance",
+        body: "Day Score shows how much of today’s board is complete. Open Today’s stats when you want the deeper DR view.",
+        targetRef: progressTourRef,
+      },
+      {
+        title: "Add one clear action",
+        body: "Tap Add whenever you need a custom quest. Give it a schedule and difficulty, then it joins your board.",
+        targetRef: addQuestTourRef,
+      },
+      {
+        title: "Work the board",
+        body: "Tap the circle on a quest to complete it. Tap the quest itself for details, editing, contracts, and tomorrow actions. Use Plan for your full schedule and library.",
+        targetRef: questBoardTourRef,
+      },
+    ],
+    []
+  );
 
   const normalizeDifficulty = React.useCallback((d: unknown): "easy" | "medium" | "hard" => {
     if (d === "medium" || d === "hard") return d;
@@ -562,6 +599,9 @@ export default function HomeScreen() {
       setRecoveryDays(transition.state.recoveryDays ?? []);
       setLastResetDate(transition.state.lastResetDate);
       setPendingEvaluation(null);
+      if (transition.promotions.length > 0) {
+        setRankPromotionQueue(transition.promotions);
+      }
     } catch (error) {
       if (__DEV__) console.warn("Failed to commit midnight evaluation:", error);
       Alert.alert(
@@ -670,6 +710,39 @@ export default function HomeScreen() {
       };
     }, [hydrated, isSavingEvaluation, normalizeDifficulty, normalizeQuest, pendingEvaluation])
   );
+
+  useFocusEffect(
+    React.useCallback(() => {
+      let active = true;
+      if (!hydrated || pendingEvaluation || isSavingEvaluation) return () => undefined;
+
+      const timer = setTimeout(async () => {
+        const [eligible, completed] = await Promise.all([
+          AsyncStorage.getItem(TODAY_TOUR_ELIGIBLE_KEY),
+          AsyncStorage.getItem(TODAY_TOUR_STORAGE_KEY),
+        ]);
+        if (!active || completed === "true") return;
+        if (eligible !== "true" && startTour !== "1") return;
+        todayScrollRef.current?.scrollTo({ y: 0, animated: false });
+        setShowTodayDetails(false);
+        setShowAdd(false);
+        setShowGuidedTour(true);
+      }, 500);
+
+      return () => {
+        active = false;
+        clearTimeout(timer);
+      };
+    }, [hydrated, isSavingEvaluation, pendingEvaluation, startTour])
+  );
+
+  const finishGuidedTour = React.useCallback(() => {
+    setShowGuidedTour(false);
+    void AsyncStorage.multiSet([
+      [TODAY_TOUR_STORAGE_KEY, "true"],
+      [PLAN_TOUR_ELIGIBLE_KEY, "true"],
+    ]).then(() => AsyncStorage.removeItem(TODAY_TOUR_ELIGIBLE_KEY));
+  }, []);
 
   useEffect(() => {
     if (reducedMotion) {
@@ -842,6 +915,7 @@ export default function HomeScreen() {
   const rankLabel = rankName.toUpperCase();
   const nextRank = useMemo(() => getNextRank(disciplineRating), [disciplineRating]);
   const currentRankMeta = useMemo(() => getRankMeta(rankName), [rankName]);
+  const showBeginnerGuidance = currentRankMeta.tier < 3;
   const nextRankMeta = useMemo(
     () => (nextRank ? getRankMeta(nextRank.name) : null),
     [nextRank]
@@ -1375,7 +1449,7 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            <View style={styles.todayHero}>
+            <View ref={progressTourRef} collapsable={false} style={styles.todayHero}>
               <View style={styles.todayHeroTop}>
                 <View style={styles.todayHeroCopy}>
                   <Text style={styles.todayEyebrow}>Today&apos;s progress</Text>
@@ -1387,7 +1461,11 @@ export default function HomeScreen() {
                   </Text>
                 </View>
                 <View style={styles.todayScorePlate}>
-                  <Text style={styles.todayScoreValue}>{dayScorePercent}%</Text>
+                  <FixedPercent
+                    value={dayScorePercent}
+                    textStyle={styles.todayScoreValue}
+                    accessibilityLabel={`${dayScorePercent}% Day Score`}
+                  />
                   <Text style={styles.todayScoreLabel}>Day Score</Text>
                 </View>
               </View>
@@ -1476,21 +1554,23 @@ export default function HomeScreen() {
                       </Pressable>
                     </View>
                   )}
-                  <View style={styles.todayRuleRow}>
-                    <Text style={[styles.todayRuleText, styles.todayRuleTextFlex]}>
-                      Midnight records today&apos;s completion rate once.
-                    </Text>
-                    {drHistory.length > 0 ? (
-                      <Pressable
-                        onPress={showProgressHelp}
-                        accessibilityRole="button"
-                        accessibilityLabel="Explain XP, Discipline Rating, and ranks"
-                        style={({ pressed }) => [styles.termHelpButton, pressed && styles.btnPressed]}
-                      >
-                        <Text style={styles.termHelpButtonText}>?</Text>
-                      </Pressable>
-                    ) : null}
-                  </View>
+                  {showBeginnerGuidance ? (
+                    <View style={styles.todayRuleRow}>
+                      <Text style={[styles.todayRuleText, styles.todayRuleTextFlex]}>
+                        Midnight records today&apos;s completion rate once.
+                      </Text>
+                      {drHistory.length > 0 ? (
+                        <Pressable
+                          onPress={showProgressHelp}
+                          accessibilityRole="button"
+                          accessibilityLabel="Explain XP, Discipline Rating, and ranks"
+                          style={({ pressed }) => [styles.termHelpButton, pressed && styles.btnPressed]}
+                        >
+                          <Text style={styles.termHelpButtonText}>?</Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  ) : null}
                 </View>
               ) : null}
             </View>
@@ -1518,7 +1598,7 @@ export default function HomeScreen() {
           </View>
 
           <View style={[styles.sectionBand, styles.dailySection]}>
-            <View style={styles.dailyHeaderCard}>
+            <View ref={questBoardTourRef} collapsable={false} style={styles.dailyHeaderCard}>
               <View style={styles.queueHeaderRow}>
                 <View style={styles.queueHeaderIdentity}>
                   <View style={styles.queueHeaderIcon}>
@@ -1529,22 +1609,26 @@ export default function HomeScreen() {
                     <Text style={styles.queueHeadline}>Today&apos;s quests</Text>
                   </View>
                 </View>
-                <Pressable
-                  onPress={() => setShowAdd((s) => !s)}
-                  accessibilityRole="button"
-                  accessibilityLabel={showAdd ? "Cancel adding quest" : "Add a new quest"}
-                  style={({ pressed }) => [styles.queueAddButton, pressed && styles.btnPressed]}
-                >
-                  <IconSymbol name={showAdd ? "xmark" : "plus"} size={15} color={colors.bg} />
-                  <Text style={styles.queueAddButtonText}>{showAdd ? "Cancel" : "Add"}</Text>
-                </Pressable>
+                <View ref={addQuestTourRef} collapsable={false}>
+                  <Pressable
+                    onPress={() => setShowAdd((s) => !s)}
+                    accessibilityRole="button"
+                    accessibilityLabel={showAdd ? "Cancel adding quest" : "Add a new quest"}
+                    style={({ pressed }) => [styles.queueAddButton, pressed && styles.btnPressed]}
+                  >
+                    <IconSymbol name={showAdd ? "xmark" : "plus"} size={15} color={colors.bg} />
+                    <Text style={styles.queueAddButtonText}>{showAdd ? "Cancel" : "Add"}</Text>
+                  </Pressable>
+                </View>
               </View>
 
-              <Text style={styles.queueHelpText}>
-                {totalQuestCount > 0
-                  ? "Use the circle to complete. Tap a quest for details."
-                  : "Add one clear action you can finish before midnight."}
-              </Text>
+              {showBeginnerGuidance ? (
+                <Text style={styles.queueHelpText}>
+                  {totalQuestCount > 0
+                    ? "Use the circle to complete. Tap a quest for details."
+                    : "Add one clear action you can finish before midnight."}
+                </Text>
+              ) : null}
               {hiddenScheduledQuestCount > 0 || pausedQuestCount > 0 ? (
                 <View style={styles.queueNoticeStack}>
                   {hiddenScheduledQuestCount > 0 ? (
@@ -1685,9 +1769,11 @@ export default function HomeScreen() {
                 </View>
                 <Text style={styles.reflectionCount}>{reflectionDraft.length}/280</Text>
               </View>
-              <Text style={styles.reflectionHelp}>
-                Optional: note what helped, what got in the way, or what tomorrow should remember.
-              </Text>
+              {showBeginnerGuidance ? (
+                <Text style={styles.reflectionHelp}>
+                  Optional: note what helped, what got in the way, or what tomorrow should remember.
+                </Text>
+              ) : null}
               {latestPastReflection && !reflectionDraft.trim() ? (
                 <View style={styles.previousReflection}>
                   <Text style={styles.previousReflectionLabel}>Previous note</Text>
@@ -1792,6 +1878,19 @@ export default function HomeScreen() {
             router.push({ pathname: "/(tabs)/achievements", params: { awardId } });
           }
         }}
+      />
+      <RankPromotionCelebration
+        promotion={rankPromotionQueue[0] ?? null}
+        onContinue={() => setRankPromotionQueue((current) => current.slice(1))}
+        onViewProgress={() => {
+          setRankPromotionQueue((current) => current.slice(1));
+          router.push("/(tabs)/insights");
+        }}
+      />
+      <GuidedSpotlightTour
+        visible={showGuidedTour}
+        steps={guidedTourSteps}
+        onFinish={finishGuidedTour}
       />
     </View>
   );

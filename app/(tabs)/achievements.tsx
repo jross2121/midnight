@@ -7,6 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { ScreenLoading } from "@/src/components/ScreenLoading";
+import { FixedPercent } from "@/src/components/FixedPercent";
 import { CONTRACT_GOLD } from "@/src/styles";
 import { mergeAchievements } from "@/src/utils/achievements";
 import {
@@ -872,7 +873,11 @@ export default function AchievementsScreen() {
               <Text style={styles.heroTitle}>{unlockedCount}/{totalCount} unlocked</Text>
             </View>
             <View style={styles.heroPercentBadge}>
-              <Text style={styles.heroPercent}>{progressPercent}%</Text>
+              <FixedPercent
+                value={progressPercent}
+                textStyle={styles.heroPercent}
+                accessibilityLabel={`${progressPercent}% of awards complete`}
+              />
               <Text style={styles.heroPercentLabel}>complete</Text>
             </View>
           </View>
@@ -1249,8 +1254,8 @@ function createAchievementStyles(colors: ThemeColors, usesLargeText: boolean) {
     },
     heroPercent: {
       color: AWARD_PAGE_ACCENT,
-      fontSize: 28,
-      lineHeight: 31,
+      fontSize: 24,
+      lineHeight: 28,
       fontWeight: "900",
     },
     heroPercentLabel: {

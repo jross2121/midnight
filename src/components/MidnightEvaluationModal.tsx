@@ -9,6 +9,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import Svg, { Circle, G } from "react-native-svg";
 
 import { CONTRACT_GOLD, HOME_GOLD } from "@/src/styles";
+import { FixedPercent } from "@/src/components/FixedPercent";
 import type { MidnightEvaluationData } from "@/src/utils/midnightEvaluation";
 
 const CTA_FOREGROUND = "#101722";
@@ -101,7 +102,11 @@ function ScoreRing({
       </Svg>
       <View style={styles.scoreRingCenter}>
         <Text style={styles.scoreRingLabel}>Score</Text>
-        <Text style={styles.scoreRingValue}>{percent}%</Text>
+        <FixedPercent
+          value={percent}
+          textStyle={styles.scoreRingValue}
+          accessibilityLabel={`${percent}% Day Score`}
+        />
       </View>
     </View>
   );
@@ -243,35 +248,7 @@ function makeStyles(
       zIndex: 10,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: colors.bg,
-    },
-    transitionGlow: {
-      position: "absolute",
-      width: isCompact ? 190 : 230,
-      height: isCompact ? 190 : 230,
-      borderRadius: 999,
-      borderWidth: 1,
-      borderColor: withAlpha(HOME_GOLD, 0.2),
-      backgroundColor: withAlpha(HOME_GOLD, 0.045),
-      shadowColor: HOME_GOLD,
-      shadowOffset: { width: 0, height: 0 },
-      shadowOpacity: 0.26,
-      shadowRadius: 30,
-      elevation: 7,
-    },
-    transitionMarkFrame: {
-      width: isCompact ? 104 : 122,
-      height: isCompact ? 104 : 122,
-      borderRadius: 32,
-      alignItems: "center",
-      justifyContent: "center",
-      borderWidth: 1,
-      borderColor: withAlpha(HOME_GOLD, 0.38),
-      backgroundColor: withAlpha(HOME_GOLD, 0.07),
-    },
-    transitionMark: {
-      width: "76%",
-      height: "76%",
+      backgroundColor: withAlpha(colors.bg, 0.88),
     },
     transitionEyebrow: {
       color: HOME_GOLD,
@@ -280,7 +257,7 @@ function makeStyles(
       fontWeight: "900",
       letterSpacing: 2.4,
       textTransform: "uppercase",
-      marginTop: 22,
+      marginTop: 0,
     },
     transitionTitle: {
       color: colors.textPrimary,
@@ -294,7 +271,7 @@ function makeStyles(
       height: 2,
       borderRadius: 999,
       backgroundColor: HOME_GOLD,
-      marginTop: 16,
+      marginTop: 12,
     },
     content: {
       flexGrow: 1,
@@ -628,8 +605,8 @@ export function MidnightEvaluationModal({
     setTransitionComplete(false);
     Animated.timing(revealProgress, {
       toValue: 1,
-      duration: 1150,
-      easing: Easing.inOut(Easing.cubic),
+      duration: 720,
+      easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start(({ finished }) => {
       if (finished) setTransitionComplete(true);
@@ -639,24 +616,20 @@ export function MidnightEvaluationModal({
   }, [reducedMotion, revealProgress]);
 
   const overlayOpacity = revealProgress.interpolate({
-    inputRange: [0, 0.68, 1],
-    outputRange: [1, 1, 0],
-  });
-  const markScale = revealProgress.interpolate({
-    inputRange: [0, 0.42, 0.68, 1],
-    outputRange: [0.68, 1.06, 1, 1],
+    inputRange: [0, 0.32, 1],
+    outputRange: [0.88, 0.56, 0],
   });
   const ceremonyCopyOpacity = revealProgress.interpolate({
-    inputRange: [0, 0.3, 0.64, 0.82],
-    outputRange: [0, 0, 1, 1],
+    inputRange: [0, 0.14, 0.56, 1],
+    outputRange: [0, 1, 0.82, 0],
   });
   const sheetOpacity = revealProgress.interpolate({
-    inputRange: [0, 0.72, 1],
-    outputRange: [0, 0, 1],
+    inputRange: [0, 0.28, 1],
+    outputRange: [0.18, 0.48, 1],
   });
   const sheetTranslateY = revealProgress.interpolate({
-    inputRange: [0, 0.72, 1],
-    outputRange: [28, 28, 0],
+    inputRange: [0, 1],
+    outputRange: [12, 0],
   });
 
   return (
@@ -668,10 +641,6 @@ export function MidnightEvaluationModal({
 
       {!transitionComplete ? (
         <Animated.View pointerEvents="none" style={[styles.transitionOverlay, { opacity: overlayOpacity }]}>
-          <Animated.View style={[styles.transitionGlow, { transform: [{ scale: markScale }] }]} />
-          <Animated.View style={[styles.transitionMarkFrame, { transform: [{ scale: markScale }] }]}>
-            <Image source={MIDNIGHT_ICON} style={styles.transitionMark} resizeMode="contain" />
-          </Animated.View>
           <Animated.View style={{ alignItems: "center", opacity: ceremonyCopyOpacity }}>
             <Text style={styles.transitionEyebrow}>Midnight</Text>
             <Text style={styles.transitionTitle}>Day recorded</Text>

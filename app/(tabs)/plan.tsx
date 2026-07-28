@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
@@ -8,8 +9,15 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { EditQuestForm } from "@/src/components/EditQuestForm";
 import { AddQuestForm } from "@/src/components/AddQuestForm";
 import { AppActionDialog, type AppDialogAction } from "@/src/components/AppInfoDialog";
+import { FixedPercent } from "@/src/components/FixedPercent";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { ScreenLoading } from "@/src/components/ScreenLoading";
+import {
+  GuidedSpotlightTour,
+  PLAN_TOUR_ELIGIBLE_KEY,
+  PLAN_TOUR_STORAGE_KEY,
+  type SpotlightStep,
+} from "@/src/components/GuidedSpotlightTour";
 import { CONTRACT_GOLD } from "@/src/styles";
 import { getCategoryDisplayNameById } from "@/src/utils/categoryLabels";
 import { useReducedMotion } from "@/src/utils/accessibility";
@@ -18,6 +26,7 @@ import { getContractConfirmationCopy } from "@/src/utils/contracts";
 import { withAlpha } from "@/src/utils/designSystem";
 import { DAILY_STANDARD, getDailyScoringTarget } from "@/src/utils/discipline";
 import { questTemplates } from "@/src/utils/defaultData";
+import { getRankFromDR, getRankMeta } from "@/src/utils/rank";
 import { getQuestXpForDifficulty } from "@/src/utils/questXp";
 import { getRecoveryDayStatus, setRecoveryDayArmed } from "@/src/utils/recoveryDays";
 import {
@@ -171,9 +180,15 @@ function pluralize(count: number, singular: string, plural = `${singular}s`): st
 function PlanMetricTile({ label, value, tone, styles }: MetricTileProps) {
   return (
     <View style={[styles.heroMetric, { borderColor: withAlpha(tone, 0.28) }]}>
-      <Text style={[styles.heroMetricValue, { color: tone }]}>
-        {value}
-      </Text>
+      {value.endsWith("%") ? (
+        <FixedPercent
+          value={value.slice(0, -1)}
+          textStyle={[styles.heroMetricValue, { color: tone }]}
+          accessibilityLabel={`${label}: ${value}`}
+        />
+      ) : (
+        <Text style={[styles.heroMetricValue, { color: tone }]}>{value}</Text>
+      )}
       <Text style={styles.heroMetricLabel}>
         {label}
       </Text>
@@ -201,7 +216,15 @@ function PlanSectionHeader({
         <Text style={[styles.sectionTitle, compact && styles.sectionTitleCompact]}>{title}</Text>
       </View>
       <View style={[styles.sectionMetaPill, compact && styles.sectionMetaPillCompact]}>
-        <Text style={styles.sectionMeta}>{meta}</Text>
+        {meta.endsWith("%") ? (
+          <FixedPercent
+            value={meta.slice(0, -1)}
+            textStyle={styles.sectionMeta}
+            accessibilityLabel={`${title}: ${meta}`}
+          />
+        ) : (
+          <Text style={styles.sectionMeta}>{meta}</Text>
+        )}
       </View>
     </View>
   );
@@ -724,12 +747,36 @@ export default function PlanScreen() {
   const [newRepeat, setNewRepeat] = useState<QuestRepeat>("daily");
   const [newScheduledWeekday, setNewScheduledWeekday] = useState(getTodayWeekday());
   const [planView, setPlanView] = useState<PlanView>("today");
+  const [showGuidedTour, setShowGuidedTour] = useState(false);
   const [planDialog, setPlanDialog] = useState<{
     title: string;
     body: string;
     actions: AppDialogAction[];
   } | null>(null);
   const scrollRef = useRef<ScrollView>(null);
+  const planSwitchTourRef = useRef<View>(null);
+  const quickAddTourRef = useRef<View>(null);
+  const libraryTourRef = useRef<View>(null);
+  const planTourSteps = useMemo<SpotlightStep[]>(
+    () => [
+      {
+        title: "Choose the planning view",
+        body: "Today shows the current plan, Week previews the next seven days, and Library holds every quest you keep.",
+        targetRef: planSwitchTourRef,
+      },
+      {
+        title: "Start quickly",
+        body: "Quick Add gives you useful starter quests. Tap one, then choose whether it should be a regular quest or a protected Contract.",
+        targetRef: quickAddTourRef,
+      },
+      {
+        title: "Control your library",
+        body: "Add custom quests here. You can also edit, freeze, protect, or remove anything you no longer want in rotation.",
+        targetRef: libraryTourRef,
+      },
+    ],
+    []
+  );
 
   const loadPlanState = useCallback(async () => {
     try {
@@ -747,6 +794,48 @@ export default function PlanScreen() {
       loadPlanState();
     }, [loadPlanState])
   );
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      if (!hydrated) return () => undefined;
+
+      const timer = setTimeout(async () => {
+        const [eligible, completed] = await Promise.all([
+          AsyncStorage.getItem(PLAN_TOUR_ELIGIBLE_KEY),
+          AsyncStorage.getItem(PLAN_TOUR_STORAGE_KEY),
+        ]);
+        if (!active || eligible !== "true" || completed === "true") return;
+        setPlanView("today");
+        scrollRef.current?.scrollTo({ y: 0, animated: false });
+        setShowGuidedTour(true);
+      }, 400);
+
+      return () => {
+        active = false;
+        clearTimeout(timer);
+      };
+    }, [hydrated])
+  );
+
+  const finishGuidedTour = useCallback(() => {
+    setShowGuidedTour(false);
+    void AsyncStorage.setItem(PLAN_TOUR_STORAGE_KEY, "true")
+      .then(() => AsyncStorage.removeItem(PLAN_TOUR_ELIGIBLE_KEY));
+  }, []);
+
+  const handlePlanTourStepChange = useCallback((stepIndex: number) => {
+    if (stepIndex === 0) {
+      setPlanView("today");
+      requestAnimationFrame(() => scrollRef.current?.scrollTo({ y: 0, animated: false }));
+      return;
+    }
+    setPlanView("library");
+    requestAnimationFrame(() => {
+      if (stepIndex === 1) scrollRef.current?.scrollTo({ y: 0, animated: false });
+      else scrollRef.current?.scrollTo({ y: 420, animated: false });
+    });
+  }, []);
 
   const updateStoredState = useCallback((updater: (current: StoredState) => StoredState) => {
     void persistStoredStateUpdate(updater)
@@ -832,6 +921,8 @@ export default function PlanScreen() {
     todaysTargetCount > 0
       ? Math.min(100, Math.round((todaysCompletedCount / todaysTargetCount) * 100))
       : 0;
+  const showBeginnerGuidance =
+    getRankMeta(getRankFromDR(state.disciplineRating)).tier < 3;
   const todayBrief = useMemo(
     () =>
       buildTodayBrief({
@@ -1245,7 +1336,7 @@ export default function PlanScreen() {
       <ScrollView ref={scrollRef} contentContainerStyle={styles.container}>
         <ScreenHeader title="Plan" subtitle="Choose what shows up each day" icon="calendar" accent={PLAN_TONES.gold} />
 
-        <View style={styles.planViewSwitch} accessibilityRole="tablist">
+        <View ref={planSwitchTourRef} collapsable={false} style={styles.planViewSwitch} accessibilityRole="tablist">
           {PLAN_VIEWS.map((view) => {
             const selected = planView === view.id;
             return (
@@ -1285,7 +1376,11 @@ export default function PlanScreen() {
                     <Text style={styles.heroSubtitle}>{todayBrief.body}</Text>
                   </View>
                   <View style={[styles.heroScorePlate, { borderColor: withAlpha(todayBrief.tone, 0.34) }]}>
-                    <Text style={[styles.heroScoreValue, { color: todayBrief.tone }]}>{todayCompletionPercent}%</Text>
+                    <FixedPercent
+                      value={todayCompletionPercent}
+                      textStyle={[styles.heroScoreValue, { color: todayBrief.tone }]}
+                      accessibilityLabel={`${todayCompletionPercent}% of standard`}
+                    />
                     <Text style={styles.heroScoreLabel}>standard</Text>
                   </View>
                 </View>
@@ -1394,7 +1489,9 @@ export default function PlanScreen() {
 
             <View style={styles.section}>
               <PlanSectionHeader eyebrow="Optional pressure" title="Contracts" meta={`${availableContractSlots} open`} styles={styles} />
-              <Text style={styles.sectionIntro}>Optional: protect up to three true must-do quests. Contracts build a separate streak and label a miss clearly; they do not add another DR penalty.</Text>
+              {showBeginnerGuidance ? (
+                <Text style={styles.sectionIntro}>Optional: protect up to three true must-do quests. Contracts build a separate streak and label a miss clearly; they do not add another DR penalty.</Text>
+              ) : null}
               <View style={styles.contractSlotGrid}>
                 {Array.from({ length: 3 }, (_, index) => {
                   const quest = contractQuests[index];
@@ -1470,8 +1567,12 @@ export default function PlanScreen() {
           <>
             {recommendedTemplates.length > 0 ? (
               <View style={styles.section}>
-                <PlanSectionHeader eyebrow="Start here" title="Quick add" meta="RECOMMENDED" styles={styles} />
-                <Text style={styles.sectionIntro}>Tap a starter to add it immediately. You can edit its schedule and difficulty afterward.</Text>
+                <View ref={quickAddTourRef} collapsable={false}>
+                  <PlanSectionHeader eyebrow="Start here" title="Quick add" meta="RECOMMENDED" styles={styles} />
+                </View>
+                {showBeginnerGuidance ? (
+                  <Text style={styles.sectionIntro}>Tap a starter to add it immediately. You can edit its schedule and difficulty afterward.</Text>
+                ) : null}
                 <View style={styles.templateGrid}>
                   {recommendedTemplates.map(({ template, label }) => {
                     const tone = getQuestTone(template);
@@ -1495,7 +1596,7 @@ export default function PlanScreen() {
             ) : null}
 
             <View style={styles.section}>
-              <View style={styles.libraryHeaderRow}>
+              <View ref={libraryTourRef} collapsable={false} style={styles.libraryHeaderRow}>
                 <View style={styles.libraryHeaderCopy}>
                   <PlanSectionHeader eyebrow="All quests" title="Your library" meta={`${libraryQuestCount} total`} styles={styles} />
                 </View>
@@ -1528,7 +1629,9 @@ export default function PlanScreen() {
                   onClose={() => setShowAddQuest(false)}
                 />
               ) : null}
-              <Text style={styles.sectionIntro}>Edit schedules, freeze quests you want to keep out of rotation, or remove them to the archive.</Text>
+              {showBeginnerGuidance ? (
+                <Text style={styles.sectionIntro}>Edit schedules, freeze quests you want to keep out of rotation, or remove them to the archive.</Text>
+              ) : null}
               <View style={styles.questList}>
                 {activeQuests.map((quest) => (
                   <QuestLibraryRow key={`active-${quest.id}`} quest={quest} colors={colors} styles={styles} onEdit={setEditingQuestId} onTogglePause={toggleQuestPause} onToggleContract={toggleQuestContract} onArchive={requestArchiveQuest} />
@@ -1563,6 +1666,12 @@ export default function PlanScreen() {
         body={planDialog?.body ?? ""}
         actions={planDialog?.actions ?? []}
         onClose={() => setPlanDialog(null)}
+      />
+      <GuidedSpotlightTour
+        visible={showGuidedTour}
+        steps={planTourSteps}
+        onStepChange={handlePlanTourStepChange}
+        onFinish={finishGuidedTour}
       />
     </SafeAreaView>
   );
@@ -1663,8 +1772,8 @@ function createPlanStyles(colors: ThemeColors, usesLargeText: boolean) {
       alignItems: "center",
     },
     heroScoreValue: {
-      fontSize: 26,
-      lineHeight: 30,
+      fontSize: 22,
+      lineHeight: 26,
       fontWeight: "900",
     },
     heroScoreLabel: {

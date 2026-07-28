@@ -473,3 +473,36 @@ test("midnight evaluation records contracts and applies missed days exactly once
   assert.equal(second.applied, false);
   assert.deepEqual(second.state, first.state);
 });
+
+test("rank promotions are recorded once when Midnight crosses a threshold", () => {
+  const quests = [quest({ done: true, contract: true })];
+  const evaluation = buildMidnightEvaluation("2026-03-07", quests);
+  const initial = storedState({
+    quests,
+    disciplineRating: 95,
+    rankPromotions: [],
+  });
+
+  const first = applyMidnightStateTransition(
+    initial,
+    evaluation,
+    "2026-03-08",
+    "2026-03-08T00:00:01.000Z"
+  );
+  const second = applyMidnightStateTransition(
+    first.state,
+    evaluation,
+    "2026-03-08",
+    "2026-03-08T00:00:02.000Z"
+  );
+
+  assert.equal(first.state.disciplineRating, 105);
+  assert.equal(first.promotions.length, 1);
+  assert.equal(first.promotions[0].fromRank, "Foundation");
+  assert.equal(first.promotions[0].rank, "Consistent");
+  assert.equal(first.promotions[0].dayScore, 100);
+  assert.equal(first.promotions[0].strongestCategory, "Health");
+  assert.deepEqual(first.state.rankPromotions, first.promotions);
+  assert.equal(second.promotions.length, 0);
+  assert.deepEqual(second.state.rankPromotions, first.state.rankPromotions);
+});

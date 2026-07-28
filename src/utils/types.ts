@@ -75,6 +75,22 @@ export type DailyReflection = {
   updatedAt: string;
 };
 
+export type RankPromotionRecord = {
+  id: string;
+  date: string;
+  unlockedAt: string;
+  fromRank: string;
+  rank: string;
+  drBefore: number;
+  drAfter: number;
+  drGained: number;
+  dayScore: number;
+  streak: number;
+  strongestCategory?: string;
+  contractCompletedCount: number;
+  contractTotalCount: number;
+};
+
 export type StoredState = {
   categories: Category[];
   quests: Quest[];
@@ -90,6 +106,7 @@ export type StoredState = {
   archivedQuests: ArchivedQuest[];
   dailyReflections?: DailyReflection[];
   recoveryDays?: string[];
+  rankPromotions?: RankPromotionRecord[];
 };
 
 export const STORAGE_KEY = "lifeRpg:v1";

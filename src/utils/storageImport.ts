@@ -16,6 +16,7 @@ import {
 import { getQuestXpForDifficulty } from "./questXp";
 import { normalizeQuestRepeat, normalizeScheduledWeekday } from "./recurrence";
 import { normalizeRecoveryDays } from "./recoveryDays";
+import { DR_RANK_THRESHOLDS } from "./rank";
 import { normalizeReminderSettings, type ReminderSettings } from "./reminders";
 import {
   STORAGE_KEY,
@@ -25,6 +26,7 @@ import {
   type DrHistoryEntry,
   type Quest,
   type QuestCompletionReceipt,
+  type RankPromotionRecord,
   type StoredState,
 } from "./types";
 
@@ -244,6 +246,39 @@ function normalizeDailyReflections(value: unknown): DailyReflection[] {
     .slice(-30);
 }
 
+function normalizeRankPromotions(value: unknown): RankPromotionRecord[] {
+  if (!Array.isArray(value)) return [];
+  const rankNames = new Set<string>(DR_RANK_THRESHOLDS.map((rank) => rank.name));
+  return value
+    .filter(isObject)
+    .flatMap((item) => {
+      if (
+        !rankNames.has(safeString(item.rank, "")) ||
+        !rankNames.has(safeString(item.fromRank, "")) ||
+        !isValidDateKey(item.date)
+      ) {
+        return [];
+      }
+      const rank = safeString(item.rank, "");
+      return [{
+        id: safeString(item.id, `promotion:${item.date}:${rank}`),
+        date: item.date,
+        unlockedAt: safeString(item.unlockedAt, `${item.date}T12:00:00.000Z`),
+        fromRank: safeString(item.fromRank, "Foundation"),
+        rank,
+        drBefore: safeNumber(item.drBefore, 0),
+        drAfter: safeNumber(item.drAfter, 0),
+        drGained: safeNumber(item.drGained, 0),
+        dayScore: safePercent(item.dayScore, 0),
+        streak: safeNumber(item.streak, 0),
+        strongestCategory: safeString(item.strongestCategory, "") || undefined,
+        contractCompletedCount: safeNumber(item.contractCompletedCount, 0),
+        contractTotalCount: safeNumber(item.contractTotalCount, 0),
+      }];
+    })
+    .slice(-50);
+}
+
 export function buildStoredStateFromImport(value: Partial<StoredState>): StoredState {
   const today = localDateKey();
   const importedCategories = Array.isArray(value.categories)
@@ -306,6 +341,7 @@ export function buildStoredStateFromImport(value: Partial<StoredState>): StoredS
     archivedQuests,
     dailyReflections: normalizeDailyReflections(value.dailyReflections),
     recoveryDays: normalizeRecoveryDays(value.recoveryDays),
+    rankPromotions: normalizeRankPromotions(value.rankPromotions),
   };
 }
 

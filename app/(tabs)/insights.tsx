@@ -3,9 +3,11 @@ import { useFocusEffect } from "@react-navigation/native";
 import React, { useCallback, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Circle, G, Svg } from "react-native-svg";
 import { CONTRACT_GOLD, HOME_GOLD } from "@/src/styles";
 import { DisciplineCalendar, type DisciplineCalendarDay } from "@/src/components/DisciplineCalendar";
 import { DisciplinePatterns } from "@/src/components/DisciplinePatterns";
+import { FixedPercent } from "@/src/components/FixedPercent";
 import { RankBadge } from "@/src/components/RankBadge";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { ScreenLoading } from "@/src/components/ScreenLoading";
@@ -37,15 +39,20 @@ import {
 import { readEvaluationHistory, type DailyEvaluationHistoryItem } from "@/src/utils/evaluationHistory";
 import { localDateKey } from "@/src/utils/dateHelpers";
 import { getScheduledQuestsForDate } from "@/src/utils/recurrence";
-import { getNextRank, getRankFromDR, getRankMeta } from "@/src/utils/rank";
+import { DR_RANK_THRESHOLDS, getNextRank, getRankFromDR, getRankMeta } from "@/src/utils/rank";
+import type { DisciplineRank } from "@/src/utils/rank";
 import { buildStreakSummary } from "@/src/utils/planning";
+import {
+  buildPromotionInsight,
+  isRankRewardUnlocked,
+  RANK_REWARDS,
+} from "@/src/utils/rankRewards";
 import { useTheme } from "@/src/utils/themeContext";
-import type { Category, DrHistoryEntry, Quest, StoredState } from "@/src/utils/types";
+import type { Category, DrHistoryEntry, Quest, RankPromotionRecord, StoredState } from "@/src/utils/types";
 import { STORAGE_KEY } from "@/src/utils/types";
 
 const MAIN_CATEGORIES = getMainCategoryDisplayEntries();
 const INSIGHTS_TONE = HOME_GOLD;
-const INSIGHT_MINT = "#34D399";
 const INSIGHT_CONTRACT = CONTRACT_GOLD;
 const INSIGHT_VIOLET = "#A78BFA";
 
@@ -154,6 +161,7 @@ export default function InsightsScreen() {
   const [drHistory, setDrHistory] = useState<DrHistoryEntry[]>(defaultDrHistory);
   const [categories, setCategories] = useState<Category[]>(defaultCategories);
   const [quests, setQuests] = useState<Quest[]>(defaultQuests);
+  const [rankPromotions, setRankPromotions] = useState<RankPromotionRecord[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [selectedCoachPrompt, setSelectedCoachPrompt] = useState<CoachPromptId>("next");
   const [selectedInsightMode, setSelectedInsightMode] = useState<InsightMode>("today");
@@ -178,6 +186,7 @@ export default function InsightsScreen() {
           : defaultCategories
       );
       setQuests(Array.isArray(parsed.quests) ? parsed.quests : defaultQuests);
+      setRankPromotions(Array.isArray(parsed.rankPromotions) ? parsed.rankPromotions.slice(-50) : []);
       setDrHistory(
         Array.isArray(parsed.drHistory)
           ? parsed.drHistory.filter((entry): entry is DrHistoryEntry => isDrHistoryEntry(entry)).slice(-30)
@@ -256,6 +265,7 @@ export default function InsightsScreen() {
   const currentRank = getRankFromDR(disciplineRating);
   const currentDrValue = disciplineRating;
   const currentRankMeta = getRankMeta(currentRank);
+  const showBeginnerGuidance = currentRankMeta.tier < 3;
   const nextRank = getNextRank(currentDrValue);
   const nextRankMeta = nextRank ? getRankMeta(nextRank.name) : null;
   const rankTierSpan = nextRankMeta
@@ -389,9 +399,9 @@ export default function InsightsScreen() {
       tone: totalToday > 0 ? latestCompletionTone : colors.textSecondary,
     },
     {
-      label: "7-day avg",
-      value: latest7History.length ? `${weeklyAvgCompletion}%` : "—",
-      tone: latest7History.length ? INSIGHT_MINT : colors.textSecondary,
+      label: "Week DR",
+      value: hasSufficientTrend ? formatDelta(weekDelta) : "—",
+      tone: hasSufficientTrend ? trendLabelTone : colors.textSecondary,
     },
     {
       label: "Solid streak",
@@ -399,46 +409,116 @@ export default function InsightsScreen() {
       tone: INSIGHT_VIOLET,
     },
   ];
-  const progressHero = (
-    <View style={styles.progressHero}>
-      <View style={styles.progressHeroHeader}>
-        <View style={styles.progressRankIdentity}>
-          <View style={styles.progressRankPlate}>
-            <RankBadge rank={currentRank} size={36} color={INSIGHTS_TONE} active />
+  const promotionMessage = nextRank
+    ? rankProgressPercent >= 80
+      ? `${nextRank.name} is within reach. Protect the next few judgments.`
+      : weekDelta > 0
+        ? `Momentum is building. Keep stacking judged days toward ${nextRank.name}.`
+        : `Your next promotion is ${nextRank.name} at ${nextRankMeta?.minDr ?? currentDrValue} DR.`
+    : "You reached Grand Discipline. The challenge now is defending the standard.";
+  const renderRankGatedSection = (
+    requiredRank: DisciplineRank,
+    content: React.ReactNode
+  ) => {
+    if (isRankRewardUnlocked(requiredRank, currentDrValue)) return content;
+
+    const threshold = DR_RANK_THRESHOLDS.find((rank) => rank.name === requiredRank);
+    const reward = RANK_REWARDS.find((item) => item.rank === requiredRank);
+    const foundationDr = DR_RANK_THRESHOLDS[0]?.minDr ?? 1000;
+    const targetDr = threshold?.minDr ?? foundationDr;
+    const progress = targetDr > foundationDr
+      ? clampPercent(((currentDrValue - foundationDr) / (targetDr - foundationDr)) * 100)
+      : 0;
+
+    return (
+      <View
+        style={styles.rankLockedPanel}
+        accessible
+        accessibilityLabel={`${reward?.title ?? "Rank feature"} locked. Reach ${requiredRank} at ${targetDr} Discipline Rating to unlock it.`}
+      >
+        <View style={styles.rankLockedTopline}>
+          <View style={styles.rankLockedIcon}>
+            <IconSymbol name="lock.fill" size={20} color={withAlpha(colors.textSecondary, 0.72)} />
           </View>
-          <View style={styles.dashboardTitleCopy}>
-            <Text style={styles.eyebrow}>Current rank</Text>
-            <Text style={styles.progressRankName}>{currentRank}</Text>
+          <View style={styles.rankLockedCopy}>
+            <Text style={styles.rankLockedEyebrow}>Rank feature locked</Text>
+            <Text style={styles.rankLockedTitle}>{reward?.title ?? "Advanced insight"}</Text>
+          </View>
+          <View style={styles.rankLockedTarget}>
+            <Text style={styles.rankLockedTargetRank}>{requiredRank}</Text>
+            <Text style={styles.rankLockedTargetDr}>{targetDr} DR</Text>
           </View>
         </View>
-        <View style={styles.progressDrBlock}>
-          <Text style={styles.progressDrValue}>{currentDrValue}</Text>
-          <Text style={styles.progressDrLabel}>Discipline Rating</Text>
+        <Text style={styles.rankLockedBody}>
+          Reach {requiredRank} to open this section. Its data and controls stay unavailable until then.
+        </Text>
+        <View style={styles.rankLockedTrack}>
+          <View style={[styles.rankLockedFill, { width: `${progress}%` }]} />
+        </View>
+        <Text style={styles.rankLockedProgress}>{currentDrValue} / {targetDr} DR</Text>
+      </View>
+    );
+  };
+  const progressHero = (
+    <View style={styles.progressHero}>
+      <View style={styles.progressHeroTopline}>
+        <View>
+          <Text style={styles.progressHeroKicker}>Rank progression</Text>
+          <Text style={styles.progressHeroTier}>TIER {currentRankMeta.tier} / {DR_RANK_THRESHOLDS.length}</Text>
+        </View>
+        <View
+          style={styles.progressHeroPercentPill}
+          accessible
+          accessibilityLabel={`${rankProgressPercent}% to promotion`}
+        >
+          <FixedPercent
+            value={rankProgressPercent}
+            textStyle={styles.progressHeroPercent}
+            accessibilityLabel={`${rankProgressPercent}% to promotion`}
+          />
+          <Text style={styles.progressHeroPercentLabel}>TO PROMOTION</Text>
         </View>
       </View>
 
-      <View style={styles.rankPath}>
-        <View style={styles.rankPathHeader}>
-          <Text style={styles.rankPathLabel}>
-            {nextRank ? `${nextRank.remainingDr} DR to ${nextRank.name}` : "Highest rank reached"}
-          </Text>
-          <Text style={styles.rankPathValue}>{rankProgressPercent}%</Text>
-        </View>
-        <View style={styles.rankPathTrack}>
-          <View style={[styles.rankPathFill, { width: `${rankProgressPercent}%` }]} />
-        </View>
+      <View style={styles.progressHeroCenter}>
+        <RankProgressOrb rank={currentRank} percent={rankProgressPercent} dr={currentDrValue} colors={colors} />
+        <Text style={styles.progressRankName}>{currentRank}</Text>
+        <Text style={styles.progressRankCaption}>
+          {nextRank ? `${nextRank.remainingDr} DR until ${nextRank.name}` : "Highest rank achieved"}
+        </Text>
       </View>
 
       <View style={styles.progressHeroGrid}>
-        {progressHeroStats.map((item, index) => (
-          <React.Fragment key={item.label}>
-            {index > 0 ? <View style={styles.progressHeroDivider} /> : null}
-            <View style={styles.progressHeroStat}>
+        {progressHeroStats.map((item) => (
+          <View key={item.label} style={styles.progressHeroStatTile}>
+            {item.value.endsWith("%") ? (
+              <FixedPercent
+                value={item.value.slice(0, -1)}
+                textStyle={[styles.progressHeroStatValue, { color: item.tone }]}
+                accessibilityLabel={`${item.label}: ${item.value}`}
+              />
+            ) : (
               <Text style={[styles.progressHeroStatValue, { color: item.tone }]}>{item.value}</Text>
-              <Text style={styles.progressHeroStatLabel}>{item.label}</Text>
-            </View>
-          </React.Fragment>
+            )}
+            <Text style={styles.progressHeroStatLabel}>{item.label}</Text>
+          </View>
         ))}
+      </View>
+
+      <View style={styles.promotionCallout}>
+        <View style={styles.promotionIcon}>
+          <IconSymbol name={nextRank ? "arrow.up.right" : "star.fill"} size={18} color={INSIGHTS_TONE} />
+        </View>
+        <View style={styles.promotionCopy}>
+          <Text style={styles.promotionLabel}>{nextRank ? "Next promotion" : "Peak rank"}</Text>
+          <Text style={styles.promotionBody}>{promotionMessage}</Text>
+        </View>
+        {nextRankMeta ? (
+          <View style={styles.promotionTarget}>
+            <Text style={styles.promotionTargetValue}>{nextRankMeta.minDr}</Text>
+            <Text style={styles.promotionTargetLabel}>DR</Text>
+          </View>
+        ) : null}
       </View>
     </View>
   );
@@ -448,12 +528,168 @@ export default function InsightsScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         <ScreenHeader
           title="Progress"
-          subtitle="Rank, recent execution, and history"
+          subtitle="Build momentum. Earn the next rank."
           icon="chart.bar.fill"
           accent={INSIGHTS_TONE}
         />
 
         {progressHero}
+
+        <View style={styles.promotionMission}>
+          <View style={styles.promotionMissionHeader}>
+            <View style={styles.promotionMissionIcon}>
+              <IconSymbol name="flag.fill" size={18} color={INSIGHTS_TONE} />
+            </View>
+            <View style={styles.promotionMissionCopy}>
+              <Text style={styles.eyebrow}>Today&apos;s promotion mission</Text>
+              <Text style={styles.promotionMissionTitle}>
+                {totalToday === 0
+                  ? "Build a board worth judging"
+                  : completedToday >= getDailyScoringTarget(totalToday, DAILY_STANDARD)
+                    ? "Standard secured"
+                    : `${getDailyScoringTarget(totalToday, DAILY_STANDARD) - completedToday} more to hit the standard`}
+              </Text>
+            </View>
+            <FixedPercent
+              value={todayRate}
+              textStyle={styles.promotionMissionScore}
+              accessibilityLabel={`${todayRate}% complete`}
+            />
+          </View>
+          <View style={styles.promotionMissionTrack}>
+            <View style={[styles.promotionMissionFill, { width: `${todayRate}%` }]} />
+          </View>
+          {showBeginnerGuidance ? (
+            <Text style={styles.promotionMissionBody}>
+              {totalToday === 0
+                ? "Add a few clear quests in Plan. Your board becomes rank movement at the next Midnight Evaluation."
+                : "Finish the strongest version of today’s board. Midnight converts the result into DR movement."}
+            </Text>
+          ) : null}
+        </View>
+
+        <View style={styles.rankJourneyPanel}>
+          <View style={styles.rankJourneyHeader}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.eyebrow}>The climb</Text>
+              <Text style={styles.rankJourneyTitle}>Seven ranks. One summit.</Text>
+            </View>
+            <View style={styles.rankJourneyMetaPill}>
+              <Text style={styles.rankJourneyMeta}>{currentRankMeta.tier}/{DR_RANK_THRESHOLDS.length}</Text>
+            </View>
+          </View>
+          <Text style={styles.rankJourneyBody}>
+            Each promotion opens its reward. Future rewards stay concealed and locked until you reach their DR requirement.
+          </Text>
+          <View style={styles.rankLadder}>
+            {DR_RANK_THRESHOLDS.map((rank) => {
+              const isCurrent = rank.name === currentRank;
+              const isCleared = currentDrValue >= rank.minDr && !isCurrent;
+              const isLocked = currentDrValue < rank.minDr;
+              const reward = RANK_REWARDS.find((item) => item.rank === rank.name);
+              return (
+                <View
+                  key={rank.name}
+                  accessible
+                  accessibilityLabel={
+                    isLocked
+                      ? `${rank.name} is locked. Reach ${rank.minDr} Discipline Rating to unlock it.`
+                      : `${rank.name}. ${isCurrent ? "Current rank." : "Cleared."} ${reward?.title ?? "Rank reward"} unlocked.`
+                  }
+                  accessibilityState={{ disabled: isLocked }}
+                  style={[
+                    styles.rankLadderRow,
+                    isCurrent && styles.rankLadderRowCurrent,
+                    isLocked && styles.rankLadderRowLocked,
+                  ]}
+                >
+                  <View style={styles.rankLadderRail}>
+                    {rank.tier > 1 ? (
+                      <View style={[styles.rankLadderLineTop, !isLocked && styles.rankLadderLineCleared]} />
+                    ) : null}
+                    <View
+                      style={[
+                        styles.rankLadderNode,
+                        !isLocked && styles.rankLadderNodeCleared,
+                        isCurrent && styles.rankLadderNodeCurrent,
+                      ]}
+                    >
+                      {isCleared ? (
+                        <IconSymbol name="checkmark" size={12} color={colors.bg} />
+                      ) : (
+                        <Text style={[styles.rankLadderNodeText, isCurrent && styles.rankLadderNodeTextCurrent]}>
+                          {rank.tier}
+                        </Text>
+                      )}
+                    </View>
+                    {rank.tier < DR_RANK_THRESHOLDS.length ? (
+                      <View style={[styles.rankLadderLineBottom, isCleared && styles.rankLadderLineCleared]} />
+                    ) : null}
+                  </View>
+                  <View
+                    style={[
+                      styles.rankLadderBadge,
+                      isCurrent && styles.rankLadderBadgeCurrent,
+                      isLocked && styles.rankLadderBadgeLocked,
+                    ]}
+                  >
+                    {isLocked ? (
+                      <IconSymbol name="lock.fill" size={20} color={withAlpha(colors.textSecondary, 0.68)} />
+                    ) : (
+                      <RankBadge
+                        rank={rank.name}
+                        size={31}
+                        color={INSIGHTS_TONE}
+                        active
+                      />
+                    )}
+                  </View>
+                  <View style={styles.rankLadderCopy}>
+                    <Text style={styles.rankLadderTier}>TIER {rank.tier}</Text>
+                    <Text
+                      style={[
+                        styles.rankLadderName,
+                        isCurrent && styles.rankLadderNameCurrent,
+                        isLocked && styles.rankLadderNameLocked,
+                      ]}
+                    >
+                      {rank.name}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.rankLadderReward,
+                        !isLocked && styles.rankLadderRewardUnlocked,
+                        isLocked && styles.rankLadderRewardLocked,
+                      ]}
+                    >
+                      {isLocked ? "Reward hidden until promotion" : reward?.title ?? "Rank insight"}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.rankLadderStatusPill,
+                      isCurrent && styles.rankLadderStatusPillCurrent,
+                      isLocked && styles.rankLadderStatusPillLocked,
+                    ]}
+                  >
+                    {isLocked ? (
+                      <IconSymbol name="lock.fill" size={10} color={withAlpha(colors.textSecondary, 0.72)} />
+                    ) : null}
+                    <Text
+                      style={[
+                        styles.rankLadderStatus,
+                        isCurrent && styles.rankLadderStatusCurrent,
+                        isLocked && styles.rankLadderStatusLocked,
+                      ]}
+                    >
+                      {isCurrent ? "CURRENT" : isCleared ? "CLEARED" : `${rank.minDr} DR`}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        </View>
 
         <View style={styles.modeSwitch} accessibilityRole="tablist">
           {INSIGHT_MODES.map((mode) => {
@@ -482,6 +718,7 @@ export default function InsightsScreen() {
 
         {selectedInsightMode === "today" ? (
           <>
+        {renderRankGatedSection("Consistent", (
         <View style={styles.dashboardPanel}>
           <View style={styles.dashboardHeader}>
             <View style={styles.dashboardTitleRow}>
@@ -535,6 +772,7 @@ export default function InsightsScreen() {
             ))}
           </View>
         </View>
+        ))}
 
         <View style={styles.coachPanel}>
           <View style={styles.cardHeaderRow}>
@@ -590,6 +828,7 @@ export default function InsightsScreen() {
           </View>
         </View>
 
+        {renderRankGatedSection("Focused", (
         <View style={styles.categoryPanel}>
           <View style={styles.cardHeaderRow}>
             <View>
@@ -634,7 +873,11 @@ export default function InsightsScreen() {
                   <View style={styles.categoryTopRow}>
                     <View style={[styles.categoryDot, { backgroundColor: categoryTone }]} />
                     <Text style={styles.categoryLabel}>{item.label}</Text>
-                    <Text style={[styles.categoryPct, { color: categoryTone }]}>{item.completionPct}%</Text>
+                    <FixedPercent
+                      value={item.completionPct}
+                      textStyle={[styles.categoryPct, { color: categoryTone }]}
+                      accessibilityLabel={`${item.completionPct}% complete`}
+                    />
                   </View>
                   <View style={styles.progressTrack}>
                     <View
@@ -667,9 +910,49 @@ export default function InsightsScreen() {
             </View>
           )}
         </View>
+        ))}
           </>
         ) : (
           <>
+
+        <View style={styles.promotionHistoryPanel}>
+          <View style={styles.cardHeaderRow}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.eyebrow}>Promotion history</Text>
+              <Text style={styles.cardTitle}>Ranks you earned</Text>
+            </View>
+            <Text style={styles.mutedMeta}>{rankPromotions.length} recorded</Text>
+          </View>
+          {rankPromotions.length > 0 ? (
+            [...rankPromotions].reverse().map((promotion) => (
+              <View key={promotion.id} style={styles.promotionHistoryRow}>
+                <View style={styles.promotionHistoryBadge}>
+                  <RankBadge rank={promotion.rank as DisciplineRank} size={30} color={INSIGHTS_TONE} active />
+                </View>
+                <View style={styles.promotionHistoryCopy}>
+                  <View style={styles.promotionHistoryTopline}>
+                    <Text style={styles.promotionHistoryRank}>{promotion.rank}</Text>
+                    <Text style={styles.promotionHistoryDate}>{promotion.date}</Text>
+                  </View>
+                  <Text style={styles.promotionHistoryInsight}>{buildPromotionInsight(promotion)}</Text>
+                  <Text style={styles.promotionHistoryMeta}>
+                    {promotion.dayScore}% score · {promotion.drAfter} DR · {promotion.streak}d streak
+                  </Text>
+                </View>
+              </View>
+            ))
+          ) : (
+            <View style={styles.promotionHistoryEmpty}>
+              <IconSymbol name="arrow.up.right" size={18} color={INSIGHTS_TONE} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.promotionHistoryEmptyTitle}>Your next promotion starts the archive</Text>
+                <Text style={styles.promotionHistoryEmptyBody}>
+                  Future rank-ups will permanently record the score, DR movement, streak, and insight that earned them.
+                </Text>
+              </View>
+            </View>
+          )}
+        </View>
 
         <View style={styles.historySummaryGrid}>
           {historyStats.map((item) => (
@@ -700,6 +983,7 @@ export default function InsightsScreen() {
           ))}
         </View>
 
+        {renderRankGatedSection("Driven", (
         <View style={styles.trendPanel}>
           <View style={styles.cardHeaderRow}>
             <View>
@@ -755,6 +1039,7 @@ export default function InsightsScreen() {
             <Text style={styles.mutedMeta}>DR history</Text>
           </View>
         </View>
+        ))}
 
         <View style={styles.card}>
           <View style={styles.cardHeaderRow}>
@@ -785,7 +1070,11 @@ export default function InsightsScreen() {
                     ) : null}
                   </View>
                   <View style={styles.judgmentStats}>
-                    <Text style={styles.judgmentPct}>{entry.pct}%</Text>
+                    <FixedPercent
+                      value={entry.pct}
+                      textStyle={styles.judgmentPct}
+                      accessibilityLabel={`${entry.pct}% completion`}
+                    />
                     <Text style={[styles.judgmentDelta, { color: deltaColor }]}>{formatDelta(entry.delta)}</Text>
                     <Text style={styles.judgmentDr}>{entry.dr} DR</Text>
                   </View>
@@ -808,6 +1097,7 @@ export default function InsightsScreen() {
           <DisciplineCalendar days={disciplineCalendarDays} colors={colors} />
         </View>
 
+        {renderRankGatedSection("Relentless", (
         <View style={styles.card}>
           <View style={styles.cardHeaderRow}>
             <View>
@@ -817,6 +1107,7 @@ export default function InsightsScreen() {
           </View>
           <DisciplinePatterns days={disciplineCalendarDays} colors={colors} />
         </View>
+        ))}
           </>
         )}
       </ScrollView>
@@ -901,13 +1192,93 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"], use
     },
     progressHero: {
       ...heroSurface,
-      gap: 13,
+      position: "relative",
+      overflow: "hidden",
+      gap: 15,
+      borderColor: withAlpha(INSIGHTS_TONE, 0.42),
+      backgroundColor: colors.surface2,
+      paddingTop: 16,
+    },
+    progressHeroGlowTop: {
+      position: "absolute",
+      width: 230,
+      height: 230,
+      borderRadius: 999,
+      top: -145,
+      right: -80,
+      backgroundColor: withAlpha(INSIGHTS_TONE, 0.09),
+    },
+    progressHeroGlowBottom: {
+      position: "absolute",
+      width: 190,
+      height: 190,
+      borderRadius: 999,
+      bottom: -130,
+      left: -80,
+      backgroundColor: withAlpha(INSIGHT_VIOLET, 0.07),
+    },
+    progressHeroTopline: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      gap: ui.spacing.sm,
+      zIndex: 1,
+    },
+    progressHeroKicker: {
+      color: INSIGHTS_TONE,
+      fontSize: 11,
+      lineHeight: 15,
+      fontWeight: "900",
+      textTransform: "uppercase",
+      letterSpacing: 1.4,
+    },
+    progressHeroTier: {
+      color: withAlpha(colors.textSecondary, 0.72),
+      fontSize: 9,
+      lineHeight: 13,
+      fontWeight: "900",
+      marginTop: 3,
+      letterSpacing: 0.8,
+    },
+    progressHeroPercentPill: {
+      borderWidth: 1,
       borderColor: withAlpha(INSIGHTS_TONE, 0.32),
-      backgroundColor: withAlpha(colors.surface2, 0.92),
+      borderRadius: 10,
+      backgroundColor: withAlpha(INSIGHTS_TONE, 0.08),
+      paddingHorizontal: 10,
+      paddingVertical: 7,
+      alignItems: "flex-end",
+      flexShrink: 0,
+    },
+    progressHeroPercent: {
+      color: INSIGHTS_TONE,
+      fontSize: 16,
+      lineHeight: 19,
+      fontWeight: "900",
+    },
+    progressHeroPercentLabel: {
+      color: withAlpha(colors.textSecondary, 0.68),
+      fontSize: 7,
+      lineHeight: 10,
+      fontWeight: "900",
+      letterSpacing: 0.8,
+    },
+    progressHeroCenter: {
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 1,
+    },
+    progressRankCaption: {
+      color: withAlpha(colors.textSecondary, 0.82),
+      fontSize: 11,
+      lineHeight: 16,
+      fontWeight: "700",
+      marginTop: 3,
+      textAlign: "center",
     },
     progressHeroHeader: {
-      flexDirection: "row",
-      alignItems: "center",
+      flexDirection: usesLargeText ? "column" : "row",
+      alignItems: usesLargeText ? "stretch" : "center",
       justifyContent: "space-between",
       gap: ui.spacing.sm,
     },
@@ -931,14 +1302,15 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"], use
     },
     progressRankName: {
       color: colors.textPrimary,
-      fontSize: 22,
-      lineHeight: 26,
+      fontSize: 27,
+      lineHeight: 32,
       fontWeight: "900",
-      marginTop: 2,
+      marginTop: 10,
+      textAlign: "center",
     },
     progressDrBlock: {
       minWidth: 78,
-      alignItems: "flex-end",
+      alignItems: usesLargeText ? "flex-start" : "flex-end",
       justifyContent: "center",
       flexShrink: 0,
     },
@@ -995,12 +1367,571 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"], use
       borderRadius: 999,
       backgroundColor: INSIGHTS_TONE,
     },
-    progressHeroGrid: {
+    promotionCallout: {
+      flexDirection: usesLargeText ? "column" : "row",
+      alignItems: usesLargeText ? "stretch" : "center",
+      gap: ui.spacing.sm,
+      borderWidth: 1,
+      borderColor: withAlpha(INSIGHTS_TONE, 0.26),
+      borderRadius: ui.radius.md,
+      backgroundColor: withAlpha(INSIGHTS_TONE, 0.065),
+      padding: ui.spacing.sm,
+    },
+    promotionIcon: {
+      width: 34,
+      height: 34,
+      borderRadius: 11,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: withAlpha(INSIGHTS_TONE, 0.12),
+      flexShrink: 0,
+    },
+    promotionCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+    promotionLabel: {
+      color: INSIGHTS_TONE,
+      fontSize: 9,
+      lineHeight: 13,
+      fontWeight: "900",
+      textTransform: "uppercase",
+      letterSpacing: 0.8,
+    },
+    promotionBody: {
+      color: withAlpha(colors.textPrimary, 0.9),
+      fontSize: 11,
+      lineHeight: 16,
+      fontWeight: "700",
+      marginTop: 2,
+    },
+    promotionTarget: {
+      minWidth: 48,
+      alignItems: usesLargeText ? "flex-start" : "flex-end",
+      flexShrink: 0,
+    },
+    promotionTargetValue: {
+      color: INSIGHTS_TONE,
+      fontSize: 18,
+      lineHeight: 21,
+      fontWeight: "900",
+    },
+    promotionTargetLabel: {
+      color: withAlpha(colors.textSecondary, 0.7),
+      fontSize: 8,
+      lineHeight: 11,
+      fontWeight: "900",
+    },
+    promotionMission: {
+      ...cardSurface,
+      gap: ui.spacing.sm,
+      borderColor: withAlpha(INSIGHTS_TONE, 0.26),
+      backgroundColor: withAlpha(INSIGHTS_TONE, 0.045),
+    },
+    promotionMissionHeader: {
+      flexDirection: usesLargeText ? "column" : "row",
+      alignItems: usesLargeText ? "stretch" : "center",
+      gap: ui.spacing.sm,
+    },
+    promotionMissionIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 13,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: withAlpha(INSIGHTS_TONE, 0.12),
+      flexShrink: 0,
+    },
+    promotionMissionCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+    promotionMissionTitle: {
+      color: colors.textPrimary,
+      fontSize: 17,
+      lineHeight: 22,
+      fontWeight: "900",
+      marginTop: 2,
+    },
+    promotionMissionScore: {
+      color: INSIGHTS_TONE,
+      fontSize: 21,
+      lineHeight: 25,
+      fontWeight: "900",
+    },
+    promotionMissionTrack: {
+      height: 8,
+      borderRadius: 999,
+      backgroundColor: withAlpha(colors.bg, 0.66),
+      overflow: "hidden",
+    },
+    promotionMissionFill: {
+      height: "100%",
+      borderRadius: 999,
+      backgroundColor: INSIGHTS_TONE,
+    },
+    promotionMissionBody: {
+      color: withAlpha(colors.textSecondary, 0.84),
+      fontSize: 11,
+      lineHeight: 16,
+      fontWeight: "600",
+    },
+    rankJourneyPanel: {
+      ...cardSurface,
+      gap: ui.spacing.sm,
+      borderColor: withAlpha(INSIGHT_VIOLET, 0.24),
+      overflow: "hidden",
+    },
+    rankJourneyHeader: {
       flexDirection: "row",
-      alignItems: "stretch",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: ui.spacing.sm,
+    },
+    rankJourneyTitle: {
+      color: colors.textPrimary,
+      fontSize: 17,
+      lineHeight: 22,
+      fontWeight: "900",
+      marginTop: 2,
+    },
+    rankJourneyMeta: {
+      color: INSIGHTS_TONE,
+      fontSize: 13,
+      lineHeight: 17,
+      fontWeight: "900",
+    },
+    rankJourneyMetaPill: {
+      minWidth: 45,
+      minHeight: 34,
+      borderWidth: 1,
+      borderColor: withAlpha(INSIGHTS_TONE, 0.28),
+      borderRadius: 10,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: withAlpha(INSIGHTS_TONE, 0.07),
+    },
+    rankJourneyBody: {
+      color: withAlpha(colors.textSecondary, 0.86),
+      fontSize: 11,
+      lineHeight: 16,
+      fontWeight: "600",
+    },
+    rankLockedPanel: {
+      ...cardSurface,
+      gap: 10,
+      borderStyle: "dashed",
+      borderColor: withAlpha(colors.textSecondary, 0.24),
+      backgroundColor: withAlpha(colors.surface2, 0.52),
+    },
+    rankLockedTopline: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
+    rankLockedIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 13,
+      borderWidth: 1,
+      borderColor: withAlpha(colors.textSecondary, 0.2),
+      backgroundColor: withAlpha(colors.textSecondary, 0.06),
+      alignItems: "center",
+      justifyContent: "center",
+      flexShrink: 0,
+    },
+    rankLockedCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+    rankLockedEyebrow: {
+      color: withAlpha(colors.textSecondary, 0.58),
+      fontSize: 8,
+      lineHeight: 11,
+      fontWeight: "900",
+      letterSpacing: 0.8,
+      textTransform: "uppercase",
+    },
+    rankLockedTitle: {
+      color: withAlpha(colors.textPrimary, 0.72),
+      fontSize: 16,
+      lineHeight: 20,
+      fontWeight: "900",
+      marginTop: 2,
+    },
+    rankLockedTarget: {
+      maxWidth: 92,
+      alignItems: "flex-end",
+      flexShrink: 0,
+    },
+    rankLockedTargetRank: {
+      color: withAlpha(colors.textSecondary, 0.72),
+      fontSize: 9,
+      lineHeight: 13,
+      fontWeight: "900",
+      textAlign: "right",
+    },
+    rankLockedTargetDr: {
+      color: INSIGHTS_TONE,
+      fontSize: 11,
+      lineHeight: 15,
+      fontWeight: "900",
+      marginTop: 1,
+    },
+    rankLockedBody: {
+      color: withAlpha(colors.textSecondary, 0.72),
+      fontSize: 11,
+      lineHeight: 16,
+      fontWeight: "600",
+    },
+    rankLockedTrack: {
+      height: 6,
+      borderRadius: 999,
+      overflow: "hidden",
+      backgroundColor: withAlpha(colors.textSecondary, 0.1),
+    },
+    rankLockedFill: {
+      height: "100%",
+      borderRadius: 999,
+      backgroundColor: withAlpha(INSIGHTS_TONE, 0.5),
+    },
+    rankLockedProgress: {
+      color: withAlpha(colors.textSecondary, 0.6),
+      fontSize: 9,
+      lineHeight: 12,
+      fontWeight: "800",
+      textAlign: "right",
+    },
+    rankJourneyRail: {
+      gap: 8,
+      paddingRight: ui.spacing.sm,
+    },
+    rankJourneyCard: {
+      width: usesLargeText ? 132 : 112,
+      minHeight: 142,
+      borderWidth: 1,
+      borderColor: withAlpha(colors.border, 0.24),
+      borderRadius: ui.radius.md,
+      backgroundColor: withAlpha(colors.bg, 0.32),
+      padding: 10,
+      alignItems: "center",
+    },
+    rankJourneyCardCurrent: {
+      borderColor: withAlpha(INSIGHTS_TONE, 0.66),
+      backgroundColor: withAlpha(INSIGHTS_TONE, 0.11),
+    },
+    rankJourneyCardLocked: {
+      opacity: 0.62,
+    },
+    rankJourneyBadge: {
+      width: 44,
+      height: 44,
+      borderRadius: 14,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: withAlpha(colors.surface2, 0.76),
+    },
+    rankJourneyBadgeCurrent: {
+      backgroundColor: withAlpha(INSIGHTS_TONE, 0.15),
+    },
+    rankJourneyTier: {
+      color: withAlpha(colors.textSecondary, 0.66),
+      fontSize: 8,
+      lineHeight: 11,
+      fontWeight: "900",
+      letterSpacing: 0.7,
+      marginTop: 8,
+    },
+    rankJourneyName: {
+      color: withAlpha(colors.textPrimary, 0.76),
+      fontSize: 12,
+      lineHeight: 15,
+      fontWeight: "900",
+      textAlign: "center",
+      marginTop: 2,
+      minHeight: 30,
+    },
+    rankJourneyNameCurrent: {
+      color: colors.textPrimary,
+    },
+    rankJourneyStatus: {
+      color: withAlpha(colors.textSecondary, 0.72),
+      fontSize: 8,
+      lineHeight: 11,
+      fontWeight: "900",
+      marginTop: "auto",
+    },
+    rankJourneyStatusCurrent: {
+      color: INSIGHTS_TONE,
+    },
+    rankLadder: {
+      marginTop: 2,
+    },
+    rankLadderRow: {
+      minHeight: 82,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      paddingRight: 4,
+    },
+    rankLadderRowCurrent: {
+      borderWidth: 1,
+      borderColor: withAlpha(INSIGHTS_TONE, 0.34),
+      borderRadius: 13,
+      backgroundColor: withAlpha(INSIGHTS_TONE, 0.075),
+      paddingRight: 9,
+    },
+    rankLadderRowLocked: {
+      borderWidth: 1,
+      borderStyle: "dashed",
+      borderColor: withAlpha(colors.textSecondary, 0.16),
+      borderRadius: 13,
+      backgroundColor: withAlpha(colors.bg, 0.2),
+      paddingRight: 9,
+    },
+    rankLadderRail: {
+      width: 26,
+      alignSelf: "stretch",
+      alignItems: "center",
+      justifyContent: "center",
+      flexShrink: 0,
+    },
+    rankLadderLineTop: {
+      position: "absolute",
+      top: 0,
+      width: 2,
+      height: "50%",
+      backgroundColor: withAlpha(colors.textSecondary, 0.14),
+    },
+    rankLadderLineBottom: {
+      position: "absolute",
+      bottom: 0,
+      width: 2,
+      height: "50%",
+      backgroundColor: withAlpha(colors.textSecondary, 0.14),
+    },
+    rankLadderLineCleared: {
+      backgroundColor: withAlpha(INSIGHTS_TONE, 0.72),
+    },
+    rankLadderNode: {
+      width: 22,
+      height: 22,
+      borderRadius: 999,
+      borderWidth: 2,
+      borderColor: withAlpha(colors.textSecondary, 0.26),
+      backgroundColor: colors.surface2,
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 1,
+    },
+    rankLadderNodeCleared: {
+      borderColor: INSIGHTS_TONE,
+      backgroundColor: INSIGHTS_TONE,
+    },
+    rankLadderNodeCurrent: {
+      shadowColor: INSIGHTS_TONE,
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.72,
+      shadowRadius: 7,
+      elevation: 7,
+    },
+    rankLadderNodeText: {
+      color: withAlpha(colors.textSecondary, 0.64),
+      fontSize: 8,
+      fontWeight: "900",
+    },
+    rankLadderNodeTextCurrent: {
+      color: colors.bg,
+    },
+    rankLadderBadge: {
+      width: 48,
+      height: 48,
+      borderRadius: 15,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: withAlpha(colors.bg, 0.34),
+      flexShrink: 0,
+    },
+    rankLadderBadgeCurrent: {
+      backgroundColor: withAlpha(INSIGHTS_TONE, 0.13),
+    },
+    rankLadderBadgeLocked: {
+      borderWidth: 1,
+      borderColor: withAlpha(colors.textSecondary, 0.2),
+      backgroundColor: withAlpha(colors.textSecondary, 0.055),
+    },
+    rankLadderCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+    rankLadderTier: {
+      color: withAlpha(colors.textSecondary, 0.58),
+      fontSize: 8,
+      lineHeight: 11,
+      fontWeight: "900",
+      letterSpacing: 0.8,
+    },
+    rankLadderName: {
+      color: withAlpha(colors.textPrimary, 0.72),
+      fontSize: 13,
+      lineHeight: 17,
+      fontWeight: "900",
+      marginTop: 2,
+    },
+    rankLadderNameCurrent: {
+      color: colors.textPrimary,
+      fontSize: 15,
+      lineHeight: 19,
+    },
+    rankLadderNameLocked: {
+      color: withAlpha(colors.textSecondary, 0.62),
+    },
+    rankLadderReward: {
+      color: withAlpha(colors.textSecondary, 0.52),
+      fontSize: 9,
+      lineHeight: 13,
+      fontWeight: "700",
+      marginTop: 1,
+    },
+    rankLadderRewardUnlocked: {
+      color: withAlpha(INSIGHTS_TONE, 0.82),
+    },
+    rankLadderRewardLocked: {
+      color: withAlpha(colors.textSecondary, 0.42),
+      fontStyle: "italic",
+    },
+    rankLadderStatusPill: {
+      minWidth: 58,
+      minHeight: 27,
+      borderRadius: 8,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: withAlpha(colors.textSecondary, 0.055),
+      paddingHorizontal: 7,
+      flexShrink: 0,
+    },
+    rankLadderStatusPillCurrent: {
+      backgroundColor: withAlpha(INSIGHTS_TONE, 0.13),
+    },
+    rankLadderStatusPillLocked: {
+      minWidth: 68,
+      flexDirection: "row",
+      gap: 4,
+      backgroundColor: withAlpha(colors.textSecondary, 0.065),
+    },
+    rankLadderStatus: {
+      color: withAlpha(colors.textSecondary, 0.66),
+      fontSize: 8,
+      lineHeight: 11,
+      fontWeight: "900",
+    },
+    rankLadderStatusCurrent: {
+      color: INSIGHTS_TONE,
+    },
+    rankLadderStatusLocked: {
+      color: withAlpha(colors.textSecondary, 0.62),
+    },
+    promotionHistoryPanel: {
+      ...cardSurface,
+      gap: ui.spacing.sm,
+      borderColor: withAlpha(INSIGHTS_TONE, 0.22),
+    },
+    promotionHistoryRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 10,
       borderTopWidth: 1,
-      borderTopColor: withAlpha(colors.border, 0.2),
-      paddingTop: ui.spacing.sm,
+      borderTopColor: withAlpha(colors.border, 0.18),
+      paddingTop: 11,
+    },
+    promotionHistoryBadge: {
+      width: 48,
+      height: 48,
+      borderRadius: 15,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: withAlpha(INSIGHTS_TONE, 0.1),
+      flexShrink: 0,
+    },
+    promotionHistoryCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+    promotionHistoryTopline: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 8,
+    },
+    promotionHistoryRank: {
+      flex: 1,
+      minWidth: 0,
+      color: colors.textPrimary,
+      fontSize: 14,
+      lineHeight: 18,
+      fontWeight: "900",
+    },
+    promotionHistoryDate: {
+      color: withAlpha(colors.textSecondary, 0.64),
+      fontSize: 9,
+      lineHeight: 13,
+      fontWeight: "800",
+    },
+    promotionHistoryInsight: {
+      color: withAlpha(colors.textSecondary, 0.88),
+      fontSize: 11,
+      lineHeight: 16,
+      fontWeight: "600",
+      marginTop: 3,
+    },
+    promotionHistoryMeta: {
+      color: INSIGHTS_TONE,
+      fontSize: 9,
+      lineHeight: 13,
+      fontWeight: "800",
+      marginTop: 4,
+    },
+    promotionHistoryEmpty: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 10,
+      borderWidth: 1,
+      borderColor: withAlpha(INSIGHTS_TONE, 0.22),
+      borderRadius: ui.radius.md,
+      backgroundColor: withAlpha(INSIGHTS_TONE, 0.05),
+      padding: 12,
+    },
+    promotionHistoryEmptyTitle: {
+      color: colors.textPrimary,
+      fontSize: 12,
+      lineHeight: 16,
+      fontWeight: "900",
+    },
+    promotionHistoryEmptyBody: {
+      color: withAlpha(colors.textSecondary, 0.8),
+      fontSize: 10,
+      lineHeight: 15,
+      fontWeight: "600",
+      marginTop: 2,
+    },
+    progressHeroGrid: {
+      flexDirection: usesLargeText ? "column" : "row",
+      alignItems: "stretch",
+      gap: 8,
+      zIndex: 1,
+    },
+    progressHeroStatTile: {
+      flex: 1,
+      minWidth: 0,
+      minHeight: 62,
+      borderWidth: 1,
+      borderColor: withAlpha(colors.border, 0.2),
+      borderRadius: 11,
+      backgroundColor: withAlpha(colors.bg, 0.34),
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 5,
+      paddingVertical: 8,
     },
     progressHeroStat: {
       flex: 1,
@@ -1017,8 +1948,8 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"], use
       marginVertical: 5,
     },
     progressHeroStatValue: {
-      fontSize: 18,
-      lineHeight: 22,
+      fontSize: 16,
+      lineHeight: 20,
       fontWeight: "900",
       textAlign: "center",
     },
@@ -1533,8 +2464,8 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"], use
     },
     categoryPct: {
       color: INSIGHTS_TONE,
-      fontSize: 14,
-      lineHeight: 18,
+      fontSize: 13,
+      lineHeight: 17,
       fontWeight: "900",
     },
     progressTrack: {
@@ -1594,4 +2525,67 @@ function createInsightsStyles(colors: ReturnType<typeof useTheme>["colors"], use
       marginTop: 2,
     },
   });
+}
+
+function RankProgressOrb({
+  rank,
+  percent,
+  dr,
+  colors,
+}: {
+  rank: DisciplineRank;
+  percent: number;
+  dr: number;
+  colors: ReturnType<typeof useTheme>["colors"];
+}) {
+  const size = 178;
+  const strokeWidth = 9;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const progressOffset = circumference * (1 - clampPercent(percent) / 100);
+
+  return (
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      <Svg width={size} height={size} style={StyleSheet.absoluteFill}>
+        <G rotation="-90" origin={`${size / 2}, ${size / 2}`}>
+          <Circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke={withAlpha(colors.textPrimary, 0.08)}
+            strokeWidth={strokeWidth}
+            fill="transparent"
+          />
+          <Circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke={INSIGHTS_TONE}
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            strokeDasharray={`${circumference} ${circumference}`}
+            strokeDashoffset={progressOffset}
+            fill="transparent"
+          />
+        </G>
+      </Svg>
+      <View style={{ alignItems: "center", justifyContent: "center" }}>
+        <RankBadge rank={rank} size={58} color={INSIGHTS_TONE} active />
+        <Text style={{ color: colors.textPrimary, fontSize: 24, lineHeight: 28, fontWeight: "900", marginTop: 6 }}>
+          {dr}
+        </Text>
+        <Text
+          style={{
+            color: withAlpha(colors.textSecondary, 0.72),
+            fontSize: 9,
+            lineHeight: 12,
+            fontWeight: "900",
+            letterSpacing: 1,
+          }}
+        >
+          DR
+        </Text>
+      </View>
+    </View>
+  );
 }

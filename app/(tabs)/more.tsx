@@ -80,27 +80,31 @@ export default function MoreScreen() {
         <ScreenHeader title="More" subtitle="Focus, milestones, help, and settings" icon="ellipsis.circle.fill" />
 
         <View style={styles.quickGrid}>
-          {MORE_ROUTES.map((item) => (
-            <Pressable
-              key={item.href}
-              accessibilityRole="button"
-              accessibilityLabel={`Open ${item.title}`}
-              onPress={() => router.push(item.href)}
-              style={({ pressed }) => [
-                styles.quickTile,
-                { borderColor: withAlpha(item.tone, 0.26) },
-                pressed && styles.routeRowPressed,
-              ]}
-            >
-              <View style={[styles.routeIcon, { borderColor: withAlpha(item.tone, 0.34), backgroundColor: withAlpha(item.tone, 0.1) }]}>
-                <IconSymbol name={item.icon} size={21} color={item.tone} />
-              </View>
-              <View style={styles.quickTileCopy}>
-                <Text style={[styles.routeMeta, { color: item.tone }]}>{item.meta}</Text>
-                <Text style={styles.routeTitle} numberOfLines={2}>{item.title}</Text>
-                <Text style={styles.routeBody} numberOfLines={2}>{item.body}</Text>
-              </View>
-            </Pressable>
+          {[0, 2, 4].map((startIndex) => (
+            <View key={startIndex} style={styles.quickRow}>
+              {MORE_ROUTES.slice(startIndex, startIndex + 2).map((item) => (
+                <Pressable
+                  key={item.href}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open ${item.title}`}
+                  onPress={() => router.push(item.href)}
+                  style={({ pressed }) => [
+                    styles.quickTile,
+                    { borderColor: withAlpha(item.tone, 0.26) },
+                    pressed && styles.routeRowPressed,
+                  ]}
+                >
+                  <View style={[styles.routeIcon, { borderColor: withAlpha(item.tone, 0.34), backgroundColor: withAlpha(item.tone, 0.1) }]}>
+                    <IconSymbol name={item.icon} size={21} color={item.tone} />
+                  </View>
+                  <View style={styles.quickTileCopy}>
+                    <Text style={[styles.routeMeta, { color: item.tone }]}>{item.meta}</Text>
+                    <Text style={styles.routeTitle} numberOfLines={2}>{item.title}</Text>
+                    <Text style={styles.routeBody} numberOfLines={2}>{item.body}</Text>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
           ))}
         </View>
 
@@ -123,22 +127,26 @@ function createMoreStyles(colors: ThemeColors) {
       backgroundColor: colors.bg,
     },
     container: {
+      flexGrow: 1,
       paddingHorizontal: ui.spacing.screen,
       paddingTop: ui.spacing.md,
-      paddingBottom: 0,
+      paddingBottom: ui.spacing.xs,
       gap: ui.spacing.md,
     },
     quickGrid: {
+      flexGrow: 1,
+      gap: ui.spacing.xs,
+    },
+    quickRow: {
+      flex: 1,
+      minHeight: 166,
       flexDirection: "row",
-      flexWrap: "wrap",
-      justifyContent: "space-between",
-      rowGap: ui.spacing.xs,
+      gap: ui.spacing.xs,
     },
     quickTile: {
       ...tileSurface,
-      width: "48%",
+      flex: 1,
       minHeight: 166,
-      aspectRatio: 1.12,
       padding: ui.spacing.sm,
       backgroundColor: withAlpha(colors.surface2, 0.58),
       alignItems: "flex-start",

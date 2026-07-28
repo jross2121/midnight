@@ -1,6 +1,7 @@
 import React from "react";
 import { Text, View } from "react-native";
 import { createStyles } from "@/src/styles";
+import { FixedPercent } from "@/src/components/FixedPercent";
 import { getCategoryDisplayName } from "@/src/utils/categoryLabels";
 import { ui, withAlpha } from "@/src/utils/designSystem";
 import type { ThemeColors } from "@/src/utils/themeContext";
@@ -142,9 +143,11 @@ export function CategoryDetails({ category }: CategoryDetailsProps) {
           }}
         >
           <Text style={[styles.questMeta, { fontSize: 11, color: colors.textSecondary }]}>Mastery</Text>
-          <Text style={[styles.pillValue, { color, fontSize: 14, marginTop: 4 }]}>
-            {Math.min(Math.round((category.level / 10) * 100), 100)}%
-          </Text>
+          <FixedPercent
+            value={Math.min(Math.round((category.level / 10) * 100), 100)}
+            textStyle={[styles.pillValue, { color, fontSize: 14, marginTop: 4 }]}
+            accessibilityLabel={`${Math.min(Math.round((category.level / 10) * 100), 100)}% mastery`}
+          />
         </View>
       </View>
 

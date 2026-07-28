@@ -1,6 +1,7 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { createCardSurface, createTileSurface, ui, withAlpha } from "@/src/utils/designSystem";
+import { FixedPercent } from "@/src/components/FixedPercent";
 import { useTheme } from "@/src/utils/themeContext";
 
 interface DisciplineScorecardProps {
@@ -42,7 +43,11 @@ export function DisciplineScorecard({
       <View style={styles.metricsGrid}>
         <View style={styles.metricCell}>
           <Text style={styles.metricLabel}>Avg Completion</Text>
-          <Text style={styles.metricValue}>{averageCompletionRate}%</Text>
+          <FixedPercent
+            value={averageCompletionRate}
+            textStyle={styles.metricValue}
+            accessibilityLabel={`${averageCompletionRate}% average completion`}
+          />
         </View>
 
         <View style={styles.metricCell}>

@@ -5,7 +5,14 @@ import { useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import { Alert, Image, Linking, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { IconSymbol } from "@/components/ui/icon-symbol";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
+import {
+  PLAN_TOUR_ELIGIBLE_KEY,
+  PLAN_TOUR_STORAGE_KEY,
+  TODAY_TOUR_ELIGIBLE_KEY,
+  TODAY_TOUR_STORAGE_KEY,
+} from "@/src/components/GuidedSpotlightTour";
 import { CONTRACT_GOLD, HOME_GOLD, createStyles } from "@/src/styles";
 import { localDateKey } from "@/src/utils/dateHelpers";
 import { defaultLastCompletionPct, defaultLastDrDelta, defaultLastDrUpdateDate } from "@/src/utils/defaultData";
@@ -107,8 +114,8 @@ export default function SettingsScreen() {
   const settingsDividerColor = isLightTheme ? "#E2E8F0" : "#1A2633";
   const settingsGoldBorder = isLightTheme ? "#F0C96E" : "#5B421B";
   const settingsCardSurface = {
-    backgroundColor: withAlpha(colors.surface2, isLightTheme ? 0.78 : 0.86),
-    borderColor: withAlpha(SETTINGS_ACCENT, isLightTheme ? 0.22 : 0.18),
+    backgroundColor: withAlpha(colors.surface2, isLightTheme ? 0.82 : 0.9),
+    borderColor: withAlpha(colors.border, isLightTheme ? 0.66 : 0.42),
   };
   const settingsFeatureSurface = {
     backgroundColor: withAlpha(colors.surface2, isLightTheme ? 0.82 : 0.9),
@@ -610,6 +617,10 @@ export default function SettingsScreen() {
         MIDNIGHT_EVALUATION_STORAGE_KEY,
         DAILY_EVALUATION_HISTORY_STORAGE_KEY,
         ONBOARDING_STORAGE_KEY,
+        TODAY_TOUR_STORAGE_KEY,
+        TODAY_TOUR_ELIGIBLE_KEY,
+        PLAN_TOUR_STORAGE_KEY,
+        PLAN_TOUR_ELIGIBLE_KEY,
       ]);
       setArchivedQuests([]);
       setExportPayload("");
@@ -687,25 +698,58 @@ export default function SettingsScreen() {
     <View
       style={{
         marginTop,
-        marginBottom: 8,
+        marginBottom: 10,
         flexDirection: "row",
         alignItems: "center",
         gap: 8,
       }}
     >
-      <View style={{ width: 18, height: 2, borderRadius: 999, backgroundColor: SETTINGS_ACCENT }} />
+      <View style={{ width: 4, height: 18, borderRadius: 999, backgroundColor: SETTINGS_ACCENT }} />
       <Text
         style={{
           color: withAlpha(colors.textSecondary, 0.82),
-          fontSize: 11,
-          lineHeight: 16,
+          fontSize: 12,
+          lineHeight: 17,
           fontWeight: "900",
-          letterSpacing: 0,
+          letterSpacing: 0.8,
           textTransform: "uppercase",
         }}
       >
         {label}
       </Text>
+    </View>
+  );
+
+  const renderSettingsCardHeader = (
+    icon: React.ComponentProps<typeof IconSymbol>["name"],
+    title: string,
+    body: string,
+    tone = SETTINGS_ACCENT
+  ) => (
+    <View style={{ flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 11 }}>
+      <View
+        style={{
+          width: 40,
+          height: 40,
+          borderRadius: 12,
+          alignItems: "center",
+          justifyContent: "center",
+          borderWidth: 1,
+          borderColor: withAlpha(tone, 0.28),
+          backgroundColor: withAlpha(tone, 0.09),
+          flexShrink: 0,
+        }}
+      >
+        <IconSymbol name={icon} size={18} color={tone} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={[styles.cardTitle, { color: colors.textPrimary, fontSize: 16, lineHeight: 20 }]}>
+          {title}
+        </Text>
+        <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 3, lineHeight: 17 }]}>
+          {body}
+        </Text>
+      </View>
     </View>
   );
 
@@ -774,14 +818,11 @@ export default function SettingsScreen() {
           ]}
         >
           <View style={[styles.cardTop, { alignItems: "center", gap: 12, marginBottom: 10 }]}>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
-                Theme
-              </Text>
-              <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 6 }]}>
-                Current: <Text style={{ fontWeight: "700" }}>{theme === "dark" ? "Dark mode" : "Light mode"}</Text>
-              </Text>
-            </View>
+            {renderSettingsCardHeader(
+              "moon.fill",
+              "Theme",
+              `${theme === "dark" ? "Dark" : "Light"} mode is selected`
+            )}
             <Pressable
               onPress={toggleTheme}
               accessibilityRole="switch"
@@ -808,25 +849,19 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        {renderSettingsSectionLabel("Notifications")}
         <View
           style={[
             styles.card,
             settingsFeatureSurface,
-            { marginTop: 16 },
           ]}
         >
-          <View style={[styles.cardTop, { alignItems: "flex-start", gap: 12, marginBottom: 10 }]}>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
-                Reminders
-              </Text>
-              <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 6 }]}>
-                Permission:{" "}
-                <Text style={{ color: reminderPermissionTone, fontWeight: "800" }}>
-                  {getReminderPermissionCopy(reminderPermission)}
-                </Text>
-              </Text>
-            </View>
+          <View style={[styles.cardTop, { alignItems: "center", gap: 12, marginBottom: 12 }]}>
+            {renderSettingsCardHeader(
+              "timer",
+              "Reminders",
+              "Plan your day and protect active Contracts"
+            )}
             <Pressable
               onPress={toggleReminderMaster}
               disabled={remindersSaving}
@@ -862,16 +897,34 @@ export default function SettingsScreen() {
               </Text>
             </Pressable>
           </View>
-          <Text style={[styles.questMeta, { color: colors.textSecondary }]}>
-            Local notifications for planning your day and protecting contracts.
-          </Text>
-          <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 6 }]}>
-            {reminderSettings.enabled
-              ? enabledReminderCount > 0
-                ? `${enabledReminderCount} reminder${enabledReminderCount === 1 ? "" : "s"} scheduled daily on this device.`
-                : "Reminders are enabled, but every reminder slot is turned off."
-              : "Slots are saved, but notifications stay paused until enabled."}
-          </Text>
+          <View
+            style={{
+              borderWidth: 1,
+              borderColor: settingsDividerColor,
+              borderRadius: 10,
+              backgroundColor: withAlpha(colors.bg, isLightTheme ? 0.35 : 0.28),
+              paddingHorizontal: 11,
+              paddingVertical: 10,
+              gap: 4,
+            }}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 7 }}>
+              <View style={{ width: 7, height: 7, borderRadius: 999, backgroundColor: reminderPermissionTone }} />
+              <Text style={[styles.questMeta, { color: colors.textSecondary, fontWeight: "800" }]}>
+                Device permission
+              </Text>
+              <Text style={[styles.questMeta, { color: reminderPermissionTone, fontWeight: "900", marginLeft: "auto" }]}>
+                {getReminderPermissionCopy(reminderPermission)}
+              </Text>
+            </View>
+            <Text style={[styles.questMeta, { color: colors.textSecondary, lineHeight: 17 }]}>
+              {reminderSettings.enabled
+                ? enabledReminderCount > 0
+                  ? `${enabledReminderCount} daily reminder${enabledReminderCount === 1 ? "" : "s"} active on this device.`
+                  : "Reminders are on, but every time slot is disabled."
+                : "Your times are saved. Turn reminders on when you are ready."}
+            </Text>
+          </View>
 
           <Pressable
             onPress={testReminderDelivery}
@@ -931,38 +984,14 @@ export default function SettingsScreen() {
             settingsCardSurface,
           ]}
         >
-          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
-            About
-          </Text>
-          <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 10 }]}>
-            Midnight v{getAppVersionCopy()}
-          </Text>
+          {renderSettingsCardHeader(
+            "sparkles",
+            "About Midnight",
+            `Version ${getAppVersionCopy()}`
+          )}
           <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 8 }]}>
             A daily discipline tracker focused on consistency, accountability, and measurable progress.
           </Text>
-          <Pressable
-            onPress={() => router.push({ pathname: "/onboarding", params: { replay: "1" } })}
-            accessibilityRole="button"
-            accessibilityLabel="Replay Midnight introduction"
-            style={({ pressed }) => [
-              {
-                alignSelf: "flex-start",
-                minHeight: 44,
-                marginTop: 12,
-                paddingHorizontal: 12,
-                borderRadius: 8,
-                borderWidth: 1,
-                borderColor: settingsGoldBorder,
-                alignItems: "center",
-                justifyContent: "center",
-                opacity: pressed ? 0.76 : 1,
-              },
-            ]}
-          >
-            <Text style={{ color: SETTINGS_ACCENT, fontWeight: "900", fontSize: 12 }}>
-              Replay introduction
-            </Text>
-          </Pressable>
         </View>
 
         {renderSettingsSectionLabel("Device data")}
@@ -972,18 +1001,37 @@ export default function SettingsScreen() {
             settingsCardSurface,
           ]}
         >
-          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
-            Data & privacy
-          </Text>
-          <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 10 }]}>
-            Midnight stores quests, stats, awards, reflections, archive, reminders, and theme settings on this device.
-          </Text>
-          <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 8 }]}>
-            This build does not use accounts, ads, analytics SDKs, or server sync.
-          </Text>
-          <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 8 }]}>
-            Backup export is manual. Anything you copy from the export box is controlled by you.
-          </Text>
+          {renderSettingsCardHeader(
+            "shield.fill",
+            "Data & privacy",
+            "Your Midnight data stays under your control"
+          )}
+          <View style={{ gap: 8, marginTop: 13 }}>
+            {[
+              "Quests, progress, notes, and settings stay on this device.",
+              "No account, ads, analytics SDK, or server sync.",
+              "Backups are manual and remain under your control.",
+            ].map((item) => (
+              <View key={item} style={{ flexDirection: "row", alignItems: "flex-start", gap: 9 }}>
+                <View
+                  style={{
+                    width: 18,
+                    height: 18,
+                    marginTop: 1,
+                    borderRadius: 6,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: withAlpha(SETTINGS_ACCENT, 0.1),
+                  }}
+                >
+                  <IconSymbol name="checkmark" size={12} color={SETTINGS_ACCENT} />
+                </View>
+                <Text style={[styles.questMeta, { flex: 1, color: colors.textSecondary, lineHeight: 18 }]}>
+                  {item}
+                </Text>
+              </View>
+            ))}
+          </View>
         </View>
 
         <View
@@ -993,15 +1041,12 @@ export default function SettingsScreen() {
             { marginTop: 16 },
           ]}
         >
-          <View style={styles.cardTop}>
-            <View>
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
-                Quest archive
-              </Text>
-              <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 6 }]}>
-                {archivedQuests.length} stored quest{archivedQuests.length === 1 ? "" : "s"}
-              </Text>
-            </View>
+          <View style={[styles.cardTop, { alignItems: "center", gap: 12, marginBottom: 10 }]}>
+            {renderSettingsCardHeader(
+              "archivebox.fill",
+              "Quest archive",
+              `${archivedQuests.length} stored quest${archivedQuests.length === 1 ? "" : "s"}`
+            )}
             {archivedQuests.length > 0 ? (
               <Pressable
                 onPress={confirmClearArchive}
@@ -1086,12 +1131,11 @@ export default function SettingsScreen() {
             { marginTop: 16 },
           ]}
         >
-          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
-            Data portability
-          </Text>
-          <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 8 }]}>
-            Export a JSON backup or import one to restore this device.
-          </Text>
+          {renderSettingsCardHeader(
+            "paperplane.fill",
+            "Backup & restore",
+            "Move your Midnight data with a JSON backup"
+          )}
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 12 }}>
             <Pressable
               onPress={generateExportPayload}
@@ -1207,8 +1251,15 @@ export default function SettingsScreen() {
             { borderColor: withAlpha(colors.negative, 0.38) },
           ]}
         >
-          <Text style={[styles.cardTitle, { color: colors.negative }]}>Reset profile</Text>
-          <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 8 }]}>Clear all quests and progress from this device and return to a new profile. Export a backup first if you may want this data later.</Text>
+          {renderSettingsCardHeader(
+            "trash.fill",
+            "Reset profile",
+            "Erase this device and return to a new profile",
+            colors.negative
+          )}
+          <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 10, lineHeight: 18 }]}>
+            This clears every quest and all progress. Export a backup first if you may want the data later.
+          </Text>
           <Pressable
             onPress={confirmResetProfile}
             disabled={profileResetting}
@@ -1246,8 +1297,11 @@ export default function SettingsScreen() {
                 settingsCardSurface,
               ]}
             >
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>Developer tools</Text>
-              <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 8 }]}>Run Midnight Evaluation without changing device date.</Text>
+              {renderSettingsCardHeader(
+                "gearshape.fill",
+                "Developer tools",
+                "Test evaluation behavior without changing device date"
+              )}
               <Pressable
                 onPress={simulateMidnightEvaluation}
                 accessibilityRole="button"

@@ -313,8 +313,8 @@ export const createStyles = (colors: ThemeColors) => {
     },
     todayScoreValue: {
       color: HOME_GOLD,
-      fontSize: 22,
-      lineHeight: 26,
+      fontSize: 20,
+      lineHeight: 24,
       fontWeight: "900",
     },
     todayScoreLabel: {

@@ -17,6 +17,12 @@ import {
   MIN_ONBOARDING_STARTERS,
   ONBOARDING_STARTER_IDS,
 } from "@/src/utils/onboarding";
+import {
+  PLAN_TOUR_ELIGIBLE_KEY,
+  PLAN_TOUR_STORAGE_KEY,
+  TODAY_TOUR_ELIGIBLE_KEY,
+  TODAY_TOUR_STORAGE_KEY,
+} from "@/src/components/GuidedSpotlightTour";
 import { updateStoredState } from "@/src/utils/storedState";
 import { useTheme } from "@/src/utils/themeContext";
 import { ONBOARDING_STORAGE_KEY } from "@/src/utils/types";
@@ -90,8 +96,16 @@ export default function OnboardingScreen() {
         );
       }
       await AsyncStorage.setItem(ONBOARDING_STORAGE_KEY, "true");
+      if (!isReplay) {
+        await AsyncStorage.multiRemove([
+          TODAY_TOUR_STORAGE_KEY,
+          PLAN_TOUR_STORAGE_KEY,
+          PLAN_TOUR_ELIGIBLE_KEY,
+        ]);
+        await AsyncStorage.setItem(TODAY_TOUR_ELIGIBLE_KEY, "true");
+      }
       if (isReplay && router.canGoBack()) router.back();
-      else router.replace("/(tabs)");
+      else router.replace({ pathname: "/(tabs)", params: { startTour: "1" } });
     } catch (error) {
       if (__DEV__) console.warn("Failed to finish onboarding:", error);
       Alert.alert(

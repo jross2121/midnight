@@ -7,6 +7,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CONTRACT_GOLD } from "@/src/styles";
 import { RankBadge } from "@/src/components/RankBadge";
+import { FixedPercent } from "@/src/components/FixedPercent";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
 import { ScreenLoading } from "@/src/components/ScreenLoading";
 import { mergeAchievements } from "@/src/utils/achievements";
@@ -361,7 +362,11 @@ export default function StatsScreen() {
           <View style={styles.progressBlock}>
             <View style={styles.progressHeader}>
               <Text style={styles.progressLabel}>Tier progress</Text>
-              <Text style={[styles.progressValue, { color: rankTone }]}>{rankProgressPercent}%</Text>
+              <FixedPercent
+                value={rankProgressPercent}
+                textStyle={[styles.progressValue, { color: rankTone }]}
+                accessibilityLabel={`${rankProgressPercent}% tier progress`}
+              />
             </View>
             <View style={styles.rankProgressTrack}>
               <View style={[styles.rankProgressFill, { width: `${rankProgressPercent}%`, backgroundColor: rankTone }]} />
