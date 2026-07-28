@@ -20,6 +20,7 @@ export type SpotlightStep = {
 };
 
 type TargetRect = { x: number; y: number; width: number; height: number };
+type OverlayFrame = TargetRect;
 
 export function GuidedSpotlightTour({
   visible,
@@ -35,41 +36,62 @@ export function GuidedSpotlightTour({
   const { colors } = useTheme();
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const overlayRef = React.useRef<View>(null);
   const [stepIndex, setStepIndex] = React.useState(0);
   const [target, setTarget] = React.useState<TargetRect | null>(null);
+  const [overlayFrame, setOverlayFrame] = React.useState<OverlayFrame | null>(null);
   const [cardHeight, setCardHeight] = React.useState(220);
   const step = steps[stepIndex];
+
+  const measureTarget = React.useCallback(() => {
+    const overlayNode = overlayRef.current;
+    const targetNode = step?.targetRef.current;
+    if (!overlayNode || !targetNode) {
+      setTarget(null);
+      return;
+    }
+
+    overlayNode.measureInWindow((overlayX, overlayY, measuredOverlayWidth, measuredOverlayHeight) => {
+      const overlayWidth = measuredOverlayWidth > 0 ? measuredOverlayWidth : width;
+      const overlayHeight = measuredOverlayHeight > 0 ? measuredOverlayHeight : height;
+      setOverlayFrame({
+        x: overlayX,
+        y: overlayY,
+        width: overlayWidth,
+        height: overlayHeight,
+      });
+
+      targetNode.measureInWindow((targetX, targetY, measuredWidth, measuredHeight) => {
+        const padding = 6;
+        const safeWidth = Math.min(measuredWidth + padding * 2, overlayWidth - 16);
+        const safeHeight = Math.min(measuredHeight + padding * 2, overlayHeight - 16);
+        const relativeX = targetX - overlayX - (safeWidth - measuredWidth) / 2;
+        const relativeY = targetY - overlayY - (safeHeight - measuredHeight) / 2;
+        const maximumX = Math.max(8, overlayWidth - safeWidth - 8);
+        const maximumY = Math.max(8, overlayHeight - safeHeight - 8);
+
+        setTarget({
+          x: Math.min(Math.max(8, relativeX), maximumX),
+          y: Math.min(Math.max(8, relativeY), maximumY),
+          width: safeWidth,
+          height: safeHeight,
+        });
+      });
+    });
+  }, [height, step, width]);
 
   React.useEffect(() => {
     if (!visible) {
       setStepIndex(0);
       setTarget(null);
+      setOverlayFrame(null);
       return;
     }
 
-    const timer = setTimeout(() => {
-      step?.targetRef.current?.measureInWindow((x, y, measuredWidth, measuredHeight) => {
-        const padding = 3;
-        const safeWidth = Math.min(measuredWidth + padding * 2, width - 16);
-        const safeX = Math.min(
-          Math.max(8, x - (safeWidth - measuredWidth) / 2),
-          width - safeWidth - 8
-        );
-        const safeHeight = Math.min(measuredHeight + padding * 2, height - 16);
-        const safeY = Math.min(
-          Math.max(8, y - (safeHeight - measuredHeight) / 2),
-          height - safeHeight - 8
-        );
-        setTarget({
-          x: safeX,
-          y: safeY,
-          width: safeWidth,
-          height: safeHeight,
-        });
-      });
-    }, 80);
+    setTarget(null);
+    const timer = setTimeout(measureTarget, 120);
     return () => clearTimeout(timer);
-  }, [height, step, visible, width]);
+  }, [measureTarget, visible]);
 
   React.useEffect(() => {
     if (visible) onStepChange?.(stepIndex);
@@ -77,13 +99,14 @@ export function GuidedSpotlightTour({
 
   if (!step) return null;
 
-  const targetBottom = target ? target.y + target.height : height * 0.42;
-  const showCardAbove = targetBottom > height * 0.61;
+  const viewportHeight = overlayFrame?.height ?? height;
+  const targetBottom = target ? target.y + target.height : viewportHeight * 0.42;
+  const showCardAbove = targetBottom > viewportHeight * 0.61;
   const desiredCardTop = showCardAbove
-    ? (target?.y ?? height * 0.58) - cardHeight - 20
+    ? (target?.y ?? viewportHeight * 0.58) - cardHeight - 20
     : targetBottom + 20;
   const minimumCardTop = insets.top + 10;
-  const maximumCardTop = Math.max(minimumCardTop, height - insets.bottom - cardHeight - 10);
+  const maximumCardTop = Math.max(minimumCardTop, viewportHeight - insets.bottom - cardHeight - 10);
   const cardTop = Math.min(Math.max(desiredCardTop, minimumCardTop), maximumCardTop);
   const shade = "rgba(0, 4, 10, 0.82)";
 
@@ -93,8 +116,22 @@ export function GuidedSpotlightTour({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={finish}>
-      <View style={styles.root}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      navigationBarTranslucent
+      onRequestClose={finish}
+    >
+      <View
+        ref={overlayRef}
+        collapsable={false}
+        onLayout={() => {
+          if (visible) requestAnimationFrame(measureTarget);
+        }}
+        style={styles.root}
+      >
         {target ? (
           <>
             <View style={[styles.shade, { backgroundColor: shade, left: 0, right: 0, top: 0, height: target.y }]} />
