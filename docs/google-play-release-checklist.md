@@ -4,8 +4,8 @@
 
 - App name: Midnight
 - Android package: `com.jacobross.midnight`
-- Version: `1.0.0`
-- Version code: `1`
+- Version: `1.0.2`
+- Version code: `3`
 - App category: Productivity or Lifestyle
 - Release source of truth: managed Expo/EAS using `app.json` and `eas.json`
 
@@ -37,18 +37,19 @@ The local `android/` folder is generated/native output and is ignored by git. Us
 
 ## Release Checks
 
-- `npm.cmd run typecheck`
-- `npm.cmd run lint`
 - `npm.cmd run check`
+- `npx.cmd expo-doctor`
 - Complete the current phone pass in `docs/phase-6-qa.md`.
-- Confirm the submitted Android build targets Android 15 / API level 35 or higher.
+- Confirm the submitted Android build targets Android 16 / API level 36 or higher. Expo SDK 54 currently targets API 36.
 - For the managed EAS release path, do not rely on the ignored local `android/` folder as the release source.
 - If switching to a committed native workflow later, regenerate/commit `android/`, configure production signing, then run `cd android && .\gradlew.bat :app:processReleaseManifest :app:compileReleaseKotlin --console=plain --no-daemon`.
 - `eas build --platform android --profile preview`
 - `eas build --platform android --profile production`
 - Upload the internal/closed testing build first and review Play Console warnings before production.
 - Test fresh install.
+- Test an upgrade over a profile with existing data.
 - Test backup export/import.
+- Test Copy backup, Share backup, the raw backup preview, and Restore on a physical phone.
 - Confirm backup export/import preserves reminder preferences.
 - Test importing a backup into an install that already has local progress, and confirm the replacement warning is clear.
 - Test archive restore/clear.

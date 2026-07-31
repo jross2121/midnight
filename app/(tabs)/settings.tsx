@@ -1,9 +1,10 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
+import * as Clipboard from "expo-clipboard";
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
-import { Alert, Image, Linking, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Alert, Image, Linking, Pressable, ScrollView, Share, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { ScreenHeader } from "@/src/components/ScreenHeader";
@@ -97,6 +98,8 @@ export default function SettingsScreen() {
   const styles = createStyles(colors);
   const [archivedQuests, setArchivedQuests] = useState<ArchivedQuest[]>([]);
   const [exportPayload, setExportPayload] = useState("");
+  const [exportCreatedAt, setExportCreatedAt] = useState<string | null>(null);
+  const [showExportText, setShowExportText] = useState(false);
   const [importPayload, setImportPayload] = useState("");
   const [showImportBox, setShowImportBox] = useState(false);
   const [reminderSettings, setReminderSettings] =
@@ -484,9 +487,10 @@ export default function SettingsScreen() {
       ]);
       const savedReminders = await loadReminderSettings();
 
+      const exportedAt = new Date().toISOString();
       const payload: DataExportPayload = {
         version: 1,
-        exportedAt: new Date().toISOString(),
+        exportedAt,
         storageKey: STORAGE_KEY,
         state: savedState,
         evaluationHistory,
@@ -495,10 +499,44 @@ export default function SettingsScreen() {
       };
 
       setExportPayload(JSON.stringify(payload, null, 2));
-      Alert.alert("Export ready", "Your backup JSON is ready in the export box.");
+      setExportCreatedAt(exportedAt);
+      setShowExportText(false);
+      Alert.alert(
+        "Backup created",
+        "Your backup is ready. Copy or share it now so it is saved somewhere outside Midnight."
+      );
     } catch (error) {
       if (__DEV__) console.warn("Failed to generate export payload:", error);
-      Alert.alert("Export failed", "Could not build a clean backup from saved app data.");
+      Alert.alert("Backup failed", "Could not build a clean backup from saved app data.");
+    }
+  };
+
+  const copyExportPayload = async () => {
+    if (!exportPayload) return;
+
+    try {
+      await Clipboard.setStringAsync(exportPayload);
+      Alert.alert(
+        "Backup copied",
+        "Paste it into a note, document, email draft, or another safe place outside Midnight."
+      );
+    } catch (error) {
+      if (__DEV__) console.warn("Failed to copy export payload:", error);
+      Alert.alert("Copy failed", "Could not copy the backup. Use Share backup or view the backup text instead.");
+    }
+  };
+
+  const shareExportPayload = async () => {
+    if (!exportPayload) return;
+
+    try {
+      await Share.share({
+        title: `Midnight backup - ${localDateKey()}`,
+        message: exportPayload,
+      });
+    } catch (error) {
+      if (__DEV__) console.warn("Failed to share export payload:", error);
+      Alert.alert("Share failed", "Could not open the share menu. Try Copy backup instead.");
     }
   };
 
@@ -577,6 +615,8 @@ export default function SettingsScreen() {
       setImportPayload("");
       setShowImportBox(false);
       setExportPayload("");
+      setExportCreatedAt(null);
+      setShowExportText(false);
       await loadArchive();
     } catch (error) {
       if (__DEV__) console.warn("Profile imported but Settings could not refresh:", error);
@@ -1134,13 +1174,31 @@ export default function SettingsScreen() {
           {renderSettingsCardHeader(
             "paperplane.fill",
             "Backup & restore",
-            "Move your Midnight data with a JSON backup"
+            "Protect your progress before resetting or changing phones"
           )}
+          <View
+            style={{
+              marginTop: 12,
+              padding: 12,
+              borderWidth: 1,
+              borderColor: withAlpha(SETTINGS_ACCENT, 0.28),
+              borderRadius: 10,
+              backgroundColor: withAlpha(SETTINGS_ACCENT, 0.07),
+              flexDirection: "row",
+              alignItems: "flex-start",
+              gap: 10,
+            }}
+          >
+            <IconSymbol name="shield.fill" size={17} color={SETTINGS_ACCENT} />
+            <Text style={[styles.questMeta, { flex: 1, color: colors.textSecondary, lineHeight: 18 }]}>
+              A backup is not saved automatically. Create one, then copy or share it somewhere outside Midnight.
+            </Text>
+          </View>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 12 }}>
             <Pressable
               onPress={generateExportPayload}
               accessibilityRole="button"
-              accessibilityLabel="Generate export backup"
+              accessibilityLabel={exportPayload ? "Create a new backup" : "Create backup"}
               style={({ pressed }) => [
                 {
                   backgroundColor: SETTINGS_ACCENT,
@@ -1154,21 +1212,17 @@ export default function SettingsScreen() {
               ]}
             >
               <Text style={{ color: SETTINGS_BUTTON_TEXT, fontWeight: "900", fontSize: 12 }}>
-                Generate export
+                {exportPayload ? "Create new backup" : "Create backup"}
               </Text>
             </Pressable>
             <Pressable
               onPress={() => {
-                if (!importFieldVisible) {
-                  setShowImportBox(true);
-                  return;
-                }
-                confirmImportData();
+                setShowImportBox((current) => !current);
+                if (importFieldVisible) setImportPayload("");
               }}
-              disabled={importButtonDisabled}
               accessibilityRole="button"
-              accessibilityLabel="Import backup"
-              accessibilityState={{ disabled: importButtonDisabled }}
+              accessibilityLabel={importFieldVisible ? "Cancel restoring backup" : "Restore a backup"}
+              accessibilityState={{ expanded: importFieldVisible }}
               style={({ pressed }) => [
                 {
                   borderWidth: 1,
@@ -1178,68 +1232,217 @@ export default function SettingsScreen() {
                   paddingHorizontal: 14,
                   minHeight: 44,
                   justifyContent: "center",
-                  opacity: importButtonDisabled ? 0.46 : pressed ? 0.75 : 1,
+                  opacity: pressed ? 0.75 : 1,
                 },
               ]}
             >
               <Text style={{ color: SETTINGS_ACCENT, fontWeight: "900", fontSize: 12 }}>
-                {importFieldVisible ? "Import backup" : "Paste import"}
+                {importFieldVisible ? "Cancel restore" : "Restore backup"}
               </Text>
             </Pressable>
           </View>
           {exportPayload ? (
-            <TextInput
-              value={exportPayload}
-              onChangeText={setExportPayload}
-              placeholder="Generated export appears here"
-              placeholderTextColor={colors.textSecondary}
-              multiline
-              textAlignVertical="top"
-              autoCapitalize="none"
-              autoCorrect={false}
-              accessibilityLabel="Generated backup JSON"
+            <View
               style={{
-                minHeight: 118,
                 marginTop: 12,
                 borderWidth: 1,
-                borderColor: settingsInputSurface.borderColor,
-                borderRadius: 8,
-                paddingHorizontal: 10,
-                paddingVertical: 9,
-                color: colors.textPrimary,
-                backgroundColor: settingsInputSurface.backgroundColor,
-                fontSize: 12,
-                lineHeight: 16,
-                fontFamily: "monospace",
+                borderColor: withAlpha(colors.positive, 0.38),
+                borderRadius: 10,
+                padding: 12,
+                backgroundColor: withAlpha(colors.positive, 0.07),
+                gap: 11,
               }}
-            />
+            >
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 9 }}>
+                <IconSymbol name="checkmark.circle.fill" size={20} color={colors.positive} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.cardTitle, { color: colors.textPrimary, fontSize: 14 }]}>
+                    Backup ready
+                  </Text>
+                  <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 2 }]}>
+                    {exportCreatedAt
+                      ? `Created ${new Date(exportCreatedAt).toLocaleString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}`
+                      : "Created just now"}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 9 }}>
+                <Pressable
+                  onPress={copyExportPayload}
+                  accessibilityRole="button"
+                  accessibilityLabel="Copy backup to clipboard"
+                  style={({ pressed }) => [
+                    {
+                      minHeight: 44,
+                      paddingHorizontal: 13,
+                      borderRadius: 8,
+                      backgroundColor: SETTINGS_ACCENT,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 7,
+                      opacity: pressed ? 0.8 : 1,
+                    },
+                  ]}
+                >
+                  <IconSymbol name="doc.on.doc" size={15} color={SETTINGS_BUTTON_TEXT} />
+                  <Text style={{ color: SETTINGS_BUTTON_TEXT, fontWeight: "900", fontSize: 12 }}>
+                    Copy backup
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={shareExportPayload}
+                  accessibilityRole="button"
+                  accessibilityLabel="Share backup"
+                  style={({ pressed }) => [
+                    {
+                      minHeight: 44,
+                      paddingHorizontal: 13,
+                      borderRadius: 8,
+                      borderWidth: 1,
+                      borderColor: settingsGoldBorder,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 7,
+                      opacity: pressed ? 0.74 : 1,
+                    },
+                  ]}
+                >
+                  <IconSymbol name="square.and.arrow.up" size={16} color={SETTINGS_ACCENT} />
+                  <Text style={{ color: SETTINGS_ACCENT, fontWeight: "900", fontSize: 12 }}>
+                    Share backup
+                  </Text>
+                </Pressable>
+              </View>
+
+              <Text style={[styles.questMeta, { color: colors.textSecondary, lineHeight: 18 }]}>
+                Save it in Notes, Files, an email draft, or another private place you can access later.
+              </Text>
+
+              <Pressable
+                onPress={() => setShowExportText((current) => !current)}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: showExportText }}
+                style={({ pressed }) => [
+                  {
+                    alignSelf: "flex-start",
+                    minHeight: 38,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 4,
+                    opacity: pressed ? 0.72 : 1,
+                  },
+                ]}
+              >
+                <Text style={{ color: colors.textSecondary, fontSize: 11, fontWeight: "800" }}>
+                  {showExportText ? "Hide backup text" : "View backup text"}
+                </Text>
+                <IconSymbol
+                  name={showExportText ? "chevron.up" : "chevron.down"}
+                  size={16}
+                  color={colors.textSecondary}
+                />
+              </Pressable>
+
+              {showExportText ? (
+                <TextInput
+                  value={exportPayload}
+                  editable={false}
+                  selectTextOnFocus
+                  multiline
+                  textAlignVertical="top"
+                  accessibilityLabel="Generated backup JSON"
+                  style={{
+                    minHeight: 118,
+                    borderWidth: 1,
+                    borderColor: settingsInputSurface.borderColor,
+                    borderRadius: 8,
+                    paddingHorizontal: 10,
+                    paddingVertical: 9,
+                    color: colors.textPrimary,
+                    backgroundColor: settingsInputSurface.backgroundColor,
+                    fontSize: 12,
+                    lineHeight: 16,
+                    fontFamily: "monospace",
+                  }}
+                />
+              ) : null}
+            </View>
           ) : null}
           {importFieldVisible ? (
-            <TextInput
-              value={importPayload}
-              onChangeText={setImportPayload}
-              placeholder="Paste backup JSON to import"
-              placeholderTextColor={colors.textSecondary}
-              multiline
-              textAlignVertical="top"
-              autoCapitalize="none"
-              autoCorrect={false}
-              accessibilityLabel="Backup JSON to import"
+            <View
               style={{
-                minHeight: 118,
-                marginTop: 10,
+                marginTop: 12,
                 borderWidth: 1,
-                borderColor: settingsInputSurface.borderColor,
-                borderRadius: 8,
-                paddingHorizontal: 10,
-                paddingVertical: 9,
-                color: colors.textPrimary,
-                backgroundColor: settingsInputSurface.backgroundColor,
-                fontSize: 12,
-                lineHeight: 16,
-                fontFamily: "monospace",
+                borderColor: settingsGoldBorder,
+                borderRadius: 10,
+                padding: 12,
+                backgroundColor: withAlpha(colors.surface, 0.42),
               }}
-            />
+            >
+              <Text style={[styles.cardTitle, { color: colors.textPrimary, fontSize: 14 }]}>
+                Restore a saved backup
+              </Text>
+              <Text style={[styles.questMeta, { color: colors.textSecondary, marginTop: 4, lineHeight: 18 }]}>
+                Paste the complete backup text below. Restoring replaces the profile currently on this device.
+              </Text>
+              <TextInput
+                value={importPayload}
+                onChangeText={setImportPayload}
+                placeholder="Paste your Midnight backup here"
+                placeholderTextColor={colors.textSecondary}
+                multiline
+                textAlignVertical="top"
+                autoCapitalize="none"
+                autoCorrect={false}
+                accessibilityLabel="Backup JSON to restore"
+                style={{
+                  minHeight: 118,
+                  marginTop: 10,
+                  borderWidth: 1,
+                  borderColor: settingsInputSurface.borderColor,
+                  borderRadius: 8,
+                  paddingHorizontal: 10,
+                  paddingVertical: 9,
+                  color: colors.textPrimary,
+                  backgroundColor: settingsInputSurface.backgroundColor,
+                  fontSize: 12,
+                  lineHeight: 16,
+                  fontFamily: "monospace",
+                }}
+              />
+              <Pressable
+                onPress={confirmImportData}
+                disabled={importButtonDisabled}
+                accessibilityRole="button"
+                accessibilityLabel="Restore this backup"
+                accessibilityState={{ disabled: importButtonDisabled }}
+                style={({ pressed }) => [
+                  {
+                    alignSelf: "flex-start",
+                    minHeight: 44,
+                    marginTop: 10,
+                    paddingHorizontal: 14,
+                    borderRadius: 8,
+                    backgroundColor: SETTINGS_ACCENT,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    opacity: importButtonDisabled ? 0.42 : pressed ? 0.8 : 1,
+                  },
+                ]}
+              >
+                <Text style={{ color: SETTINGS_BUTTON_TEXT, fontWeight: "900", fontSize: 12 }}>
+                  Restore this backup
+                </Text>
+              </Pressable>
+            </View>
           ) : null}
         </View>
 

@@ -6,10 +6,10 @@ This is the current handoff for the full app journey. Automated checks cover the
 
 - [x] TypeScript compilation passes.
 - [x] Expo lint passes.
-- [x] Logic tests cover 18 daily-lifecycle and safety scenarios.
-- [x] Expo SDK 54 dependency compatibility check passes with the expected patch versions.
+- [x] Logic tests cover 21 daily-lifecycle and safety scenarios.
+- [x] Expo Doctor passes all 18 current project checks.
 - [x] Metro and Hermes complete an Android production export (1,609 modules; 4.67 MB bytecode bundle in this validation run).
-- [x] Non-breaking dependency updates removed all critical and high npm advisories. Fifteen moderate Expo 54 build-tool advisories remain; npm requires a breaking SDK 57 upgrade to clear the full chain.
+- [x] Dependency advisories have been reviewed. Current npm results are concentrated in the Expo/React Native tooling tree; clearing the full chain requires a controlled Expo SDK upgrade, not an unreviewed `npm audit fix --force`.
 - [x] Future-dated reset metadata is normalized so a restored profile cannot stall rollover.
 - [x] Unsupported notification routes are rejected, and valid reminder taps cannot bypass onboarding.
 - [x] Quest completion is idempotent; same-day undo reverses its receipt-based rewards.
@@ -21,7 +21,7 @@ This is the current handoff for the full app journey. Automated checks cover the
 
 - [ ] A fresh install opens the two-step introduction and creates only the selected starter quests.
 - [ ] Force-close and reopen after onboarding; the app opens Today without replaying setup.
-- [ ] Replay the introduction from Settings; existing quests and progress remain unchanged.
+- [ ] Reset Profile after exporting a backup; onboarding and the Today/Plan tutorials appear for the new profile.
 - [ ] Reset Profile, then tap a previously scheduled notification; onboarding opens instead of Today or Plan.
 - [ ] Deny or interrupt storage during onboarding if the test device permits it; setup stays on screen with a retry message.
 
@@ -49,6 +49,7 @@ This is the current handoff for the full app journey. Automated checks cover the
 ## Backups And Reminders
 
 - [ ] Generate a backup, copy it outside the app, change the profile, then import it and verify quests, XP, DR, Awards, archive, reflections, Recovery Days, and history.
+- [ ] Verify Copy backup, Share backup, raw backup preview, and Restore on a physical phone.
 - [ ] Import malformed JSON and an unsupported backup version; existing data remains unchanged.
 - [ ] Import a full backup with notifications denied; profile data restores and reminders clearly remain paused.
 - [ ] Enable and disable each reminder slot and change every time across midnight and noon boundaries.
@@ -67,4 +68,4 @@ This is the current handoff for the full app journey. Automated checks cover the
 
 ## Environment Note
 
-No Android device was connected during Phase 6, so notification delivery, tap routing, TalkBack, app backgrounding, and true wall-clock midnight behavior require the phone pass above.
+Automated validation does not replace the Samsung S24 phone pass. Notification delivery, tap routing, TalkBack, app backgrounding, tutorial geometry, native sharing, and true wall-clock midnight behavior require the physical-device checks above.
