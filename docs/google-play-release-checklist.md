@@ -4,8 +4,8 @@
 
 - App name: Midnight
 - Android package: `com.jacobross.midnight`
-- Version: `1.0.2`
-- Version code: `3`
+- Version: `1.0.3`
+- Version code: `4`
 - App category: Productivity or Lifestyle
 - Release source of truth: managed Expo/EAS using `app.json` and `eas.json`
 

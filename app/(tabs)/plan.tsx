@@ -757,6 +757,7 @@ export default function PlanScreen() {
   const planSwitchTourRef = useRef<View>(null);
   const quickAddTourRef = useRef<View>(null);
   const libraryTourRef = useRef<View>(null);
+  const guidedTourRootRef = useRef<View>(null);
   const planTourSteps = useMemo<SpotlightStep[]>(
     () => [
       {
@@ -1332,7 +1333,7 @@ export default function PlanScreen() {
   }
 
   return (
-    <SafeAreaView edges={["top"]} style={styles.safe}>
+    <SafeAreaView ref={guidedTourRootRef} collapsable={false} edges={["top"]} style={styles.safe}>
       <ScrollView ref={scrollRef} contentContainerStyle={styles.container}>
         <ScreenHeader title="Plan" subtitle="Choose what shows up each day" icon="calendar" accent={PLAN_TONES.gold} />
 
@@ -1670,6 +1671,7 @@ export default function PlanScreen() {
       <GuidedSpotlightTour
         visible={showGuidedTour}
         steps={planTourSteps}
+        coordinateRootRef={guidedTourRootRef}
         onStepChange={handlePlanTourStepChange}
         onFinish={finishGuidedTour}
       />

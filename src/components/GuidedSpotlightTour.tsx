@@ -1,5 +1,5 @@
 import React from "react";
-import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { HOME_GOLD } from "@/src/styles";
@@ -20,16 +20,18 @@ export type SpotlightStep = {
 };
 
 type TargetRect = { x: number; y: number; width: number; height: number };
-type OverlayFrame = TargetRect;
+type OverlaySize = { width: number; height: number };
 
 export function GuidedSpotlightTour({
   visible,
   steps,
+  coordinateRootRef,
   onFinish,
   onStepChange,
 }: {
   visible: boolean;
   steps: SpotlightStep[];
+  coordinateRootRef: TargetRef;
   onFinish: () => void;
   onStepChange?: (stepIndex: number) => void;
 }) {
@@ -39,34 +41,28 @@ export function GuidedSpotlightTour({
   const overlayRef = React.useRef<View>(null);
   const [stepIndex, setStepIndex] = React.useState(0);
   const [target, setTarget] = React.useState<TargetRect | null>(null);
-  const [overlayFrame, setOverlayFrame] = React.useState<OverlayFrame | null>(null);
+  const [overlaySize, setOverlaySize] = React.useState<OverlaySize | null>(null);
   const [cardHeight, setCardHeight] = React.useState(220);
   const step = steps[stepIndex];
 
   const measureTarget = React.useCallback(() => {
-    const overlayNode = overlayRef.current;
+    const coordinateRootNode = coordinateRootRef.current;
     const targetNode = step?.targetRef.current;
-    if (!overlayNode || !targetNode) {
+    if (!coordinateRootNode || !targetNode) {
       setTarget(null);
       return;
     }
 
-    overlayNode.measureInWindow((overlayX, overlayY, measuredOverlayWidth, measuredOverlayHeight) => {
-      const overlayWidth = measuredOverlayWidth > 0 ? measuredOverlayWidth : width;
-      const overlayHeight = measuredOverlayHeight > 0 ? measuredOverlayHeight : height;
-      setOverlayFrame({
-        x: overlayX,
-        y: overlayY,
-        width: overlayWidth,
-        height: overlayHeight,
-      });
-
-      targetNode.measureInWindow((targetX, targetY, measuredWidth, measuredHeight) => {
+    const overlayWidth = overlaySize?.width ?? width;
+    const overlayHeight = overlaySize?.height ?? height;
+    targetNode.measureLayout(
+      coordinateRootNode,
+      (targetX, targetY, measuredWidth, measuredHeight) => {
         const padding = 6;
         const safeWidth = Math.min(measuredWidth + padding * 2, overlayWidth - 16);
         const safeHeight = Math.min(measuredHeight + padding * 2, overlayHeight - 16);
-        const relativeX = targetX - overlayX - (safeWidth - measuredWidth) / 2;
-        const relativeY = targetY - overlayY - (safeHeight - measuredHeight) / 2;
+        const relativeX = targetX - (safeWidth - measuredWidth) / 2;
+        const relativeY = targetY - (safeHeight - measuredHeight) / 2;
         const maximumX = Math.max(8, overlayWidth - safeWidth - 8);
         const maximumY = Math.max(8, overlayHeight - safeHeight - 8);
 
@@ -76,30 +72,31 @@ export function GuidedSpotlightTour({
           width: safeWidth,
           height: safeHeight,
         });
-      });
-    });
-  }, [height, step, width]);
+      },
+      () => setTarget(null)
+    );
+  }, [coordinateRootRef, height, overlaySize, step, width]);
 
   React.useEffect(() => {
     if (!visible) {
       setStepIndex(0);
       setTarget(null);
-      setOverlayFrame(null);
+      setOverlaySize(null);
       return;
     }
 
     setTarget(null);
-    const timer = setTimeout(measureTarget, 120);
-    return () => clearTimeout(timer);
+    const timers = [80, 180, 320].map((delay) => setTimeout(measureTarget, delay));
+    return () => timers.forEach(clearTimeout);
   }, [measureTarget, visible]);
 
   React.useEffect(() => {
     if (visible) onStepChange?.(stepIndex);
   }, [onStepChange, stepIndex, visible]);
 
-  if (!step) return null;
+  if (!visible || !step) return null;
 
-  const viewportHeight = overlayFrame?.height ?? height;
+  const viewportHeight = overlaySize?.height ?? height;
   const targetBottom = target ? target.y + target.height : viewportHeight * 0.42;
   const showCardAbove = targetBottom > viewportHeight * 0.61;
   const desiredCardTop = showCardAbove
@@ -116,71 +113,73 @@ export function GuidedSpotlightTour({
   };
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      statusBarTranslucent
-      navigationBarTranslucent
-      onRequestClose={finish}
+    <View
+      ref={overlayRef}
+      collapsable={false}
+      pointerEvents="box-none"
+      onLayout={(event) => {
+        const { width: measuredWidth, height: measuredHeight } = event.nativeEvent.layout;
+        setOverlaySize((current) =>
+          current?.width === measuredWidth && current.height === measuredHeight
+            ? current
+            : { width: measuredWidth, height: measuredHeight }
+        );
+        requestAnimationFrame(measureTarget);
+      }}
+      style={styles.root}
     >
-      <View
-        ref={overlayRef}
-        collapsable={false}
-        onLayout={() => {
-          if (visible) requestAnimationFrame(measureTarget);
-        }}
-        style={styles.root}
-      >
-        {target ? (
-          <>
-            <View style={[styles.shade, { backgroundColor: shade, left: 0, right: 0, top: 0, height: target.y }]} />
-            <View style={[styles.shade, { backgroundColor: shade, left: 0, top: target.y, width: target.x, height: target.height }]} />
-            <View style={[styles.shade, { backgroundColor: shade, left: target.x + target.width, right: 0, top: target.y, height: target.height }]} />
-            <View style={[styles.shade, { backgroundColor: shade, left: 0, right: 0, top: targetBottom, bottom: 0 }]} />
-          </>
-        ) : (
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: shade }]} />
-        )}
+      {target ? (
+        <>
+          <View style={[styles.shade, { backgroundColor: shade, left: 0, right: 0, top: 0, height: target.y }]} />
+          <View style={[styles.shade, { backgroundColor: shade, left: 0, top: target.y, width: target.x, height: target.height }]} />
+          <View style={[styles.shade, { backgroundColor: shade, left: target.x + target.width, right: 0, top: target.y, height: target.height }]} />
+          <View style={[styles.shade, { backgroundColor: shade, left: 0, right: 0, top: targetBottom, bottom: 0 }]} />
+        </>
+      ) : (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: shade }]} />
+      )}
 
-        <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-          <View
-            onLayout={(event) => setCardHeight(event.nativeEvent.layout.height)}
-            style={[
-              styles.card,
-              { top: cardTop, backgroundColor: colors.surface2, borderColor: withAlpha(HOME_GOLD, 0.5) },
-            ]}
-          >
-            <Text style={[styles.arrow, showCardAbove ? styles.arrowBelow : styles.arrowAbove]}>
-              {showCardAbove ? "↓" : "↑"}
-            </Text>
-            <Text style={styles.stepLabel}>STEP {stepIndex + 1} OF {steps.length}</Text>
-            <Text style={[styles.title, { color: colors.textPrimary }]}>{step.title}</Text>
-            <Text style={[styles.body, { color: colors.textSecondary }]}>{step.body}</Text>
-            <View style={styles.actions}>
-              <Pressable onPress={finish} accessibilityRole="button" style={styles.skipButton}>
-                <Text style={[styles.skipText, { color: colors.textSecondary }]}>Skip tour</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  if (stepIndex === steps.length - 1) finish();
-                  else setStepIndex((current) => current + 1);
-                }}
-                accessibilityRole="button"
-                style={({ pressed }) => [styles.nextButton, pressed && { opacity: 0.78 }]}
-              >
-                <Text style={styles.nextText}>{stepIndex === steps.length - 1 ? "Got it" : "Next"}</Text>
-              </Pressable>
-            </View>
+      <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+        <View
+          onLayout={(event) => setCardHeight(event.nativeEvent.layout.height)}
+          style={[
+            styles.card,
+            { top: cardTop, backgroundColor: colors.surface2, borderColor: withAlpha(HOME_GOLD, 0.5) },
+          ]}
+        >
+          <Text style={[styles.arrow, showCardAbove ? styles.arrowBelow : styles.arrowAbove]}>
+            {showCardAbove ? "↓" : "↑"}
+          </Text>
+          <Text style={styles.stepLabel}>STEP {stepIndex + 1} OF {steps.length}</Text>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>{step.title}</Text>
+          <Text style={[styles.body, { color: colors.textSecondary }]}>{step.body}</Text>
+          <View style={styles.actions}>
+            <Pressable onPress={finish} accessibilityRole="button" style={styles.skipButton}>
+              <Text style={[styles.skipText, { color: colors.textSecondary }]}>Skip tour</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                if (stepIndex === steps.length - 1) finish();
+                else setStepIndex((current) => current + 1);
+              }}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.nextButton, pressed && { opacity: 0.78 }]}
+            >
+              <Text style={styles.nextText}>{stepIndex === steps.length - 1 ? "Got it" : "Next"}</Text>
+            </Pressable>
           </View>
         </View>
       </View>
-    </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
+  root: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1000,
+    elevation: 1000,
+  },
   shade: { position: "absolute" },
   card: {
     position: "absolute",

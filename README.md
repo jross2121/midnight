@@ -41,7 +41,7 @@ npm run check
 ## Android Release Notes
 
 The Android package is currently `com.jacobross.midnight`. The current preview
-release is version `1.0.2` with Android version code `3`.
+release candidate is version `1.0.3` with Android version code `4`.
 Change this package before the first Google Play upload if you want a different
 permanent app ID.
 

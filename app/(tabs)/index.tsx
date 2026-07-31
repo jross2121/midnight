@@ -206,6 +206,7 @@ export default function HomeScreen() {
   const progressTourRef = useRef<View>(null);
   const addQuestTourRef = useRef<View>(null);
   const questBoardTourRef = useRef<View>(null);
+  const guidedTourRootRef = useRef<View>(null);
   const [showDevActions, setShowDevActions] = useState(false);
   const [countdownToMidnight, setCountdownToMidnight] = useState(() => getCountdownToMidnight());
 
@@ -1405,7 +1406,7 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.bg }]}>
+    <View ref={guidedTourRootRef} collapsable={false} style={[styles.screen, { backgroundColor: colors.bg }]}>
       <SafeAreaView edges={["top"]} style={[styles.safe, { backgroundColor: "transparent" }]}>
         <KeyboardAvoidingView
           style={styles.keyboardAvoiding}
@@ -1890,6 +1891,7 @@ export default function HomeScreen() {
       <GuidedSpotlightTour
         visible={showGuidedTour}
         steps={guidedTourSteps}
+        coordinateRootRef={guidedTourRootRef}
         onFinish={finishGuidedTour}
       />
     </View>
